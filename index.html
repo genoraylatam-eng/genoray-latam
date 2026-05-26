@@ -250,7 +250,11 @@ tr:hover td{background:var(--g50)}
       <span id="page-title">Dashboard</span>
       <span class="tbadge" id="yr-badge">2026</span>
     </div>
-    <span style="font-size:12px;color:var(--g400)">● Connected</span>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:12px;color:var(--g400)">● Connected</span>
+      <span style="font-size:12px;color:var(--g500);font-weight:500" id="logged-in-user"></span>
+      <button class="btn btn-secondary btn-sm" onclick="doLogout()" style="font-size:12px">🚪 Logout</button>
+    </div>
   </div>
   <div id="content">
 
@@ -581,17 +585,24 @@ function formatPayTermDisplay(raw) {
 }
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
-const USERS={'mitchel':'genoray2026','admin':'genoray2026','latam':'latam2026','chris':'genoray2026'};
+const USERS={'chris':'Latam@2026','weverson':'Latam@450','admin':'genoray2026'};
 function doLogin(){
   const u=document.getElementById('lu').value.trim().toLowerCase();
   const p=document.getElementById('lp').value;
   const e=document.getElementById('lerr');
   if(USERS[u]&&USERS[u]===p){
     document.getElementById('login-screen').classList.add('hidden');
-    sessionStorage.setItem('gl_auth',u);e.textContent='';init();
+    sessionStorage.setItem('gl_auth',u);
+    document.getElementById('logged-in-user').textContent='👤 '+u;
+    e.textContent='';
+    resetTimer();
+    init();
   }else{e.textContent='Incorrect username or password.';document.getElementById('lp').value='';}
 }
-if(sessionStorage.getItem('gl_auth'))document.getElementById('login-screen').classList.add('hidden');
+if(sessionStorage.getItem('gl_auth')){
+  document.getElementById('login-screen').classList.add('hidden');
+  resetTimer();
+}
 
 // ── STATE ────────────────────────────────────────────────────────────────────
 let activePage='dashboard',formState={table:'',id:null,page:''},cache={},masterCache={distributors:[],products:[]};
@@ -1350,7 +1361,31 @@ function toast(msg,type='ok'){
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
+function doLogout(auto=false){
+  if(!auto&&!confirm('Log out?'))return;
+  sessionStorage.removeItem('gl_auth');
+  clearTimeout(window._autoLogoutTimer);
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('lu').value='';
+  document.getElementById('lp').value='';
+  document.getElementById('logged-in-user').textContent='';
+  if(auto)toast('Session expired. Please log in again.','err');
+}
+
+// ── AUTO LOGOUT (60 min inactivity) ──────────────────────────────────────────
+const AUTO_LOGOUT_MS = 60 * 60 * 1000; // 60 minutes
+function resetTimer(){
+  clearTimeout(window._autoLogoutTimer);
+  if(!sessionStorage.getItem('gl_auth'))return;
+  window._autoLogoutTimer=setTimeout(()=>doLogout(true), AUTO_LOGOUT_MS);
+}
+['click','keydown','mousemove','touchstart','scroll'].forEach(evt=>
+  document.addEventListener(evt, resetTimer, {passive:true})
+);
+
 async function init(){
+  const user=sessionStorage.getItem('gl_auth')||'';
+  document.getElementById('logged-in-user').textContent=user?'👤 '+user:'';
   document.getElementById('yr-badge').textContent=new Date().getFullYear();
   const[{data:dists},{data:prods}]=await Promise.all([
     sb.from('distributors').select('*').order('company_name'),
