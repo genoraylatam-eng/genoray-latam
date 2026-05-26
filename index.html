@@ -642,11 +642,17 @@ function makeAC(inp,data,labelFn,onSelect){
 }
 
 // ── PI FORM ───────────────────────────────────────────────────────────────────
-const PAYMENT_OPTS=[
-  '100% TT before shipment','30% + 70% BL','50% + 50% BL',
-  '50/50 (90d B/L)','50/50 (60d B/L)','L/C at sight',
-  'Usance L/C 30 days','Usance L/C 60 days','Usance L/C 90 days',
-  '100% Advance','D/A','D/P'
+const PAYMENT_PRESETS=[
+  {label:'100% T/T before shipment', value:'100% T/T before shipment'},
+  {label:'30% + 70% against B/L', value:'30% T/T in advance, balance 70% T/T against B/L documents'},
+  {label:'50% + 50% against B/L', value:'50% T/T in advance, balance 50% T/T against B/L documents'},
+  {label:'50/50 within 90 days B/L', value:'50% T/T in advance, balance 50% T/T within 90 days from B/L date'},
+  {label:'50/50 within 60 days B/L', value:'50% T/T in advance, balance 50% T/T within 60 days from B/L date'},
+  {label:'L/C at sight', value:'By an Irrevocable L/C at Sight in favor of Genoray'},
+  {label:'Usance L/C (specify days)', value:'By an Irrevocable Usance L/C __ days from Shipment Date in favor of Genoray'},
+  {label:'100% in Advance', value:'100% T/T in advance'},
+  {label:'D/A', value:'D/A'},
+  {label:'D/P', value:'D/P'},
 ];
 
 function openPI(id=null){
@@ -703,14 +709,13 @@ function renderPIForm(){
     <div class="fg full" id="pif-buyer-info-wrap" style="${d.distributor?'':'display:none'}">
       <div style="background:var(--g50);border-radius:var(--rsm);padding:10px 14px;font-size:12px;color:var(--g700);line-height:1.7" id="pif-buyer-info"></div>
     </div>
-    <div class="fg"><label>Payment Terms</label>
-      <select id="pif-terms" onchange="updateLCField()">
-        ${PAYMENT_OPTS.map(v=>`<option ${d.payment_terms===v?'selected':''}>${v}</option>`).join('')}
-      </select>
-    </div>
-    <div class="fg" id="lc-days-wrap" style="display:none">
-      <label>L/C Usance Days</label>
-      <input type="number" id="pif-lc-days" value="90" min="1" placeholder="e.g. 90">
+    <div class="fg full">
+      <label>Payment Terms — Quick Select</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px" id="pt-presets">
+        ${PAYMENT_PRESETS.map((p,i)=>`<button type="button" class="btn btn-secondary btn-sm" onclick="applyPTPreset(${i})" style="font-size:11px">${p.label}</button>`).join('')}
+      </div>
+      <label style="margin-top:4px">Payment Terms — Final Text (Edit freely)</label>
+      <textarea id="pif-terms" rows="2" placeholder="Enter payment terms..." style="font-size:13px">${esc(d.payment_terms||'100% T/T before shipment')}</textarea>
     </div>
     <div class="fg"><label>Incoterms</label><input id="pif-inco" value="${d.incoterms||''}" placeholder="e.g. FOB KOREA"></div>
     <div class="fg"><label>Port of Discharge</label><input id="pif-port" value="${d.port_of_discharge||''}" placeholder="e.g. BUSAN, KOREA"></div>
@@ -757,7 +762,6 @@ function renderPIForm(){
   }
 
   renderPILines();
-  updateLCField();
 }
 
 function showBuyerInfo(dist){
@@ -768,10 +772,16 @@ function showBuyerInfo(dist){
   box.innerHTML=`<strong>${dist.company_name}</strong>${dist.address?'<br>'+dist.address:''}${dist.country?'<br>'+dist.country:''}${dist.contact_person?'<br>Contact: '+dist.contact_person:''}${dist.email?'<br>'+dist.email:''}`;
 }
 
-function updateLCField(){
-  const terms=document.getElementById('pif-terms')?.value||'';
-  const lcWrap=document.getElementById('lc-days-wrap');
-  if(lcWrap)lcWrap.style.display=terms.toLowerCase().includes('usance')?'block':'none';
+function applyPTPreset(i){
+  const p=PAYMENT_PRESETS[i];
+  if(!p)return;
+  const el=document.getElementById('pif-terms');
+  if(!el)return;
+  el.value=p.value;
+  el.focus();
+  // Highlight __ for easy editing
+  const pos=p.value.indexOf('__');
+  if(pos>=0){el.setSelectionRange(pos,pos+2);}
 }
 
 function renderPILines(){
@@ -844,11 +854,7 @@ async function savePI(){
   const btn=document.getElementById('pi-save-btn');
   btn.textContent='Saving...';btn.disabled=true;
   const piNum=document.getElementById('pif-num').value.trim()||autoId('PI');
-  const terms=document.getElementById('pif-terms').value;
-  const lcDays=document.getElementById('pif-lc-days')?.value;
-  const termsFull=terms.toLowerCase().includes('usance')
-    ?`By an Irrevocable Usance L/C ${lcDays||90} days from Shipment Date in favor of Genoray`
-    :terms.toLowerCase()==='l/c at sight'?'By an Irrevocable L/C at Sight in favor of Genoray':terms;
+  const termsFull=document.getElementById('pif-terms').value.trim()||'100% T/T before shipment';
 
   const validItems=piFS.items.filter(it=>it.model&&(parseFloat(it.qty)||0)>0);
   const subtotal=validItems.reduce((s,it)=>(parseFloat(it.qty)||0)*(parseFloat(it.price)||0)+s,0);
