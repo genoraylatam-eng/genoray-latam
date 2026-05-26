@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Genoray LATAM | Sales Management</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --navy:#0f2744;--blue:#2563eb;--blue-light:#3b82f6;--blue-pale:#dbeafe;
+  --green:#16a34a;--green-pale:#dcfce7;--amber:#d97706;--amber-pale:#fef3c7;
+  --red:#dc2626;--red-pale:#fee2e2;
+  --gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-300:#d1d5db;
+  --gray-400:#9ca3af;--gray-500:#6b7280;--gray-700:#374151;--gray-900:#111827;
+  --white:#fff;--sidebar:220px;
+  --shadow:0 1px 3px rgba(0,0,0,.1);--shadow-lg:0 10px 25px rgba(0,0,0,.12);
+  --r:8px;--r-sm:6px;--r-lg:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif}
+body{display:flex;height:100vh;background:var(--gray-100);color:var(--gray-900);font-size:14px;overflow:hidden}
+
+/* SIDEBAR */
+#sidebar{width:var(--sidebar);background:var(--navy);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.logo{padding:20px 16px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.logo h1{color:#fff;font-size:15px;font-weight:700}
+.logo p{color:rgba(255,255,255,.4);font-size:11px;margin-top:3px}
+.nav-section{padding:14px 0 4px}
+.nav-label{color:rgba(255,255,255,.3);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:0 16px 7px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;color:rgba(255,255,255,.65);cursor:pointer;transition:all .15s;border-left:3px solid transparent;font-size:13px}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav-item.active{background:rgba(255,255,255,.1);color:#fff;border-left-color:var(--blue-light)}
+.nav-icon{font-size:15px;width:18px;text-align:center}
+
+/* MAIN */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#topbar{background:var(--white);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--gray-200);flex-shrink:0;box-shadow:var(--shadow)}
+#page-title{font-size:18px;font-weight:700}
+.tbadge{background:var(--blue-pale);color:var(--blue);font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;margin-left:8px}
+#content{flex:1;overflow-y:auto;padding:24px}
+.page{display:none}.page.active{display:block}
+
+/* BUTTONS */
+.btn{padding:8px 16px;border-radius:var(--r-sm);border:none;cursor:pointer;font-size:13px;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-secondary{background:var(--white);color:var(--gray-700);border:1px solid var(--gray-300)}.btn-secondary:hover{background:var(--gray-50)}
+.btn-danger{background:var(--red-pale);color:var(--red)}.btn-danger:hover{background:var(--red);color:#fff}
+.btn-sm{padding:5px 10px;font-size:12px}
+
+/* STAT CARDS */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:var(--white);border-radius:var(--r-lg);padding:20px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.stat-card.blue::before{background:var(--blue)}.stat-card.green::before{background:var(--green)}
+.stat-card.amber::before{background:var(--amber)}.stat-card.red::before{background:var(--red)}
+.stat-label{font-size:12px;color:var(--gray-500);font-weight:500;margin-bottom:8px}
+.stat-value{font-size:26px;font-weight:800;letter-spacing:-.5px}
+.stat-sub{font-size:11px;color:var(--gray-400);margin-top:5px}
+.stat-icon{position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:30px;opacity:.07}
+.prog-wrap{background:var(--gray-100);border-radius:20px;height:5px;overflow:hidden;margin-top:10px}
+.prog-bar{height:100%;border-radius:20px;background:var(--blue);transition:width .6s}
+
+/* PANELS */
+.panel{background:var(--white);border-radius:var(--r-lg);box-shadow:var(--shadow);margin-bottom:20px}
+.panel-head{padding:16px 20px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.panel-title{font-size:15px;font-weight:600}
+.panel-actions{display:flex;align-items:center;gap:8px}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--gray-50);color:var(--gray-500);font-weight:600;font-size:11px;padding:10px 16px;text-align:left;border-bottom:1px solid var(--gray-200);white-space:nowrap;text-transform:uppercase;letter-spacing:.04em}
+td{padding:12px 16px;border-bottom:1px solid var(--gray-100);color:var(--gray-700);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--gray-50)}
+.td-acts{display:flex;gap:6px}
+.empty-state{text-align:center;padding:52px;color:var(--gray-400)}
+.empty-state .ei{font-size:38px;margin-bottom:10px;opacity:.4}
+
+/* PILLS */
+.pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.p-blue{background:var(--blue-pale);color:var(--blue)}
+.p-green{background:var(--green-pale);color:var(--green)}
+.p-amber{background:var(--amber-pale);color:var(--amber)}
+.p-red{background:var(--red-pale);color:var(--red)}
+.p-gray{background:var(--gray-100);color:var(--gray-500)}
+
+/* SEARCH */
+.search-box{display:flex;align-items:center;gap:8px;background:var(--gray-100);border:1px solid var(--gray-200);border-radius:var(--r-sm);padding:7px 12px}
+.search-box input{border:none;background:none;outline:none;font-size:13px;color:var(--gray-700);width:160px}
+.search-box input::placeholder{color:var(--gray-400)}
+
+/* COUNTRY CHART */
+.country-list{padding:16px 20px}
+.c-row{display:flex;align-items:center;gap:12px;margin-bottom:13px}
+.c-row:last-child{margin-bottom:0}
+.c-name{width:110px;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-bar-bg{flex:1;background:var(--gray-100);border-radius:4px;height:22px;overflow:hidden}
+.c-bar{height:100%;background:linear-gradient(90deg,var(--blue),var(--blue-light));border-radius:4px;display:flex;align-items:center;padding:0 8px;min-width:28px}
+.c-bar span{font-size:10px;color:#fff;font-weight:700;white-space:nowrap}
+.c-amt{width:90px;text-align:right;font-size:12px;color:var(--gray-500);font-weight:500}
+
+/* MODAL */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;padding:20px}
+.overlay.show{display:flex}
+.modal{background:var(--white);border-radius:var(--r-lg);width:580px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);display:flex;flex-direction:column}
+.modal-head{padding:20px 24px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1}
+.modal-title{font-size:16px;font-weight:700}
+.modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--gray-400);padding:2px 6px;border-radius:4px}
+.modal-close:hover{background:var(--gray-100)}
+.modal-body{padding:24px;flex:1}
+.modal-foot{padding:16px 24px;border-top:1px solid var(--gray-100);display:flex;justify-content:flex-end;gap:8px}
+
+/* FORM */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg.full{grid-column:1/-1}
+.fg label{font-size:12px;font-weight:600;color:var(--gray-600)}
+.fg input,.fg select,.fg textarea{padding:9px 12px;border:1px solid var(--gray-300);border-radius:var(--r-sm);font-size:13px;color:var(--gray-900);background:var(--white);width:100%;transition:border .15s}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.fg textarea{resize:vertical;min-height:68px}
+
+/* DASH 2-COL */
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:880px){.dash-grid{grid-template-columns:1fr}}
+
+/* TOAST */
+#toast{position:fixed;bottom:28px;right:28px;background:var(--gray-900);color:#fff;padding:13px 20px;border-radius:var(--r);font-size:13px;font-weight:500;box-shadow:var(--shadow-lg);z-index:9999;opacity:0;transform:translateY(12px);transition:all .25s;pointer-events:none}
+#toast.show{opacity:1;transform:translateY(0)}
+#toast.ok{border-left:4px solid var(--green)}
+#toast.err{border-left:4px solid var(--red)}
+
+/* SPINNER */
+.spin-wrap{text-align:center;padding:52px;color:var(--gray-400)}
+.spinner{width:30px;height:30px;border:3px solid var(--gray-200);border-top-color:var(--blue);border-radius:50%;animation:spin .65s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div class="logo">
+    <h1>Genoray LATAM</h1>
+    <p>Sales Management</p>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Overview</div>
+    <div class="nav-item active" data-page="dashboard"><span class="nav-icon">📊</span>Dashboard</div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Sales</div>
+    <div class="nav-item" data-page="pi"><span class="nav-icon">📋</span>PI Management</div>
+    <div class="nav-item" data-page="po"><span class="nav-icon">📦</span>PO Management</div>
+    <div class="nav-item" data-page="shipments"><span class="nav-icon">🚢</span>Shipments</div>
+    <div class="nav-item" data-page="collections"><span class="nav-icon">💰</span>Collections</div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Master Data</div>
+    <div class="nav-item" data-page="distributors"><span class="nav-icon">🏢</span>Distributors</div>
+    <div class="nav-item" data-page="products"><span class="nav-icon">🔬</span>Products</div>
+    <div class="nav-item" data-page="goals"><span class="nav-icon">🎯</span>Annual Goals</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div id="topbar">
+    <div style="display:flex;align-items:center">
+      <span id="page-title">Dashboard</span>
+      <span class="tbadge" id="yr-badge">2026</span>
+    </div>
+    <span style="font-size:12px;color:var(--gray-400)">● Connected to Supabase</span>
+  </div>
+
+  <div id="content">
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <div id="d-loading" class="spin-wrap"><div class="spinner"></div>Loading...</div>
+      <div id="d-data" style="display:none">
+        <div class="stat-grid" id="stat-cards"></div>
+        <div class="dash-grid">
+          <div class="panel">
+            <div class="panel-head"><span class="panel-title">Sales by Country</span></div>
+            <div class="country-list" id="country-chart"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><span class="panel-title">Recent PI</span></div>
+            <div class="tbl-wrap">
+              <table><thead><tr><th>PI No.</th><th>Distributor</th><th>Amount</th><th>Status</th></tr></thead>
+              <tbody id="recent-pi"></tbody></table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PI -->
+    <div id="page-pi" class="page">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Proforma Invoice (PI)</span>
+          <div class="panel-actions">
+            <div class="search-box"><span>🔍</span><input id="pi-search" placeholder="Search..." oninput="filter('pi')"></div>
+            <button class="btn btn-primary" onclick="openForm('pi')">+ New PI</button>
+          </div>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>PI No.</th><th>Date</th><th>Distributor</th><th>Country</th><th>Product</th><th>Qty</th><th>Amount (USD)</th><th>Payment Terms</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="pi-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- PO -->
+    <div id="page-po" class="page">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Purchase Order (PO)</span>
+          <div class="panel-actions">
+            <div class="search-box"><span>🔍</span><input id="po-search" placeholder="Search..." oninput="filter('po')"></div>
+            <button class="btn btn-primary" onclick="openForm('po')">+ New PO</button>
+          </div>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>PO No.</th><th>Date</th><th>Distributor</th><th>Country</th><th>PI No.</th><th>Amount (USD)</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="po-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- SHIPMENTS -->
+    <div id="page-shipments" class="page">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Shipment Management</span>
+          <div class="panel-actions">
+            <div class="search-box"><span>🔍</span><input id="shipments-search" placeholder="Search..." oninput="filter('shipments')"></div>
+            <button class="btn btn-primary" onclick="openForm('shipments')">+ New Shipment</button>
+          </div>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>No.</th><th>Date</th><th>PI No.</th><th>Distributor</th><th>Country</th><th>ETD</th><th>ETA</th><th>BL No.</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="shipments-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- COLLECTIONS -->
+    <div id="page-collections" class="page">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Collections</span>
+          <div class="panel-actions">
+            <div class="search-box"><span>🔍</span><input id="collections-search" placeholder="Search..." oninput="filter('collections')"></div>
+            <button class="btn btn-primary" onclick="openForm('collections')">+ New Collection</button>
+          </div>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>ID</th><th>PI No.</th><th>Distributor</th><th>Country</th><th>Invoice Amt</th><th>Collected</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="collections-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- DISTRIBUTORS -->
+    <div id="page-distributors" class="page">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Distributor Master</span>
+          <div class="panel-actions">
+            <div class="search-box"><span>🔍</span><input id="distributors-search" placeholder="Search..." oninput="filter('distributors')"></div>
+            <button class="btn btn-primary" onclick="openForm('distributors')">+ Add Distributor</button>
+          </div>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Code</th><th>Company Name</th><th>Country</th><th>Contact</th><th>Email</th><th>Phone</th><th>Actions</th></tr></thead>
+          <tbody id="distributors-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- PRODUCTS -->
+    <div id="page-products" class="page">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Product Catalog</span>
+          <button class="btn btn-primary" onclick="openForm('products')">+ Add Product</button>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Code</th><th>Product Name</th><th>Unit Price (USD)</th><th>Actions</th></tr></thead>
+          <tbody id="products-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- GOALS -->
+    <div id="page-goals" class="page">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Annual Sales Goals</span>
+          <button class="btn btn-primary" onclick="openForm('goals')">+ Add Goal</button>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Year</th><th>Country</th><th>Distributor</th><th>Target (USD)</th><th>Actions</th></tr></thead>
+          <tbody id="goals-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="overlay" class="overlay" onclick="if(event.target===this)closeForm()">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="modal-title">New Record</span>
+      <button class="modal-close" onclick="closeForm()">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeForm()">Cancel</button>
+      <button class="btn btn-primary" id="save-btn" onclick="saveForm()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const {createClient}=supabase;
+const sb=createClient('https://cqvtqcnjmmfvvynsgmei.supabase.co','sb_publishable_pCAcvd2jsuIx_1hcksk9NQ_UVlUqK8S');
+
+let activePage='dashboard', formState={table:'',id:null}, cache={};
+
+const PAGE_TITLES={dashboard:'Dashboard',pi:'PI Management',po:'PO Management',shipments:'Shipments',collections:'Collections',distributors:'Distributors',products:'Products',goals:'Annual Goals'};
+const MODAL_TITLES={pi:'Proforma Invoice',po:'Purchase Order',shipments:'Shipment',collections:'Collection Record',distributors:'Distributor',products:'Product',goals:'Annual Goal'};
+
+// NAV
+document.querySelectorAll('.nav-item').forEach(el=>{
+  el.addEventListener('click',()=>{
+    const p=el.dataset.page;
+    activePage=p;
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.page').forEach(pg=>pg.classList.remove('active'));
+    document.getElementById('page-'+p).classList.add('active');
+    document.getElementById('page-title').textContent=PAGE_TITLES[p];
+    loadPage(p);
+  });
+});
+
+function loadPage(p){
+  if(p==='dashboard')return loadDash();
+  loadTable(p);
+}
+
+// DASHBOARD
+async function loadDash(){
+  document.getElementById('d-loading').style.display='block';
+  document.getElementById('d-data').style.display='none';
+  const yr=new Date().getFullYear();
+  document.getElementById('yr-badge').textContent=yr;
+  const[{data:piAll=[]},{data:cols=[]},{data:goals=[]}]=await Promise.all([
+    sb.from('pi').select('*'),
+    sb.from('collections').select('*'),
+    sb.from('goals').select('*').eq('year',yr)
+  ]);
+  const piYr=piAll.filter(r=>r.date&&r.date.startsWith(String(yr)));
+  const sales=piYr.reduce((s,r)=>s+(r.amount_usd||0),0);
+  const coll=cols.reduce((s,r)=>s+(r.collected_amount_usd||0),0);
+  const goal=goals.reduce((s,r)=>s+(r.target_amount_usd||0),0);
+  const pct=goal>0?Math.round(sales/goal*100):0;
+  document.getElementById('stat-cards').innerHTML=`
+    <div class="stat-card blue"><div class="stat-label">Total Sales (${yr})</div><div class="stat-value">$${fmt(sales)}</div><div class="stat-sub">${piYr.length} PI(s)</div><div class="stat-icon">📈</div></div>
+    <div class="stat-card green"><div class="stat-label">Collected</div><div class="stat-value">$${fmt(coll)}</div><div class="stat-sub">Payment received</div><div class="stat-icon">✅</div></div>
+    <div class="stat-card amber"><div class="stat-label">Outstanding</div><div class="stat-value">$${fmt(Math.max(0,sales-coll))}</div><div class="stat-sub">Pending collection</div><div class="stat-icon">⏳</div></div>
+    <div class="stat-card ${pct>=80?'green':pct>=50?'amber':'red'}"><div class="stat-label">Goal Achievement</div><div class="stat-value">${pct}%</div><div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(pct,100)}%"></div></div><div class="stat-sub">Target: $${fmt(goal)}</div></div>`;
+  // Country chart
+  const byC={};
+  piYr.forEach(r=>{byC[r.country||'N/A']=(byC[r.country||'N/A']||0)+(r.amount_usd||0);});
+  const sorted=Object.entries(byC).sort((a,b)=>b[1]-a[1]);
+  const mx=sorted.length?sorted[0][1]:1;
+  document.getElementById('country-chart').innerHTML=sorted.length
+    ?sorted.map(([c,a])=>`<div class="c-row"><div class="c-name">${c}</div><div class="c-bar-bg"><div class="c-bar" style="width:${Math.round(a/mx*100)}%"><span>${Math.round(a/mx*100)}%</span></div></div><div class="c-amt">$${fmt(a)}</div></div>`).join('')
+    :'<p style="color:var(--gray-400);font-size:13px">No sales data yet</p>';
+  // Recent PI
+  const recent=[...piAll].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,6);
+  document.getElementById('recent-pi').innerHTML=recent.length
+    ?recent.map(r=>`<tr><td><strong>${r.pi_number}</strong></td><td>${r.distributor||'-'}</td><td>$${fmt(r.amount_usd)}</td><td>${pill(r.status)}</td></tr>`).join('')
+    :'<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--gray-400)">No records</td></tr>';
+  document.getElementById('d-loading').style.display='none';
+  document.getElementById('d-data').style.display='block';
+}
+
+// TABLE LOAD
+async function loadTable(t){
+  const tbody=document.getElementById(t+'-tbody');
+  tbody.innerHTML=`<tr><td colspan="20"><div class="spin-wrap" style="padding:40px"><div class="spinner"></div></div></td></tr>`;
+  const{data,error}=await sb.from(t).select('*').order('created_at',{ascending:false});
+  if(error){toast('Error: '+error.message,'err');return;}
+  cache[t]=data||[];
+  renderTbl(t,cache[t]);
+}
+
+function renderTbl(t,rows){
+  const tbody=document.getElementById(t+'-tbody');
+  if(!rows.length){
+    tbody.innerHTML=`<tr><td colspan="20"><div class="empty-state"><div class="ei">📭</div><div>No records yet — click + to add one</div></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML=rows.map(r=>rowHTML(t,r)).join('');
+}
+
+function rowHTML(t,r){
+  const acts=`<td><div class="td-acts"><button class="btn btn-secondary btn-sm" onclick="openForm('${t}','${r.id}')">Edit</button><button class="btn btn-danger btn-sm" onclick="del('${t}','${r.id}')">Delete</button></div></td>`;
+  if(t==='pi') return`<tr><td><strong>${r.pi_number}</strong></td><td>${r.date||'-'}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td>${r.product_name||'-'}</td><td>${r.quantity||'-'}</td><td>$${fmt(r.amount_usd)}</td><td>${r.payment_terms||'-'}</td><td>${pill(r.status)}</td>${acts}</tr>`;
+  if(t==='po') return`<tr><td><strong>${r.po_number}</strong></td><td>${r.date||'-'}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td>${r.pi_number||'-'}</td><td>$${fmt(r.amount_usd)}</td><td>${pill(r.status)}</td>${acts}</tr>`;
+  if(t==='shipments') return`<tr><td><strong>${r.shipment_number}</strong></td><td>${r.date||'-'}</td><td>${r.pi_number||'-'}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td>${r.etd||'-'}</td><td>${r.eta||'-'}</td><td>${r.bl_number||'-'}</td><td>$${fmt(r.amount_usd)}</td><td>${pill(r.status)}</td>${acts}</tr>`;
+  if(t==='collections') return`<tr><td><strong>${r.collection_id}</strong></td><td>${r.pi_number||'-'}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td>$${fmt(r.invoice_amount_usd)}</td><td>$${fmt(r.collected_amount_usd)}</td><td>${r.collection_date||'-'}</td><td>${pill(r.status)}</td>${acts}</tr>`;
+  if(t==='distributors') return`<tr><td><strong>${r.code}</strong></td><td>${r.company_name}</td><td>${r.country||'-'}</td><td>${r.contact_person||'-'}</td><td>${r.email||'-'}</td><td>${r.phone||'-'}</td>${acts}</tr>`;
+  if(t==='products') return`<tr><td><strong>${r.code}</strong></td><td>${r.product_name}</td><td>$${fmt(r.unit_price_usd)}</td>${acts}</tr>`;
+  if(t==='goals') return`<tr><td>${r.year}</td><td>${r.country||'-'}</td><td>${r.distributor||'-'}</td><td>$${fmt(r.target_amount_usd)}</td>${acts}</tr>`;
+}
+
+// SEARCH
+function filter(t){
+  const q=document.getElementById(t+'-search').value.toLowerCase();
+  renderTbl(t,(cache[t]||[]).filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q))));
+}
+
+// FORMS
+const sel=(opts,cur)=>opts.map(v=>`<option${cur===v?' selected':''}>${v}</option>`).join('');
+const FORMS={
+  pi:d=>`<div class="form-grid">
+    <div class="fg"><label>PI Number (auto if blank)</label><input name="pi_number" value="${d.pi_number||''}" placeholder="PI-2026-001"></div>
+    <div class="fg"><label>Date</label><input type="date" name="date" value="${d.date||tod()}"></div>
+    <div class="fg"><label>Distributor</label><input name="distributor" value="${d.distributor||''}"></div>
+    <div class="fg"><label>Country</label><input name="country" value="${d.country||''}"></div>
+    <div class="fg"><label>Product Name</label><input name="product_name" value="${d.product_name||''}"></div>
+    <div class="fg"><label>Quantity</label><input type="number" name="quantity" value="${d.quantity||1}" min="1" oninput="calcAmt()"></div>
+    <div class="fg"><label>Unit Price (USD)</label><input type="number" name="unit_price_usd" value="${d.unit_price_usd||''}" oninput="calcAmt()"></div>
+    <div class="fg"><label>Amount (USD)</label><input type="number" id="f-amt" name="amount_usd" value="${d.amount_usd||''}"></div>
+    <div class="fg"><label>Payment Terms</label><select name="payment_terms">${sel(['30% + 70% BL','50% + 50% BL','100% Advance','L/C','D/A','D/P'],d.payment_terms)}</select></div>
+    <div class="fg"><label>Status</label><select name="status">${sel(['In Progress','Completed','Pending','Cancelled'],d.status)}</select></div>
+    <div class="fg"><label>HQ PO Number</label><input name="hq_po_number" value="${d.hq_po_number||''}"></div>
+    <div class="fg full"><label>Notes</label><textarea name="notes">${d.notes||''}</textarea></div>
+  </div>`,
+  po:d=>`<div class="form-grid">
+    <div class="fg"><label>PO Number (auto if blank)</label><input name="po_number" value="${d.po_number||''}" placeholder="PO-2026-001"></div>
+    <div class="fg"><label>Date</label><input type="date" name="date" value="${d.date||tod()}"></div>
+    <div class="fg"><label>Distributor</label><input name="distributor" value="${d.distributor||''}"></div>
+    <div class="fg"><label>Country</label><input name="country" value="${d.country||''}"></div>
+    <div class="fg"><label>PI Number</label><input name="pi_number" value="${d.pi_number||''}"></div>
+    <div class="fg"><label>Amount (USD)</label><input type="number" name="amount_usd" value="${d.amount_usd||''}"></div>
+    <div class="fg"><label>Status</label><select name="status">${sel(['In Progress','Completed','Pending','Cancelled'],d.status)}</select></div>
+    <div class="fg full"><label>Notes</label><textarea name="notes">${d.notes||''}</textarea></div>
+  </div>`,
+  shipments:d=>`<div class="form-grid">
+    <div class="fg"><label>Shipment No. (auto if blank)</label><input name="shipment_number" value="${d.shipment_number||''}" placeholder="SH-2026-001"></div>
+    <div class="fg"><label>Date</label><input type="date" name="date" value="${d.date||tod()}"></div>
+    <div class="fg"><label>PI Number</label><input name="pi_number" value="${d.pi_number||''}"></div>
+    <div class="fg"><label>Distributor</label><input name="distributor" value="${d.distributor||''}"></div>
+    <div class="fg"><label>Country</label><input name="country" value="${d.country||''}"></div>
+    <div class="fg"><label>ETD (Departure Date)</label><input type="date" name="etd" value="${d.etd||''}"></div>
+    <div class="fg"><label>ETA (Arrival Date)</label><input type="date" name="eta" value="${d.eta||''}"></div>
+    <div class="fg"><label>BL Number</label><input name="bl_number" value="${d.bl_number||''}"></div>
+    <div class="fg"><label>Amount (USD)</label><input type="number" name="amount_usd" value="${d.amount_usd||''}"></div>
+    <div class="fg"><label>Status</label><select name="status">${sel(['Preparing','Shipped','In Transit','Arrived','Completed'],d.status)}</select></div>
+    <div class="fg full"><label>Notes</label><textarea name="notes">${d.notes||''}</textarea></div>
+  </div>`,
+  collections:d=>`<div class="form-grid">
+    <div class="fg"><label>Collection ID (auto if blank)</label><input name="collection_id" value="${d.collection_id||''}" placeholder="COL-2026-001"></div>
+    <div class="fg"><label>PI Number</label><input name="pi_number" value="${d.pi_number||''}"></div>
+    <div class="fg"><label>Distributor</label><input name="distributor" value="${d.distributor||''}"></div>
+    <div class="fg"><label>Country</label><input name="country" value="${d.country||''}"></div>
+    <div class="fg"><label>Invoice Amount (USD)</label><input type="number" name="invoice_amount_usd" value="${d.invoice_amount_usd||''}"></div>
+    <div class="fg"><label>Collected Amount (USD)</label><input type="number" name="collected_amount_usd" value="${d.collected_amount_usd||''}"></div>
+    <div class="fg"><label>Collection Date</label><input type="date" name="collection_date" value="${d.collection_date||tod()}"></div>
+    <div class="fg"><label>Status</label><select name="status">${sel(['Pending','Collected','Partial','Overdue'],d.status)}</select></div>
+    <div class="fg full"><label>Notes</label><textarea name="notes">${d.notes||''}</textarea></div>
+  </div>`,
+  distributors:d=>`<div class="form-grid">
+    <div class="fg"><label>Code</label><input name="code" value="${d.code||''}" placeholder="e.g. MX-001"></div>
+    <div class="fg"><label>Company Name</label><input name="company_name" value="${d.company_name||''}"></div>
+    <div class="fg"><label>Country</label><input name="country" value="${d.country||''}"></div>
+    <div class="fg"><label>Contact Person</label><input name="contact_person" value="${d.contact_person||''}"></div>
+    <div class="fg"><label>Email</label><input type="email" name="email" value="${d.email||''}"></div>
+    <div class="fg"><label>Phone</label><input name="phone" value="${d.phone||''}"></div>
+  </div>`,
+  products:d=>`<div class="form-grid">
+    <div class="fg"><label>Code</label><input name="code" value="${d.code||''}" placeholder="OSCAR-15FD"></div>
+    <div class="fg"><label>Product Name</label><input name="product_name" value="${d.product_name||''}"></div>
+    <div class="fg full"><label>Unit Price (USD)</label><input type="number" name="unit_price_usd" value="${d.unit_price_usd||''}"></div>
+  </div>`,
+  goals:d=>`<div class="form-grid">
+    <div class="fg"><label>Year</label><input type="number" name="year" value="${d.year||new Date().getFullYear()}" min="2020" max="2035"></div>
+    <div class="fg"><label>Country</label><input name="country" value="${d.country||''}"></div>
+    <div class="fg"><label>Distributor</label><input name="distributor" value="${d.distributor||''}"></div>
+    <div class="fg"><label>Target Amount (USD)</label><input type="number" name="target_amount_usd" value="${d.target_amount_usd||''}"></div>
+  </div>`
+};
+
+// FORM OPEN/CLOSE/SAVE
+async function openForm(t,id=null){
+  formState={table:t,id};
+  let d={};
+  if(id){d=(cache[t]||[]).find(r=>r.id===id)||{};}
+  document.getElementById('modal-title').textContent=(id?'Edit ':'New ')+MODAL_TITLES[t];
+  document.getElementById('modal-body').innerHTML=FORMS[t](d);
+  document.getElementById('overlay').classList.add('show');
+}
+function closeForm(){document.getElementById('overlay').classList.remove('show');}
+
+async function saveForm(){
+  const btn=document.getElementById('save-btn');
+  btn.textContent='Saving...';btn.disabled=true;
+  const inputs=document.querySelectorAll('#modal-body input,#modal-body select,#modal-body textarea');
+  const data={};
+  inputs.forEach(el=>{
+    if(!el.name)return;
+    data[el.name]=el.type==='number'?(el.value===''?null:parseFloat(el.value)):(el.value||null);
+  });
+  // Auto-IDs
+  const yr=new Date().getFullYear();
+  const rnd=()=>String(Math.floor(Math.random()*900)+100);
+  if(!data.pi_number&&formState.table==='pi')data.pi_number=`PI-${yr}-${rnd()}`;
+  if(!data.po_number&&formState.table==='po')data.po_number=`PO-${yr}-${rnd()}`;
+  if(!data.shipment_number&&formState.table==='shipments')data.shipment_number=`SH-${yr}-${rnd()}`;
+  if(!data.collection_id&&formState.table==='collections')data.collection_id=`COL-${yr}-${rnd()}`;
+
+  const{error}=formState.id
+    ?await sb.from(formState.table).update(data).eq('id',formState.id)
+    :await sb.from(formState.table).insert(data);
+  btn.textContent='Save';btn.disabled=false;
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast('Saved!','ok');
+  closeForm();
+  loadPage(activePage);
+}
+
+async function del(t,id){
+  if(!confirm('Delete this record? This cannot be undone.'))return;
+  const{error}=await sb.from(t).delete().eq('id',id);
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast('Deleted','ok');
+  loadPage(activePage);
+}
+
+// HELPERS
+function calcAmt(){
+  const q=parseFloat(document.querySelector('[name="quantity"]')?.value)||0;
+  const p=parseFloat(document.querySelector('[name="unit_price_usd"]')?.value)||0;
+  const f=document.getElementById('f-amt');
+  if(f&&q&&p)f.value=(q*p).toFixed(0);
+}
+function tod(){return new Date().toISOString().split('T')[0];}
+function fmt(n){return(parseFloat(n)||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
+function pill(s){
+  const m={'In Progress':'blue','Completed':'green','Collected':'green','Arrived':'green','Pending':'amber','Partial':'amber','Preparing':'amber','In Transit':'blue','Shipped':'blue','Cancelled':'gray','Overdue':'red'};
+  return`<span class="pill p-${m[s]||'gray'}">${s||'-'}</span>`;
+}
+function toast(msg,type='ok'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className=`show ${type}`;
+  setTimeout(()=>t.className='',3500);
+}
+
+// INIT
+document.getElementById('yr-badge').textContent=new Date().getFullYear();
+loadDash();
+</script>
+</body>
+</html>
