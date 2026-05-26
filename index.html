@@ -72,6 +72,10 @@ body{display:flex;height:100vh;background:var(--g100);color:var(--g900);font-siz
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{background:var(--g50);color:var(--g500);font-weight:600;font-size:11px;padding:10px 14px;text-align:left;border-bottom:1px solid var(--g200);white-space:nowrap;text-transform:uppercase;letter-spacing:.04em}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{background:var(--g200);color:var(--g700)}
+th.sort-asc::after{content:' ▲';color:var(--blue)}
+th.sort-desc::after{content:' ▼';color:var(--blue)}
 td{padding:11px 14px;border-bottom:1px solid var(--g100);color:var(--g700);vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:var(--g50)}
@@ -282,7 +286,17 @@ tr:hover td{background:var(--g50)}
           </div>
         </div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>PI No.</th><th>Date</th><th>Distributor</th><th>Country</th><th>Products</th><th>Amount (USD)</th><th>Payment Terms</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr>
+            <th class="sortable" onclick="sortTbl('pi','pi_number')">PI No.</th>
+            <th class="sortable" onclick="sortTbl('pi','date')">Date</th>
+            <th class="sortable" onclick="sortTbl('pi','distributor')">Distributor</th>
+            <th class="sortable" onclick="sortTbl('pi','country')">Country</th>
+            <th class="sortable" onclick="sortTbl('pi','product_name')">Products</th>
+            <th class="sortable" onclick="sortTbl('pi','amount_usd')">Amount (USD)</th>
+            <th class="sortable" onclick="sortTbl('pi','payment_terms')">Payment Terms</th>
+            <th class="sortable" onclick="sortTbl('pi','status')">Status</th>
+            <th>Actions</th>
+          </tr></thead>
           <tbody id="pi-tbody"></tbody>
         </table></div>
       </div>
@@ -299,7 +313,16 @@ tr:hover td{background:var(--g50)}
           </div>
         </div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>PO No.</th><th>Date</th><th>Distributor</th><th>Country</th><th>PI No.</th><th>Amount (USD)</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr>
+            <th class="sortable" onclick="sortTbl('po','po_number')">PO No.</th>
+            <th class="sortable" onclick="sortTbl('po','date')">Date</th>
+            <th class="sortable" onclick="sortTbl('po','distributor')">Distributor</th>
+            <th class="sortable" onclick="sortTbl('po','country')">Country</th>
+            <th class="sortable" onclick="sortTbl('po','pi_number')">PI No.</th>
+            <th class="sortable" onclick="sortTbl('po','amount_usd')">Amount (USD)</th>
+            <th class="sortable" onclick="sortTbl('po','status')">Status</th>
+            <th>Actions</th>
+          </tr></thead>
           <tbody id="po-tbody"></tbody>
         </table></div>
       </div>
@@ -316,7 +339,20 @@ tr:hover td{background:var(--g50)}
           </div>
         </div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>HQ PO No.</th><th>Issue Date</th><th>PI No.</th><th>Distributor</th><th>Country</th><th>Models</th><th>Qty</th><th>PI Total</th><th>Delivery</th><th>Ship</th><th>Owner</th><th>Actions</th></tr></thead>
+          <thead><tr>
+            <th class="sortable" onclick="sortTbl('hqpo','hq_po_number')">HQ PO No.</th>
+            <th class="sortable" onclick="sortTbl('hqpo','issue_date')">Issue Date</th>
+            <th class="sortable" onclick="sortTbl('hqpo','pi_number')">PI No.</th>
+            <th class="sortable" onclick="sortTbl('hqpo','distributor')">Distributor</th>
+            <th class="sortable" onclick="sortTbl('hqpo','country')">Country</th>
+            <th class="sortable" onclick="sortTbl('hqpo','models')">Models</th>
+            <th class="sortable" onclick="sortTbl('hqpo','quantity')">Qty</th>
+            <th class="sortable" onclick="sortTbl('hqpo','pi_total_usd')">PI Total</th>
+            <th class="sortable" onclick="sortTbl('hqpo','delivery_status')">Delivery</th>
+            <th class="sortable" onclick="sortTbl('hqpo','ship_status')">Ship</th>
+            <th class="sortable" onclick="sortTbl('hqpo','owner')">Owner</th>
+            <th>Actions</th>
+          </tr></thead>
           <tbody id="hqpo-tbody"></tbody>
         </table></div>
       </div>
@@ -333,7 +369,19 @@ tr:hover td{background:var(--g50)}
           </div>
         </div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>No.</th><th>Date</th><th>PI No.</th><th>Distributor</th><th>Country</th><th>ETD</th><th>ETA</th><th>BL No.</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr>
+            <th class="sortable" onclick="sortTbl('shipments','shipment_number')">No.</th>
+            <th class="sortable" onclick="sortTbl('shipments','date')">Date</th>
+            <th class="sortable" onclick="sortTbl('shipments','pi_number')">PI No.</th>
+            <th class="sortable" onclick="sortTbl('shipments','distributor')">Distributor</th>
+            <th class="sortable" onclick="sortTbl('shipments','country')">Country</th>
+            <th class="sortable" onclick="sortTbl('shipments','etd')">ETD</th>
+            <th class="sortable" onclick="sortTbl('shipments','eta')">ETA</th>
+            <th>BL No.</th>
+            <th class="sortable" onclick="sortTbl('shipments','amount_usd')">Amount</th>
+            <th class="sortable" onclick="sortTbl('shipments','status')">Status</th>
+            <th>Actions</th>
+          </tr></thead>
           <tbody id="shipments-tbody"></tbody>
         </table></div>
       </div>
@@ -350,7 +398,17 @@ tr:hover td{background:var(--g50)}
           </div>
         </div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>ID</th><th>PI No.</th><th>Distributor</th><th>Country</th><th>Invoice Amt</th><th>Collected</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr>
+            <th class="sortable" onclick="sortTbl('collections','collection_id')">ID</th>
+            <th class="sortable" onclick="sortTbl('collections','pi_number')">PI No.</th>
+            <th class="sortable" onclick="sortTbl('collections','distributor')">Distributor</th>
+            <th class="sortable" onclick="sortTbl('collections','country')">Country</th>
+            <th class="sortable" onclick="sortTbl('collections','invoice_amount_usd')">Invoice Amt</th>
+            <th class="sortable" onclick="sortTbl('collections','collected_amount_usd')">Collected</th>
+            <th class="sortable" onclick="sortTbl('collections','collection_date')">Date</th>
+            <th class="sortable" onclick="sortTbl('collections','status')">Status</th>
+            <th>Actions</th>
+          </tr></thead>
           <tbody id="collections-tbody"></tbody>
         </table></div>
       </div>
@@ -367,7 +425,15 @@ tr:hover td{background:var(--g50)}
           </div>
         </div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>Code</th><th>Company</th><th>Country</th><th>Contact</th><th>Email</th><th>Address</th><th>Actions</th></tr></thead>
+          <thead><tr>
+            <th class="sortable" onclick="sortTbl('distributors','code')">Code</th>
+            <th class="sortable" onclick="sortTbl('distributors','company_name')">Company</th>
+            <th class="sortable" onclick="sortTbl('distributors','country')">Country</th>
+            <th class="sortable" onclick="sortTbl('distributors','contact_person')">Contact</th>
+            <th>Email</th>
+            <th>Address</th>
+            <th>Actions</th>
+          </tr></thead>
           <tbody id="distributors-tbody"></tbody>
         </table></div>
       </div>
@@ -381,7 +447,12 @@ tr:hover td{background:var(--g50)}
           <button class="btn btn-primary" onclick="openForm('products')">+ Add Product</button>
         </div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>Code</th><th>Product Name</th><th>Unit Price (USD)</th><th>Actions</th></tr></thead>
+          <thead><tr>
+            <th class="sortable" onclick="sortTbl('products','code')">Code</th>
+            <th class="sortable" onclick="sortTbl('products','product_name')">Product Name</th>
+            <th class="sortable" onclick="sortTbl('products','unit_price_usd')">Unit Price (USD)</th>
+            <th>Actions</th>
+          </tr></thead>
           <tbody id="products-tbody"></tbody>
         </table></div>
       </div>
@@ -395,7 +466,13 @@ tr:hover td{background:var(--g50)}
           <button class="btn btn-primary" onclick="openForm('goals')">+ Add Goal</button>
         </div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>Year</th><th>Country</th><th>Distributor</th><th>Target (USD)</th><th>Actions</th></tr></thead>
+          <thead><tr>
+            <th class="sortable" onclick="sortTbl('goals','year')">Year</th>
+            <th class="sortable" onclick="sortTbl('goals','country')">Country</th>
+            <th class="sortable" onclick="sortTbl('goals','distributor')">Distributor</th>
+            <th class="sortable" onclick="sortTbl('goals','target_amount_usd')">Target (USD)</th>
+            <th>Actions</th>
+          </tr></thead>
           <tbody id="goals-tbody"></tbody>
         </table></div>
       </div>
@@ -617,7 +694,46 @@ function rowHTML(page,r){
 
 function filterTbl(page){
   const q=document.getElementById(page+'-search').value.toLowerCase();
-  renderTbl(page,(cache[page]||[]).filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q))));
+  const filtered=(cache[page]||[]).filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q)));
+  sortState[page]?renderTbl(page,applySortToRows(page,filtered)):renderTbl(page,filtered);
+}
+
+// ── SORT ──────────────────────────────────────────────────────────────────────
+const sortState={};// {page: {col, dir}}
+
+function sortTbl(page,col){
+  const cur=sortState[page];
+  const dir=(cur&&cur.col===col&&cur.dir==='asc')?'desc':'asc';
+  sortState[page]={col,dir};
+  // Update header indicators
+  document.querySelectorAll(`#page-${page} th`).forEach(th=>{
+    th.classList.remove('sort-asc','sort-desc');
+    const oc=th.getAttribute('onclick')||'';
+    if(oc.includes(`'${col}'`))th.classList.add(dir==='asc'?'sort-asc':'sort-desc');
+  });
+  // Sort and render
+  const q=document.getElementById(page+'-search')?.value.toLowerCase()||'';
+  let rows=q?(cache[page]||[]).filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q))):[...(cache[page]||[])];
+  renderTbl(page,applySortToRows(page,rows));
+}
+
+function applySortToRows(page,rows){
+  const s=sortState[page];
+  if(!s)return rows;
+  return [...rows].sort((a,b)=>{
+    let av=a[s.col]??'', bv=b[s.col]??'';
+    // Numeric sort for number columns
+    const numCols=['amount_usd','pi_total_usd','invoice_amount_usd','collected_amount_usd','unit_price_usd','target_amount_usd','quantity','year'];
+    if(numCols.includes(s.col)){av=parseFloat(av)||0;bv=parseFloat(bv)||0;return s.dir==='asc'?av-bv:bv-av;}
+    // Date sort
+    if(s.col.includes('date')||s.col==='etd'||s.col==='eta'){
+      av=av?new Date(av):new Date(0);bv=bv?new Date(bv):new Date(0);
+      return s.dir==='asc'?av-bv:bv-av;
+    }
+    // String sort
+    av=String(av).toLowerCase();bv=String(bv).toLowerCase();
+    return s.dir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
+  });
 }
 
 // ── AUTOCOMPLETE ──────────────────────────────────────────────────────────────
