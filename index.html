@@ -294,6 +294,7 @@ tr:hover td{background:var(--g50)}
             <th class="sortable" onclick="sortTbl('pi','product_name')">Products</th>
             <th class="sortable" onclick="sortTbl('pi','amount_usd')">Amount (USD)</th>
             <th class="sortable" onclick="sortTbl('pi','payment_terms')">Payment Terms</th>
+            <th class="sortable" onclick="sortTbl('pi','sales_rep')">Sales Rep</th>
             <th class="sortable" onclick="sortTbl('pi','status')">Status</th>
             <th>Actions</th>
           </tr></thead>
@@ -649,6 +650,32 @@ async function loadDash(){
     :'<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--g400)">No records</td></tr>';
   document.getElementById('d-load').style.display='none';
   document.getElementById('d-data').style.display='block';
+
+  // Sales rep breakdown
+  const byRep={};
+  piYr.forEach(r=>{
+    const rep=r.sales_rep||'Unassigned';
+    byRep[rep]=(byRep[rep]||0)+(r.amount_usd||0);
+  });
+  const repSorted=Object.entries(byRep).sort((a,b)=>b[1]-a[1]);
+  if(repSorted.length>0){
+    const repMax=repSorted[0][1]||1;
+    const repHTML=repSorted.map(([rep,amt])=>`
+      <div class="c-row">
+        <div class="c-name" style="width:120px">${rep}</div>
+        <div class="c-bar-bg"><div class="c-bar" style="width:${Math.round(amt/repMax*100)}%;background:linear-gradient(90deg,var(--purple),#a855f7)"><span>${Math.round(amt/repMax*100)}%</span></div></div>
+        <div class="c-amt">$${fmt(amt)}</div>
+      </div>`).join('');
+    // Insert sales rep panel after existing dash panels
+    const ddata=document.getElementById('d-data');
+    const existing=ddata.querySelector('.rep-panel');
+    if(existing)existing.remove();
+    const repPanel=document.createElement('div');
+    repPanel.className='panel rep-panel';
+    repPanel.style.marginTop='0';
+    repPanel.innerHTML=`<div class="panel-head"><span class="panel-title">Sales by Rep</span></div><div class="country-list">${repHTML}</div>`;
+    ddata.appendChild(repPanel);
+  }
 }
 
 // ── TABLE LOADER ──────────────────────────────────────────────────────────────
@@ -677,6 +704,7 @@ function rowHTML(page,r){
     <td>${r.distributor||'-'}</td><td>${r.country||'-'}</td>
     <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.product_name||'-'}</td>
     <td><strong>$${fmt(r.amount_usd)}</strong></td><td style="max-width:150px;font-size:12px">${r.payment_terms||'-'}</td>
+    <td>${r.sales_rep?`<span class="pill p-purple">${r.sales_rep}</span>`:'-'}</td>
     <td>${pill(r.status)}</td>
     <td><div class="td-acts">
       <button class="btn btn-secondary btn-sm" onclick="openPI('${r.id}')">Edit</button>
@@ -857,6 +885,9 @@ function renderPIForm(){
     <div class="fg"><label>Warranty</label><input id="pif-warranty" value="${d.warranty||'24 months from the date of shipment'}"></div>
     <div class="fg"><label>Delivery</label><input id="pif-delivery" value="${d.delivery||'4 weeks after receipt of payment'}"></div>
     <div class="fg"><label>Authorized By (Seller)</label><input id="pif-auth" value="${d.authorized_by||'Christopher Yoon'}"></div>
+    <div class="fg"><label>Sales Rep (Internal — not printed)</label>
+      <input id="pif-sales-rep" value="${d.sales_rep||sessionStorage.getItem('gl_auth')||''}" placeholder="Sales representative name" style="border-color:var(--purple);background:var(--purple-pale)">
+    </div>
     <div class="fg full"><label>Notes / Remarks</label><textarea id="pif-notes">${d.notes||''}</textarea></div>
   </div>`;
 
@@ -1003,6 +1034,7 @@ async function savePI(){
     delivery:document.getElementById('pif-delivery').value.trim(),
     authorized_by:document.getElementById('pif-auth').value.trim(),
     seller:piFS.seller,
+    sales_rep:document.getElementById('pif-sales-rep').value.trim()||null,
     buyer_address:distData.address||null,
     buyer_contact:distData.contact_person||null,
     buyer_email:distData.email||null,
