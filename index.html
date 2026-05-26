@@ -8,6 +8,22 @@
 <style>
 :root {
   --navy:#0f2744;--blue:#2563eb;--blue-light:#3b82f6;--blue-pale:#dbeafe;
+
+/* LOGIN */
+#login-screen{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:9999}
+#login-screen.hidden{display:none}
+.login-box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:40px;width:380px;max-width:95vw}
+.login-logo{text-align:center;margin-bottom:32px}
+.login-logo h1{color:#fff;font-size:22px;font-weight:800;margin-bottom:6px}
+.login-logo p{color:rgba(255,255,255,.4);font-size:13px}
+.login-field{margin-bottom:16px}
+.login-field label{display:block;color:rgba(255,255,255,.6);font-size:12px;font-weight:600;margin-bottom:6px}
+.login-field input{width:100%;padding:11px 14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#fff;font-size:14px;outline:none;transition:border .15s}
+.login-field input:focus{border-color:var(--blue-light)}
+.login-field input::placeholder{color:rgba(255,255,255,.3)}
+.login-btn{width:100%;padding:12px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;transition:background .15s}
+.login-btn:hover{background:#1d4ed8}
+.login-err{color:#f87171;font-size:12px;text-align:center;margin-top:10px;min-height:18px}
   --green:#16a34a;--green-pale:#dcfce7;--amber:#d97706;--amber-pale:#fef3c7;
   --red:#dc2626;--red-pale:#fee2e2;
   --gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-300:#d1d5db;
@@ -136,6 +152,26 @@ tr:hover td{background:var(--gray-50)}
 </style>
 </head>
 <body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <h1>Genoray LATAM</h1>
+      <p>Sales Management System</p>
+    </div>
+    <div class="login-field">
+      <label>USERNAME</label>
+      <input type="text" id="login-user" placeholder="Enter username" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="login-field">
+      <label>PASSWORD</label>
+      <input type="password" id="login-pass" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
 
 <!-- SIDEBAR -->
 <div id="sidebar">
@@ -329,6 +365,26 @@ tr:hover td{background:var(--gray-50)}
 <div id="toast"></div>
 
 <script>
+// ─── LOGIN ───────────────────────────────────────────────────────────────────
+const USERS={'mitchel':'genoray2026','admin':'genoray2026','latam':'latam2026'};
+function doLogin(){
+  const u=document.getElementById('login-user').value.trim().toLowerCase();
+  const p=document.getElementById('login-pass').value;
+  const e=document.getElementById('login-err');
+  if(USERS[u]&&USERS[u]===p){
+    document.getElementById('login-screen').classList.add('hidden');
+    sessionStorage.setItem('gl_auth',u);
+    e.textContent='';
+    loadDash();
+  }else{
+    e.textContent='Incorrect username or password.';
+    document.getElementById('login-pass').value='';
+  }
+}
+if(sessionStorage.getItem('gl_auth')){
+  document.getElementById('login-screen').classList.add('hidden');
+}
+
 const {createClient}=supabase;
 const sb=createClient('https://cqvtqcnjmmfvvynsgmei.supabase.co','sb_publishable_pCAcvd2jsuIx_1hcksk9NQ_UVlUqK8S');
 
@@ -569,7 +625,7 @@ function toast(msg,type='ok'){
 
 // INIT
 document.getElementById('yr-badge').textContent=new Date().getFullYear();
-loadDash();
+if(sessionStorage.getItem('gl_auth'))loadDash();
 </script>
 </body>
 </html>
