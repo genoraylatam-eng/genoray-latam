@@ -1157,18 +1157,18 @@ tr[data-paid="true"] td{opacity:.55}
             </div>
           </div>
           <div style="background:#eff6ff;border-left:3px solid var(--blue);padding:8px 16px;font-size:11px;color:#1e40af;margin-bottom:0">
-            ⓘ Read-only reference · Source: GAI 2026 Price List · Prices in USD (Ex-Factory) · SA = Standard Agency Price · Min = Minimum Allowed Price
+            ⓘ Read-only reference · Source: GAI 2026 · All prices Ex-Factory USD · <strong>LATAM Price</strong> = SA (South America TP, what LATAM pays to GAI) · <strong>GAI US TP</strong> = GAI internal US reference (for info only) · Min = Floor price
           </div>
           <div class="tbl-wrap">
             <table id="tp-table">
               <thead><tr>
                 <th>Category</th><th>Division</th><th>Model</th>
-                <th style="text-align:right;color:var(--blue)">TP (Ex-Factory)</th>
-                <th style="text-align:right">SA Price</th>
+                <th style="text-align:right;color:var(--blue);background:#eff6ff">LATAM Price<div style="font-size:9px;font-weight:400;color:#93c5fd">(SA = LATAM TP)</div></th>
                 <th style="text-align:right;color:#059669">Brazil</th>
                 <th style="text-align:right;color:#7c3aed">Mexico</th>
-                <th style="text-align:right;color:#d97706">LATAM</th>
+                <th style="text-align:right;color:#d97706">LATAM Ref</th>
                 <th style="text-align:right;color:var(--red)">Min Price</th>
+                <th style="text-align:right;color:var(--g400);border-left:1px dashed var(--g200)">GAI US TP<div style="font-size:9px;font-weight:400">(Ref only)</div></th>
               </tr></thead>
               <tbody id="tp-tbody"></tbody>
             </table>
@@ -1368,7 +1368,7 @@ let activePage='dashboard',formState={table:'',id:null,page:''},cache={},masterC
 let piFS={id:null,items:[],ed:{},seller:'korea'};
 const TBL={hqpo:'hq_po'};
 const tbl=p=>TBL[p]||p;
-const PAGE_TITLES={dashboard:'Dashboard',pipeline:'Pipeline & Backlog',report:'Report',pi:'PI Management',po:'PO Management',hqpo:'HQ PO',shipments:'Shipments',collections:'Collections',distributors:'Distributors',products:'Products',goals:'Annual Goals',help:'User Manual'};
+const PAGE_TITLES={dashboard:'Dashboard',pipeline:'Pipeline & Backlog',report:'Report',pi:'PI Management',po:'PO Management',hqpo:'HQ PO',shipments:'Shipments',collections:'Collections',distributors:'Distributors',products:'Products',goals:'Annual Goals',help:'User Manual',pricing:'Pricing'};
 
 // ── NAV ──────────────────────────────────────────────────────────────────────
 function navigateTo(p){
@@ -1395,7 +1395,13 @@ function loadPage(p){
   if(p==='report')return loadReport();
   if(p==='goals')return loadGoals();
   if(p==='help')return loadHelp();
+  if(p==='pricing')return loadPricingPage();
   loadTable(p);
+}
+
+function loadPricingPage(){
+  setPricingTab('tp');
+  initDistPricing();
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
@@ -4905,6 +4911,365 @@ function doLogout(auto=false){
     document.getElementById('lerr').textContent='';
   }
 }
+
+// ── PRICING MODULE ────────────────────────────────────────────────────────────
+let _pricingTab='tp', _tpDivFilter='all', _tpData=[], _distPrices=[];
+
+function setPricingTab(tab){
+  _pricingTab=tab;
+  ['tp','dist','hist'].forEach(t=>{
+    const btn=document.getElementById('ptab-'+t);
+    const pnl=document.getElementById('pricing-'+t);
+    const active=t===tab;
+    if(btn){btn.style.background=active?'var(--blue)':'var(--g100)';btn.style.color=active?'#fff':'var(--g600)';}
+    if(pnl)pnl.style.display=active?'block':'none';
+  });
+  if(tab==='tp')loadTPReference();
+  else if(tab==='dist')initDistPricing();
+  else if(tab==='hist')loadPriceHistory();
+}
+
+// ── TAB 1: TP Reference ──────────────────────────────────────────────────────
+async function loadTPReference(){
+  if(_tpData.length>0){renderTP();return;}
+  showPageLoading('Loading TP Reference...');
+  const {data,error}=await sb.from('tp_prices').select('*').eq('year',2026).order('category').order('model');
+  hidePageLoading();
+  if(error||!data){
+    const tb=document.getElementById('tp-tbody');
+    if(tb)tb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--red)">⚠️ Cannot load TP data: '+(error?.message||'unknown error')+'</td></tr>';
+    return;
+  }
+  _tpData=data;
+  renderTP();
+}
+
+function filterTP(div){
+  if(div!==undefined){
+    _tpDivFilter=div;
+    ['all','Medical','Dental'].forEach(d=>{
+      const id='tp-div-'+(d==='all'?'all':d==='Medical'?'med':'den');
+      const btn=document.getElementById(id);
+      if(btn){const a=d===div||(!div&&d==='all');btn.style.background=a?'var(--blue)':'var(--g100)';btn.style.color=a?'#fff':'var(--g600)';}
+    });
+  }
+  renderTP();
+}
+
+function renderTP(){
+  const search=(document.getElementById('tp-search')?.value||'').toLowerCase();
+  const rows=_tpData.filter(r=>{
+    const divOk=_tpDivFilter==='all'||r.division===_tpDivFilter;
+    const searchOk=!search||r.model.toLowerCase().includes(search)||(r.category||'').toLowerCase().includes(search);
+    return divOk&&searchOk;
+  });
+
+  const fmtP=v=>v?'$'+Number(v).toLocaleString('en',{maximumFractionDigits:0}):'<span style="color:var(--g300)">—</span>';
+
+  // Group by category
+  const cats={};
+  rows.forEach(r=>{ if(!cats[r.category])cats[r.category]=[]; cats[r.category].push(r); });
+
+  let html='';
+  const divColor={'Medical':'#dbeafe','Dental':'#dcfce7'};
+  const divText={'Medical':'#1e40af','Dental':'#065f46'};
+
+  Object.entries(cats).forEach(([cat,items])=>{
+    html+=`<tr style="background:var(--g50)">
+      <td colspan="9" style="padding:6px 14px;font-size:11px;font-weight:800;color:var(--g500);text-transform:uppercase;letter-spacing:.06em;border-top:2px solid var(--g100)">${cat}</td>
+    </tr>`;
+    items.forEach(r=>{
+      const div=r.division||'';
+      html+=`<tr style="transition:background .1s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <td style="font-size:11px;color:var(--g400)">${cat}</td>
+        <td><span style="font-size:10px;padding:2px 7px;border-radius:10px;background:${divColor[div]||'#f1f5f9'};color:${divText[div]||'#475569'};font-weight:700">${div||'—'}</span></td>
+        <td style="font-weight:600">${r.model}</td>
+        <td style="text-align:right;font-weight:800;font-size:14px;color:var(--blue);background:#f0f7ff">${fmtP(r.sa_usd)}</td>
+        <td style="text-align:right;color:#059669">${fmtP(r.brazil_usd)}</td>
+        <td style="text-align:right;color:#7c3aed">${fmtP(r.mexico_usd)}</td>
+        <td style="text-align:right;color:#d97706">${fmtP(r.latam_usd)}</td>
+        <td style="text-align:right;font-weight:700;color:#dc2626">${fmtP(r.min_price_usd)}</td>
+        <td style="text-align:right;color:var(--g400);font-size:12px;border-left:1px dashed var(--g200)">${fmtP(r.tp_usd)}</td>
+      </tr>`;
+    });
+  });
+
+  const tb=document.getElementById('tp-tbody');
+  if(tb)tb.innerHTML=html||'<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--g400)">No data found</td></tr>';
+
+  // Stats
+  const total=rows.length;
+  const withLatam=rows.filter(r=>r.sa_usd).length;
+  const titleEl=document.querySelector('#pricing-tp .panel-title');
+  if(titleEl)titleEl.textContent=`HQ Transfer Price Reference — GAI 2026 (Ex-Factory, USD)   [${total} models]`;
+}
+
+// ── TAB 2: Distributor Prices ─────────────────────────────────────────────────
+async function initDistPricing(){
+  const sel=document.getElementById('dist-price-sel');
+  const histSel=document.getElementById('hist-dist-sel');
+  if(sel&&sel.options.length>1)return;
+  if(_tpData.length===0){
+    const {data}=await sb.from('tp_prices').select('*').eq('year',2026).order('category').order('model');
+    _tpData=data||[];
+  }
+  const dists=[...(masterCache.distributors||[])].sort((a,b)=>(a.company_name||'').localeCompare(b.company_name||''));
+  dists.forEach(d=>{
+    if(sel){const o=new Option(d.company_name+' ('+d.country+')',d.company_name);sel.add(o);}
+    if(histSel){const o2=new Option(d.company_name,d.company_name);histSel.add(o2);}
+  });
+}
+
+async function loadDistributorPrices(){
+  const dist=document.getElementById('dist-price-sel')?.value;
+  const addBtn=document.getElementById('dist-price-add-btn');
+  const tblWrap=document.getElementById('dist-price-tbl-wrap');
+  const emptyDiv=document.getElementById('dist-price-empty');
+  const info=document.getElementById('dist-price-info');
+  const title=document.getElementById('dist-price-title');
+
+  if(!dist){
+    if(addBtn)addBtn.style.display='none';
+    if(tblWrap)tblWrap.style.display='none';
+    if(emptyDiv)emptyDiv.style.display='none';
+    return;
+  }
+
+  showPageLoading('Loading prices for '+dist+'...');
+  const {data:dp,error}=await sb.from('distributor_prices').select('*').eq('distributor',dist).order('category').order('model');
+  hidePageLoading();
+
+  if(error){
+    toast('Error loading prices: '+error.message,'err');
+    return;
+  }
+
+  _distPrices=dp||[];
+  const distInfo=(masterCache.distributors||[]).find(d=>d.company_name===dist);
+  if(title)title.textContent='Prices — '+dist+(distInfo?' ('+distInfo.country+')':'');
+  if(addBtn)addBtn.style.display='flex';
+  if(info)info.style.display='none';
+
+  if(_distPrices.length===0){
+    if(tblWrap)tblWrap.style.display='none';
+    if(emptyDiv)emptyDiv.style.display='block';
+    return;
+  }
+  if(emptyDiv)emptyDiv.style.display='none';
+  if(tblWrap)tblWrap.style.display='block';
+  renderDistPrices(dist);
+}
+
+function renderDistPrices(dist){
+  const tbody=document.getElementById('dist-price-tbody');
+  if(!tbody)return;
+  const fmtP=v=>v?'$'+Number(v).toLocaleString('en',{maximumFractionDigits:0}):'—';
+  tbody.innerHTML=_distPrices.map(r=>{
+    const tp=Number(r.tp_ref_usd||0);
+    const offer=Number(r.offer_price_usd||0);
+    const margin=Number(r.margin_pct||0);
+    const tpRec=_tpData.find(t=>t.model===r.model);
+    const minP=tpRec?.min_price_usd?Number(tpRec.min_price_usd):null;
+    const belowMin=minP&&offer>0&&offer<minP;
+    const mCol=margin>=30?'#059669':margin>=15?'#d97706':margin<0?'#dc2626':'#374151';
+    const mBg=margin>=30?'#dcfce7':margin>=15?'#fef3c7':margin<0?'#fef2f2':'#f8fafc';
+    return`<tr>
+      <td style="font-size:11px;color:var(--g500)">${r.category||'—'}</td>
+      <td><strong>${r.model}</strong></td>
+      <td style="text-align:right;color:var(--blue)">$${tp.toLocaleString()}</td>
+      <td style="text-align:right;color:#dc2626">${minP?'$'+minP.toLocaleString():'—'}</td>
+      <td style="text-align:right;font-weight:800;font-size:14px;color:${belowMin?'#dc2626':'var(--g900)'}">
+        $${offer.toLocaleString()}${belowMin?'<div style="font-size:9px;color:#dc2626">⚠️ BELOW MIN</div>':''}
+      </td>
+      <td style="text-align:center"><span style="background:${mBg};color:${mCol};padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700">${margin>=0?'+':''}${margin}%</span></td>
+      <td style="text-align:center">${minP?'<span style="font-size:11px;color:'+(belowMin?'#dc2626':'#059669')+';font-weight:600">'+(belowMin?'❌ Below':'✅ OK')+'</span>':'—'}</td>
+      <td style="font-size:11px;color:var(--g500)">${r.valid_until||'—'}</td>
+      <td style="font-size:11px;color:var(--g500);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.notes||'—'}</td>
+      <td><button onclick="openEditDistPrice('${r.id}','${esc(r.model)}',${tp},${offer},'${r.valid_until||''}','${esc(r.notes||'')}')" style="padding:3px 10px;border:1px solid var(--g200);border-radius:5px;background:#fff;font-size:11px;cursor:pointer">Edit</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function openDistPriceForm(){
+  window._dp_edit_id=null;
+  _openDPForm();
+}
+
+function openEditDistPrice(id,model,tp,offer,until,notes){
+  window._dp_edit_id=id;
+  window._dp_prefill={model,tp,offer,until,notes};
+  _openDPForm();
+}
+
+function _openDPForm(){
+  const dist=document.getElementById('dist-price-sel')?.value;
+  if(!dist)return;
+  const cats={};
+  _tpData.forEach(t=>{ if(!cats[t.category])cats[t.category]=[]; cats[t.category].push(t); });
+  const modelOpts=Object.entries(cats).map(([cat,items])=>
+    `<optgroup label="${cat}">${items.map(t=>`<option value="${esc(t.model)}" data-tp="${t.sa_usd||t.tp_usd||0}" data-min="${t.min_price_usd||0}">${t.model} (LATAM TP: ${t.sa_usd?'$'+Number(t.sa_usd).toLocaleString():'—'})</option>`).join('')}</optgroup>`
+  ).join('');
+
+  openModal(`
+    <h3 style="margin:0 0 16px;font-size:15px;font-weight:800">Set Offer Price — ${esc(dist)}</h3>
+    <div style="display:grid;gap:12px">
+      <div>
+        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px"><span style="color:var(--red)">*</span> Model</label>
+        <select id="dp-model" onchange="onDPModelChange()" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px">
+          <option value="">— Select model —</option>${modelOpts}
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--g500);display:block;margin-bottom:4px">LATAM TP (reference)</label>
+          <input id="dp-tp" readonly style="width:100%;padding:8px;border:1px dashed var(--blue);border-radius:7px;font-size:13px;background:#f0f7ff;color:var(--blue);font-weight:700;box-sizing:border-box" placeholder="Auto">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#dc2626;display:block;margin-bottom:4px">Min Price</label>
+          <input id="dp-min" readonly style="width:100%;padding:8px;border:1px dashed #fca5a5;border-radius:7px;font-size:13px;background:#fff5f5;color:#dc2626;font-weight:700;box-sizing:border-box" placeholder="Auto">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px"><span style="color:var(--red)">*</span> Offer Price ($)</label>
+          <input id="dp-offer" type="number" min="0" oninput="onDPOfferChange()" style="width:100%;padding:8px;border:1.5px solid var(--blue);border-radius:7px;font-size:14px;font-weight:700;box-sizing:border-box" placeholder="Enter price">
+        </div>
+      </div>
+      <div id="dp-margin-display" style="background:#f8fafc;border-radius:8px;padding:10px 14px;font-size:13px;display:flex;gap:20px;align-items:center">
+        <span>Margin over LATAM TP: <strong id="dp-margin">—</strong></span>
+        <span id="dp-min-check"></span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Valid Until</label>
+          <input id="dp-until" type="date" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Notes</label>
+          <input id="dp-notes" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="e.g. Project price">
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
+      <button onclick="saveDistPrice('${esc(dist)}')" style="padding:9px 20px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">Save Price</button>
+    </div>
+  `);
+
+  // Pre-fill if editing
+  const pf=window._dp_prefill;
+  if(pf){
+    setTimeout(()=>{
+      const sel=document.getElementById('dp-model');
+      if(sel){for(const o of sel.options){if(o.value===pf.model){o.selected=true;break;}}}
+      onDPModelChange();
+      const offerEl=document.getElementById('dp-offer');
+      if(offerEl){offerEl.value=pf.offer||'';onDPOfferChange();}
+      const untilEl=document.getElementById('dp-until');
+      if(untilEl)untilEl.value=pf.until||'';
+      const notesEl=document.getElementById('dp-notes');
+      if(notesEl)notesEl.value=pf.notes||'';
+      window._dp_prefill=null;
+    },80);
+  }
+}
+
+function onDPModelChange(){
+  const sel=document.getElementById('dp-model');
+  const opt=sel?.selectedOptions[0];
+  const tp=parseFloat(opt?.dataset?.tp||0);
+  const min=parseFloat(opt?.dataset?.min||0);
+  const tpEl=document.getElementById('dp-tp');
+  const minEl=document.getElementById('dp-min');
+  if(tpEl)tpEl.value=tp?'$'+tp.toLocaleString():'';
+  if(minEl)minEl.value=min?'$'+min.toLocaleString():'';
+  window._dp_tp=tp; window._dp_min=min;
+  onDPOfferChange();
+}
+
+function onDPOfferChange(){
+  const offer=parseFloat(document.getElementById('dp-offer')?.value||0);
+  const tp=window._dp_tp||0;
+  const min=window._dp_min||0;
+  const mEl=document.getElementById('dp-margin');
+  const minCk=document.getElementById('dp-min-check');
+  if(tp&&offer){
+    const m=((offer-tp)/tp*100).toFixed(1);
+    const col=parseFloat(m)>=30?'#059669':parseFloat(m)>=15?'#d97706':parseFloat(m)<0?'#dc2626':'#374151';
+    if(mEl)mEl.innerHTML=`<span style="color:${col};font-weight:800">${parseFloat(m)>=0?'+':''}${m}%</span>`;
+  } else { if(mEl)mEl.textContent='—'; }
+  if(min&&offer&&minCk){
+    const below=offer<min;
+    minCk.innerHTML=below
+      ?'<span style="color:#dc2626;font-weight:700">⚠️ Below min ($'+min.toLocaleString()+')</span>'
+      :'<span style="color:#059669;font-weight:600">✅ Above minimum</span>';
+  }
+}
+
+async function saveDistPrice(dist){
+  const model=document.getElementById('dp-model')?.value;
+  const offer=parseFloat(document.getElementById('dp-offer')?.value||0);
+  if(!model){toast('Please select a model','err');return;}
+  if(!offer){toast('Please enter an offer price','err');return;}
+
+  const tpRec=_tpData.find(t=>t.model===model);
+  const latamTP=window._dp_tp||tpRec?.sa_usd||tpRec?.tp_usd||null;
+  const payload={
+    distributor:dist,
+    country:(masterCache.distributors||[]).find(d=>d.company_name===dist)?.country||'',
+    category:tpRec?.category||'',
+    model,
+    tp_ref_usd:latamTP,
+    offer_price_usd:offer,
+    valid_until:document.getElementById('dp-until')?.value||null,
+    notes:document.getElementById('dp-notes')?.value||null,
+    created_by:getAuth()||'user'
+  };
+
+  const editId=window._dp_edit_id;
+  const {error}=editId
+    ?await sb.from('distributor_prices').update(payload).eq('id',editId)
+    :await sb.from('distributor_prices').upsert(payload,{onConflict:'distributor,model'});
+
+  if(error){toast('Error: '+error.message,'err');return;}
+  window._dp_edit_id=null;
+  closeModal();
+  toast('Price saved ✅');
+  _distPrices=[];
+  loadDistributorPrices();
+}
+
+// ── TAB 3: Price History ──────────────────────────────────────────────────────
+async function loadPriceHistory(){
+  const dist=document.getElementById('hist-dist-sel')?.value;
+  const tbody=document.getElementById('hist-tbody');
+  showPageLoading('Loading history...');
+  let q=sb.from('price_history').select('*').order('changed_at',{ascending:false}).limit(100);
+  if(dist)q=q.eq('distributor',dist);
+  const {data,error}=await q;
+  hidePageLoading();
+  if(error){
+    if(tbody)tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--red)">⚠️ '+error.message+'</td></tr>';
+    return;
+  }
+  const rows=data||[];
+  if(tbody){
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--g400)">No price changes recorded yet</td></tr>';return;}
+    tbody.innerHTML=rows.map(r=>{
+      const op=Number(r.old_price_usd||0);
+      const np=Number(r.new_price_usd||0);
+      const diff=op>0?((np-op)/op*100).toFixed(1):null;
+      const col=diff===null?'':parseFloat(diff)>=0?'#059669':'#dc2626';
+      return`<tr>
+        <td style="font-size:11px">${(r.changed_at||'').slice(0,16)}</td>
+        <td>${r.distributor}</td><td><strong>${r.model}</strong></td>
+        <td style="text-align:right;color:var(--g500);text-decoration:line-through">$${op.toLocaleString()}</td>
+        <td style="text-align:right;font-weight:700">$${np.toLocaleString()}</td>
+        <td style="text-align:center">${diff?`<span style="color:${col};font-weight:700">${parseFloat(diff)>=0?'+':''}${diff}%</span>`:'—'}</td>
+        <td style="font-size:11px;color:var(--g400)">${r.notes||'—'}</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
 
 // ── AUTO LOGOUT (60 min inactivity) ──────────────────────────────────────────
 const AUTO_LOGOUT_MS = 60 * 60 * 1000; // 60 minutes
