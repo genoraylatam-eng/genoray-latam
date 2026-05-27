@@ -59,6 +59,7 @@ body{display:flex;height:100vh;background:var(--g100);color:var(--g900);font-siz
 .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
 .stat-card.blue::before{background:var(--blue)}.stat-card.green::before{background:var(--green)}
 .stat-card.amber::before{background:var(--amber)}.stat-card.red::before{background:var(--red)}
+.stat-card.purple::before{background:var(--purple)}
 .stat-label{font-size:12px;color:var(--g500);font-weight:500;margin-bottom:8px}
 .stat-value{font-size:26px;font-weight:800;letter-spacing:-.5px}
 .stat-sub{font-size:11px;color:var(--g400);margin-top:5px}
@@ -189,6 +190,29 @@ tr:hover td{background:var(--g50)}
 .pi-sig-box{}
 .pi-sig-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:20px}
 .pi-sig-line{border-top:1px solid #374151;padding-top:6px;font-size:11px;color:#555}
+/* BC BAR */
+.bc-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.bc-row:last-child{margin-bottom:0}
+.bc-label{font-size:12px;font-weight:500;color:var(--g700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bc-bar-bg{flex:1;background:var(--g100);border-radius:4px;height:20px;overflow:hidden}
+.bc-bar{height:100%;border-radius:4px;display:flex;align-items:center;padding:0 8px;min-width:24px;transition:width .5s}
+.bc-bar span{font-size:10px;color:#fff;font-weight:700;white-space:nowrap}
+.bc-val{font-size:11px;color:var(--g500);font-weight:500;white-space:nowrap}
+.mc-bars{display:flex;align-items:flex-end;gap:6px;height:110px;margin-bottom:8px}
+.mc-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.mc-bar-wrap{width:100%;flex:1;display:flex;flex-direction:column;justify-content:flex-end;position:relative}
+.mc-bar-goal{position:absolute;bottom:0;left:0;right:0;border-radius:4px 4px 0 0;opacity:.25}
+.mc-bar-rev{position:absolute;bottom:0;left:0;right:0;border-radius:4px 4px 0 0}
+.mc-lbl{font-size:9px;color:var(--g400);text-align:center}
+.mc-legend{display:flex;gap:16px;font-size:11px;color:var(--g500);margin-top:4px}
+.mc-legend span{display:flex;align-items:center;gap:4px}
+.mc-legend .dot{width:10px;height:10px;border-radius:2px}
+.ach-good{color:var(--green);font-weight:700}
+.ach-warn{color:var(--amber);font-weight:600}
+.ach-bad{color:var(--red);font-weight:600}
+.pipe-stat{background:var(--white);border-radius:var(--rsm);padding:12px 16px;box-shadow:var(--sh);flex:1;min-width:120px;text-align:center}
+.pipe-stat-val{font-size:22px;font-weight:800}
+.pipe-stat-lbl{font-size:11px;color:var(--g400);margin-top:2px}
 /* spinner */
 .spin-wrap{text-align:center;padding:52px;color:var(--g400)}
 .spinner{width:30px;height:30px;border:3px solid var(--g200);border-top-color:var(--blue);border-radius:50%;animation:spin .65s linear infinite;margin:0 auto 12px}
@@ -226,6 +250,8 @@ tr:hover td{background:var(--g50)}
   <div class="nav-sec">
     <div class="nav-lbl">Overview</div>
     <div class="nav-item active" data-page="dashboard"><span class="nav-icon">📊</span>Dashboard</div>
+    <div class="nav-item" data-page="pipeline"><span class="nav-icon">🔄</span>Pipeline & Backlog</div>
+    <div class="nav-item" data-page="report"><span class="nav-icon">📈</span>Report</div>
   </div>
   <div class="nav-sec">
     <div class="nav-lbl">Sales</div>
@@ -263,18 +289,124 @@ tr:hover td{background:var(--g50)}
       <div id="d-load" class="spin-wrap"><div class="spinner"></div>Loading...</div>
       <div id="d-data" style="display:none">
         <div class="stat-grid" id="stat-cards"></div>
-        <div class="dash-grid">
+        <div class="dash-grid" style="margin-bottom:16px">
+          <div class="panel">
+            <div class="panel-head"><span class="panel-title">Monthly Revenue vs Goal (2026)</span></div>
+            <div style="padding:14px 20px" id="monthly-chart"></div>
+          </div>
           <div class="panel">
             <div class="panel-head"><span class="panel-title">Sales by Country</span></div>
-            <div class="country-list" id="country-chart"></div>
+            <div style="padding:14px 20px" id="country-chart"></div>
           </div>
+        </div>
+        <div class="dash-grid" style="margin-bottom:16px">
           <div class="panel">
-            <div class="panel-head"><span class="panel-title">Recent PI</span></div>
+            <div class="panel-head"><span class="panel-title">Goal Achievement by Country</span></div>
             <div class="tbl-wrap"><table>
-              <thead><tr><th>PI No.</th><th>Distributor</th><th>Amount</th><th>Status</th></tr></thead>
-              <tbody id="recent-pi"></tbody>
+              <thead><tr><th>Country</th><th>Revenue</th><th>Goal</th><th>Ach%</th></tr></thead>
+              <tbody id="country-ach-tbody"></tbody>
             </table></div>
           </div>
+          <div class="panel">
+            <div class="panel-head"><span class="panel-title">Sales by Division & Rep</span></div>
+            <div style="padding:14px 20px" id="division-chart"></div>
+            <div style="padding:0 20px 14px" id="rep-chart"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><span class="panel-title">Recent PI</span></div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>PI No.</th><th>Distributor</th><th>Amount</th><th>Status</th></tr></thead>
+            <tbody id="recent-pi"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PIPELINE -->
+    <div id="page-pipeline" class="page">
+      <div id="pipe-load" class="spin-wrap"><div class="spinner"></div>Loading...</div>
+      <div id="pipe-data" style="display:none">
+        <div id="pipe-stats" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px"></div>
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">Pipeline & Backlog — PI Status Overview</span>
+            <div class="panel-acts">
+              <div class="search-box"><span>🔍</span><input id="pipe-search" placeholder="Search..." oninput="filterPipeline()"></div>
+              <select id="pipe-filter" onchange="filterPipeline()" style="padding:7px 10px;border:1px solid var(--g200);border-radius:var(--rsm);font-size:13px;background:#fff">
+                <option value="">All Status</option>
+                <option value="Backlog">🔴 Backlog</option>
+                <option value="In Progress">🔵 In Progress</option>
+                <option value="Shipped">✅ Shipped</option>
+              </select>
+            </div>
+          </div>
+          <div class="tbl-wrap"><table>
+            <thead><tr>
+              <th class="sortable" onclick="sortPipe('pi_month')">Month</th>
+              <th class="sortable" onclick="sortPipe('pi_number')">PI No.</th>
+              <th class="sortable" onclick="sortPipe('distributor')">Distributor</th>
+              <th class="sortable" onclick="sortPipe('country')">Country</th>
+              <th class="sortable" onclick="sortPipe('amount_usd')">Amount</th>
+              <th class="sortable" onclick="sortPipe('payment_terms')">Payment Terms</th>
+              <th class="sortable" onclick="sortPipe('has_po')">Has PO?</th>
+              <th class="sortable" onclick="sortPipe('has_hqpo')">Has HQ PO?</th>
+              <th class="sortable" onclick="sortPipe('days_since')">Days Since PI</th>
+              <th class="sortable" onclick="sortPipe('pipe_status')">Status</th>
+              <th>Remarks</th>
+            </tr></thead>
+            <tbody id="pipe-tbody"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORT -->
+    <div id="page-report" class="page">
+      <div id="rep-load" class="spin-wrap"><div class="spinner"></div>Loading...</div>
+      <div id="rep-data" style="display:none">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;background:#fff;padding:14px 20px;border-radius:var(--rlg);box-shadow:var(--sh)">
+          <label style="font-size:12px;font-weight:600;color:var(--g500)">Year A:</label>
+          <select id="rep-year-a" onchange="loadReport()" style="padding:7px 10px;border:1px solid var(--g300);border-radius:var(--rsm);font-size:13px;background:#fff"><option>2026</option><option>2025</option><option>2027</option></select>
+          <label style="font-size:12px;font-weight:600;color:var(--g500)">Year B:</label>
+          <select id="rep-year-b" onchange="loadReport()" style="padding:7px 10px;border:1px solid var(--g300);border-radius:var(--rsm);font-size:13px;background:#fff"><option>2025</option><option>2026</option><option>2027</option></select>
+          <label style="font-size:12px;font-weight:600;color:var(--g500)">Division:</label>
+          <select id="rep-div" onchange="loadReport()" style="padding:7px 10px;border:1px solid var(--g300);border-radius:var(--rsm);font-size:13px;background:#fff">
+            <option value="">All Divisions</option>
+            <option value="Medical">Medical</option>
+            <option value="Dental">Dental</option>
+          </select>
+        </div>
+        <div class="stat-grid" id="rep-stat-cards"></div>
+        <div class="dash-grid" style="margin-bottom:16px">
+          <div class="panel">
+            <div class="panel-head"><span class="panel-title">Quarterly Comparison</span></div>
+            <div class="tbl-wrap"><table>
+              <thead><tr><th>Quarter</th><th id="rep-qa-lbl">Year A</th><th>Goal A</th><th>Ach%</th><th id="rep-qb-lbl">Year B</th><th>Goal B</th><th>Ach%</th><th>YoY</th></tr></thead>
+              <tbody id="rep-quarterly"></tbody>
+            </table></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><span class="panel-title">Country Comparison</span></div>
+            <div class="tbl-wrap"><table>
+              <thead><tr><th>Country</th><th id="rep-ca-lbl">Year A</th><th id="rep-cb-lbl">Year B</th><th>YoY</th></tr></thead>
+              <tbody id="rep-country"></tbody>
+            </table></div>
+          </div>
+        </div>
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-head"><span class="panel-title" id="rep-monthly-title">Monthly Revenue vs Goal</span></div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Month</th><th>Revenue A</th><th>Goal A</th><th>Ach% A</th><th>Revenue B</th><th>Goal B</th><th>Ach% B</th><th>YoY</th></tr></thead>
+            <tbody id="rep-monthly"></tbody>
+          </table></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><span class="panel-title">Distributor Performance (Year A)</span></div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Distributor</th><th>Country</th><th>Division</th><th>Revenue</th><th>Goal</th><th>Achievement</th></tr></thead>
+            <tbody id="rep-dist"></tbody>
+          </table></div>
         </div>
       </div>
     </div>
@@ -475,7 +607,9 @@ tr:hover td{background:var(--g50)}
             <th class="sortable" onclick="sortTbl('goals','year')">Year</th>
             <th class="sortable" onclick="sortTbl('goals','country')">Country</th>
             <th class="sortable" onclick="sortTbl('goals','distributor')">Distributor</th>
-            <th class="sortable" onclick="sortTbl('goals','target_amount_usd')">Target (USD)</th>
+            <th class="sortable" onclick="sortTbl('goals','division')">Division</th>
+            <th class="sortable" onclick="sortTbl('goals','target_amount_usd')">Annual Target</th>
+            <th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th>
             <th>Actions</th>
           </tr></thead>
           <tbody id="goals-tbody"></tbody>
@@ -623,7 +757,7 @@ let activePage='dashboard',formState={table:'',id:null,page:''},cache={},masterC
 let piFS={id:null,items:[],ed:{},seller:'korea'};
 const TBL={hqpo:'hq_po'};
 const tbl=p=>TBL[p]||p;
-const PAGE_TITLES={dashboard:'Dashboard',pi:'PI Management',po:'PO Management',hqpo:'HQ PO',shipments:'Shipments',collections:'Collections',distributors:'Distributors',products:'Products',goals:'Annual Goals'};
+const PAGE_TITLES={dashboard:'Dashboard',pipeline:'Pipeline & Backlog',report:'Report',pi:'PI Management',po:'PO Management',hqpo:'HQ PO',shipments:'Shipments',collections:'Collections',distributors:'Distributors',products:'Products',goals:'Annual Goals'};
 
 // ── NAV ──────────────────────────────────────────────────────────────────────
 document.querySelectorAll('.nav-item').forEach(el=>{
@@ -639,68 +773,269 @@ document.querySelectorAll('.nav-item').forEach(el=>{
 });
 function loadPage(p){
   if(p==='dashboard')return loadDash();
+  if(p==='pipeline')return loadPipeline();
+  if(p==='report')return loadReport();
   loadTable(p);
 }
 
-// ── DASHBOARD ────────────────────────────────────────────────────────────────
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 async function loadDash(){
   document.getElementById('d-load').style.display='block';
   document.getElementById('d-data').style.display='none';
   const yr=new Date().getFullYear();
   document.getElementById('yr-badge').textContent=yr;
-  const[{data:piAll=[]},{data:cols=[]},{data:goals=[]}]=await Promise.all([
+  const[{data:piAll=[]},{data:cols=[]},{data:goalsAll=[]}]=await Promise.all([
     sb.from('pi').select('*'),sb.from('collections').select('*'),
     sb.from('goals').select('*').eq('year',yr)
   ]);
   const piYr=piAll.filter(r=>r.date&&r.date.startsWith(String(yr)));
   const sales=piYr.reduce((s,r)=>s+(r.amount_usd||0),0);
   const coll=cols.reduce((s,r)=>s+(r.collected_amount_usd||0),0);
-  const goal=goals.reduce((s,r)=>s+(r.target_amount_usd||0),0);
-  const pct=goal>0?Math.round(sales/goal*100):0;
+  const totalGoal=goalsAll.reduce((s,r)=>s+(r.target_amount_usd||0),0);
+  const pct=totalGoal>0?Math.round(sales/totalGoal*100):0;
+  const piPending=piAll.filter(r=>r.status==='In Progress'||r.status==='Pending').length;
+
   document.getElementById('stat-cards').innerHTML=`
-    <div class="stat-card blue"><div class="stat-label">Total Sales (${yr})</div><div class="stat-value">$${fmt(sales)}</div><div class="stat-sub">${piYr.length} PI(s)</div><div class="stat-icon">📈</div></div>
+    <div class="stat-card blue"><div class="stat-label">Total Revenue (${yr})</div><div class="stat-value">$${fmt(sales)}</div><div class="stat-sub">${piYr.length} PI(s) issued</div><div class="stat-icon">📈</div></div>
+    <div class="stat-card ${pct>=100?'green':pct>=70?'amber':'red'}"><div class="stat-label">Goal Achievement</div><div class="stat-value">${pct}%</div><div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(pct,100)}%"></div></div><div class="stat-sub">Target $${fmt(totalGoal)}</div><div class="stat-icon">🎯</div></div>
     <div class="stat-card green"><div class="stat-label">Collected</div><div class="stat-value">$${fmt(coll)}</div><div class="stat-sub">Payment received</div><div class="stat-icon">✅</div></div>
-    <div class="stat-card amber"><div class="stat-label">Outstanding</div><div class="stat-value">$${fmt(Math.max(0,sales-coll))}</div><div class="stat-sub">Pending</div><div class="stat-icon">⏳</div></div>
-    <div class="stat-card ${pct>=80?'green':pct>=50?'amber':'red'}"><div class="stat-label">Goal Achievement</div><div class="stat-value">${pct}%</div><div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(pct,100)}%"></div></div><div class="stat-sub">Target: $${fmt(goal)}</div></div>`;
-  const byC={};
+    <div class="stat-card amber"><div class="stat-label">Outstanding</div><div class="stat-value">$${fmt(Math.max(0,sales-coll))}</div><div class="stat-sub">Pending collection</div><div class="stat-icon">⏳</div></div>
+    <div class="stat-card purple"><div class="stat-label">Active PI</div><div class="stat-value">${piPending}</div><div class="stat-sub">In progress / pending</div><div class="stat-icon">📋</div></div>`;
+
+  // Monthly chart
+  const mRev=Array(12).fill(0),mGoal=Array(12).fill(0);
+  const mCols=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_usd','aug_usd','sep_usd','oct_usd','nov_usd','dec_usd'];
+  piYr.forEach(r=>{if(r.date){const m=parseInt(r.date.split('-')[1])-1;if(m>=0&&m<12)mRev[m]+=(r.amount_usd||0);}});
+  goalsAll.forEach(g=>mCols.forEach((c,i)=>mGoal[i]+=(g[c]||0)));
+  const maxMG=Math.max(...mRev,...mGoal,1);
+  document.getElementById('monthly-chart').innerHTML=`
+    <div class="mc-bars">${MONTHS.map((m,i)=>`
+      <div class="mc-col">
+        <div class="mc-bar-wrap" title="${m}: Rev $${fmt(mRev[i])} / Goal $${fmt(mGoal[i])}">
+          <div class="mc-bar-goal" style="height:${Math.round(mGoal[i]/maxMG*100)}%;background:var(--blue2)"></div>
+          <div class="mc-bar-rev" style="height:${Math.round(mRev[i]/maxMG*100)}%;background:var(--blue)"></div>
+        </div>
+        <div class="mc-lbl">${m}</div>
+      </div>`).join('')}</div>
+    <div class="mc-legend">
+      <span><div class="dot" style="background:var(--blue)"></div>Revenue</span>
+      <span><div class="dot" style="background:var(--blue2);opacity:.5"></div>Goal</span>
+    </div>`;
+
+  // Country chart & achievement
+  const byC={},goalByC={};
   piYr.forEach(r=>{byC[r.country||'N/A']=(byC[r.country||'N/A']||0)+(r.amount_usd||0);});
-  const sorted=Object.entries(byC).sort((a,b)=>b[1]-a[1]);
-  const mx=sorted.length?sorted[0][1]:1;
-  document.getElementById('country-chart').innerHTML=sorted.length
-    ?sorted.map(([c,a])=>`<div class="c-row"><div class="c-name">${c}</div><div class="c-bar-bg"><div class="c-bar" style="width:${Math.round(a/mx*100)}%"><span>${Math.round(a/mx*100)}%</span></div></div><div class="c-amt">$${fmt(a)}</div></div>`).join('')
-    :'<p style="color:var(--g400);font-size:13px;padding:8px 0">No data yet</p>';
-  const recent=[...piAll].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,6);
+  goalsAll.forEach(g=>{goalByC[g.country||'N/A']=(goalByC[g.country||'N/A']||0)+(g.target_amount_usd||0);});
+  const cSorted=Object.entries(byC).sort((a,b)=>b[1]-a[1]);
+  const cMax=cSorted.length?cSorted[0][1]:1;
+  document.getElementById('country-chart').innerHTML=cSorted.length
+    ?cSorted.map(([c,a])=>`<div class="bc-row"><div class="bc-label" style="width:90px">${c}</div><div class="bc-bar-bg"><div class="bc-bar" style="width:${Math.round(a/cMax*100)}%;background:linear-gradient(90deg,var(--blue),var(--blue2))"><span>${Math.round(a/cMax*100)}%</span></div></div><div class="bc-val">$${fmt(a)}</div></div>`).join('')
+    :'<p style="color:var(--g400);font-size:13px">No data</p>';
+
+  const allC=[...new Set([...Object.keys(byC),...Object.keys(goalByC)])].sort();
+  document.getElementById('country-ach-tbody').innerHTML=allC.map(c=>{
+    const rev=byC[c]||0,goal=goalByC[c]||0;
+    const ach=goal>0?Math.round(rev/goal*100):null;
+    const cls=ach===null?'':ach>=100?'ach-good':ach>=70?'ach-warn':'ach-bad';
+    return`<tr><td>${c}</td><td>$${fmt(rev)}</td><td>$${fmt(goal)}</td><td class="${cls}">${ach!==null?ach+'%':'—'}</td></tr>`;
+  }).join('');
+
+  // Division chart
+  const byDiv={};
+  piYr.forEach(r=>{
+    const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
+    const div=dist?.division||'N/A';
+    byDiv[div]=(byDiv[div]||0)+(r.amount_usd||0);
+  });
+  const divColors={'Medical':'var(--blue)','Dental':'var(--green)','N/A':'var(--g400)'};
+  const divS=Object.entries(byDiv).sort((a,b)=>b[1]-a[1]);
+  const divMax=divS.length?divS[0][1]:1;
+  document.getElementById('division-chart').innerHTML=divS.length
+    ?divS.map(([d,a])=>`<div class="bc-row"><div class="bc-label" style="width:70px">${d}</div><div class="bc-bar-bg"><div class="bc-bar" style="width:${Math.round(a/divMax*100)}%;background:${divColors[d]||'var(--purple)'}"><span>${Math.round(a/divMax*100)}%</span></div></div><div class="bc-val">$${fmt(a)}</div></div>`).join('')
+    :'<p style="color:var(--g400);font-size:13px">No data</p>';
+
+  // Sales rep chart
+  const byRep={};
+  piYr.forEach(r=>{const rep=r.sales_rep||'Unassigned';byRep[rep]=(byRep[rep]||0)+(r.amount_usd||0);});
+  const repS=Object.entries(byRep).sort((a,b)=>b[1]-a[1]);
+  const repMax=repS.length?repS[0][1]:1;
+  document.getElementById('rep-chart').innerHTML=repS.length
+    ?repS.map(([r,a])=>`<div class="bc-row"><div class="bc-label" style="width:70px">${r}</div><div class="bc-bar-bg"><div class="bc-bar" style="width:${Math.round(a/repMax*100)}%;background:linear-gradient(90deg,var(--purple),#a855f7)"><span>${Math.round(a/repMax*100)}%</span></div></div><div class="bc-val">$${fmt(a)}</div></div>`).join('')
+    :'<p style="color:var(--g400);font-size:13px">No data</p>';
+
+  // Recent PI
+  const recent=[...piAll].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,7);
   document.getElementById('recent-pi').innerHTML=recent.length
     ?recent.map(r=>`<tr><td><span class="pi-link" onclick="showPIPrint('${r.pi_number}')">${r.pi_number}</span></td><td>${r.distributor||'-'}</td><td>$${fmt(r.amount_usd)}</td><td>${pill(r.status)}</td></tr>`).join('')
     :'<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--g400)">No records</td></tr>';
+
   document.getElementById('d-load').style.display='none';
   document.getElementById('d-data').style.display='block';
+}
 
-  // Sales rep breakdown
-  const byRep={};
-  piYr.forEach(r=>{
-    const rep=r.sales_rep||'Unassigned';
-    byRep[rep]=(byRep[rep]||0)+(r.amount_usd||0);
+// ── PIPELINE & BACKLOG ────────────────────────────────────────────────────────
+let pipelineData=[],pipeSort={col:'days_since',dir:'desc'};
+
+async function loadPipeline(){
+  document.getElementById('pipe-load').style.display='block';
+  document.getElementById('pipe-data').style.display='none';
+  const[{data:piAll=[]},{data:poAll=[]},{data:hqAll=[]},{data:ships=[]}]=await Promise.all([
+    sb.from('pi').select('*').order('date',{ascending:false}),
+    sb.from('po').select('pi_number'),
+    sb.from('hq_po').select('pi_number'),
+    sb.from('shipments').select('pi_number,status')
+  ]);
+  const poSet=new Set(poAll.map(p=>p.pi_number));
+  const hqSet=new Set(hqAll.map(p=>p.pi_number));
+  const shipSet=new Set(ships.filter(s=>['Completed','Shipped','Arrived'].includes(s.status)).map(s=>s.pi_number));
+  const today=new Date();
+  pipelineData=piAll.map(pi=>{
+    const piDate=pi.date?new Date(pi.date):null;
+    const daysSince=piDate?Math.floor((today-piDate)/(1000*60*60*24)):0;
+    const hasPO=poSet.has(pi.pi_number);
+    const hasHQPO=hqSet.has(pi.pi_number);
+    const shipped=shipSet.has(pi.pi_number)||pi.status==='Completed';
+    let pipeStatus,remarks;
+    if(shipped){pipeStatus='Shipped';remarks='Completed';}
+    else if(hasPO||hasHQPO){pipeStatus='In Progress';remarks='HQ PO issued';}
+    else if(daysSince>=60){pipeStatus='Backlog';remarks='⚡ 60+ days overdue';}
+    else if(daysSince>=30){pipeStatus='Backlog';remarks='⚠️ 30+ days no follow-up';}
+    else{pipeStatus='Backlog';remarks='New';}
+    return{...pi,has_po:hasPO?'Yes':'No',has_hqpo:hasHQPO?'Yes':'No',days_since:daysSince,pipe_status:pipeStatus,remarks,pi_month:pi.date?pi.date.substring(0,7):''};
   });
-  const repSorted=Object.entries(byRep).sort((a,b)=>b[1]-a[1]);
-  if(repSorted.length>0){
-    const repMax=repSorted[0][1]||1;
-    const repHTML=repSorted.map(([rep,amt])=>`
-      <div class="c-row">
-        <div class="c-name" style="width:120px">${rep}</div>
-        <div class="c-bar-bg"><div class="c-bar" style="width:${Math.round(amt/repMax*100)}%;background:linear-gradient(90deg,var(--purple),#a855f7)"><span>${Math.round(amt/repMax*100)}%</span></div></div>
-        <div class="c-amt">$${fmt(amt)}</div>
-      </div>`).join('');
-    // Insert sales rep panel after existing dash panels
-    const ddata=document.getElementById('d-data');
-    const existing=ddata.querySelector('.rep-panel');
-    if(existing)existing.remove();
-    const repPanel=document.createElement('div');
-    repPanel.className='panel rep-panel';
-    repPanel.style.marginTop='0';
-    repPanel.innerHTML=`<div class="panel-head"><span class="panel-title">Sales by Rep</span></div><div class="country-list">${repHTML}</div>`;
-    ddata.appendChild(repPanel);
-  }
+  const backlog=pipelineData.filter(p=>p.pipe_status==='Backlog');
+  const inProg=pipelineData.filter(p=>p.pipe_status==='In Progress');
+  const shipped=pipelineData.filter(p=>p.pipe_status==='Shipped');
+  const backlogAmt=backlog.reduce((s,p)=>s+(p.amount_usd||0),0);
+  const inProgAmt=inProg.reduce((s,p)=>s+(p.amount_usd||0),0);
+  document.getElementById('pipe-stats').innerHTML=`
+    <div class="pipe-stat"><div class="pipe-stat-val" style="color:var(--red)">${backlog.length}</div><div class="pipe-stat-lbl">🔴 Backlog</div><div style="font-size:11px;color:var(--g400);margin-top:2px">$${fmt(backlogAmt)}</div></div>
+    <div class="pipe-stat"><div class="pipe-stat-val" style="color:var(--blue)">${inProg.length}</div><div class="pipe-stat-lbl">🔵 In Progress</div><div style="font-size:11px;color:var(--g400);margin-top:2px">$${fmt(inProgAmt)}</div></div>
+    <div class="pipe-stat"><div class="pipe-stat-val" style="color:var(--green)">${shipped.length}</div><div class="pipe-stat-lbl">✅ Shipped / Done</div></div>
+    <div class="pipe-stat"><div class="pipe-stat-val">${pipelineData.length}</div><div class="pipe-stat-lbl">Total PIs</div></div>`;
+  renderPipeline(pipelineData);
+  document.getElementById('pipe-load').style.display='none';
+  document.getElementById('pipe-data').style.display='block';
+}
+
+function renderPipeline(rows){
+  const tbody=document.getElementById('pipe-tbody');
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="11"><div class="empty-state">No records</div></td></tr>';return;}
+  tbody.innerHTML=rows.map(r=>{
+    const sc=r.pipe_status==='Backlog'?'p-red':r.pipe_status==='In Progress'?'p-blue':'p-green';
+    const dayColor=r.days_since>=60?'color:var(--red);font-weight:700':r.days_since>=30?'color:var(--amber);font-weight:600':'';
+    return`<tr>
+      <td>${r.pi_month||'-'}</td>
+      <td><span class="pi-link" onclick="showPIPrint('${r.pi_number}')">${r.pi_number}</span></td>
+      <td>${r.distributor||'-'}</td><td>${r.country||'-'}</td>
+      <td><strong>$${fmt(r.amount_usd)}</strong></td>
+      <td style="font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.payment_terms||'-'}</td>
+      <td>${r.has_po==='Yes'?'<span class="pill p-green">Yes</span>':'<span class="pill p-gray">No</span>'}</td>
+      <td>${r.has_hqpo==='Yes'?'<span class="pill p-green">Yes</span>':'<span class="pill p-gray">No</span>'}</td>
+      <td style="${dayColor}">${r.days_since}</td>
+      <td><span class="pill ${sc}">${r.pipe_status}</span></td>
+      <td style="font-size:12px">${r.remarks||'-'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterPipeline(){
+  const q=document.getElementById('pipe-search').value.toLowerCase();
+  const st=document.getElementById('pipe-filter').value;
+  let rows=pipelineData;
+  if(st)rows=rows.filter(r=>r.pipe_status===st);
+  if(q)rows=rows.filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q)));
+  renderPipeline(rows);
+}
+
+function sortPipe(col){
+  const dir=(pipeSort.col===col&&pipeSort.dir==='asc')?'desc':'asc';
+  pipeSort={col,dir};
+  document.querySelectorAll('#page-pipeline th').forEach(th=>{
+    th.classList.remove('sort-asc','sort-desc');
+    if((th.getAttribute('onclick')||'').includes(`'${col}'`))th.classList.add(dir==='asc'?'sort-asc':'sort-desc');
+  });
+  const numCols=['amount_usd','days_since'];
+  renderPipeline([...pipelineData].sort((a,b)=>{
+    let av=a[col]??'',bv=b[col]??'';
+    if(numCols.includes(col)){av=parseFloat(av)||0;bv=parseFloat(bv)||0;return dir==='asc'?av-bv:bv-av;}
+    av=String(av).toLowerCase();bv=String(bv).toLowerCase();
+    return dir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
+  }));
+}
+
+// ── REPORT ────────────────────────────────────────────────────────────────────
+async function loadReport(){
+  document.getElementById('rep-load').style.display='block';
+  document.getElementById('rep-data').style.display='none';
+  const yrA=parseInt(document.getElementById('rep-year-a').value);
+  const yrB=parseInt(document.getElementById('rep-year-b').value);
+  const divFilter=document.getElementById('rep-div').value;
+  document.getElementById('rep-qa-lbl').textContent=yrA;
+  document.getElementById('rep-qb-lbl').textContent=yrB;
+  document.getElementById('rep-ca-lbl').textContent=yrA;
+  document.getElementById('rep-cb-lbl').textContent=yrB;
+  document.getElementById('rep-monthly-title').textContent=`Monthly Revenue vs Goal — ${yrA} vs ${yrB}`;
+  const[{data:piAll=[]},{data:goalsAll=[]}]=await Promise.all([
+    sb.from('pi').select('*'),sb.from('goals').select('*')
+  ]);
+  let goalsA=goalsAll.filter(g=>g.year===yrA);
+  let goalsB=goalsAll.filter(g=>g.year===yrB);
+  if(divFilter){goalsA=goalsA.filter(g=>g.division===divFilter);goalsB=goalsB.filter(g=>g.division===divFilter);}
+  const revA=piAll.filter(r=>r.date&&r.date.startsWith(String(yrA)));
+  const revB=piAll.filter(r=>r.date&&r.date.startsWith(String(yrB)));
+  const totalRevA=revA.reduce((s,r)=>s+(r.amount_usd||0),0);
+  const totalRevB=revB.reduce((s,r)=>s+(r.amount_usd||0),0);
+  const totalGoalA=goalsA.reduce((s,g)=>s+(g.target_amount_usd||0),0);
+  const totalGoalB=goalsB.reduce((s,g)=>s+(g.target_amount_usd||0),0);
+  const pctA=totalGoalA>0?Math.round(totalRevA/totalGoalA*100):0;
+  const pctB=totalGoalB>0?Math.round(totalRevB/totalGoalB*100):0;
+  const yoy=totalRevB>0?Math.round((totalRevA-totalRevB)/totalRevB*100):null;
+  document.getElementById('rep-stat-cards').innerHTML=`
+    <div class="stat-card blue"><div class="stat-label">Revenue ${yrA}</div><div class="stat-value">$${fmt(totalRevA)}</div><div class="stat-sub">${revA.length} PI(s)</div></div>
+    <div class="stat-card ${pctA>=100?'green':pctA>=70?'amber':'red'}"><div class="stat-label">Achievement ${yrA}</div><div class="stat-value">${pctA}%</div><div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(pctA,100)}%"></div></div><div class="stat-sub">Goal $${fmt(totalGoalA)}</div></div>
+    <div class="stat-card blue"><div class="stat-label">Revenue ${yrB}</div><div class="stat-value">$${fmt(totalRevB)}</div><div class="stat-sub">${revB.length} PI(s)</div></div>
+    <div class="stat-card ${pctB>=100?'green':pctB>=70?'amber':'red'}"><div class="stat-label">Achievement ${yrB}</div><div class="stat-value">${pctB}%</div><div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(pctB,100)}%"></div></div><div class="stat-sub">Goal $${fmt(totalGoalB)}</div></div>
+    ${yoy!==null?`<div class="stat-card ${yoy>=0?'green':'red'}"><div class="stat-label">YoY Growth</div><div class="stat-value">${yoy>=0?'+':''}${yoy}%</div><div class="stat-sub">${yrB} → ${yrA}</div></div>`:''}`;
+  const mCols=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_usd','aug_usd','sep_usd','oct_usd','nov_usd','dec_usd'];
+  const mGoalA=Array(12).fill(0),mGoalB=Array(12).fill(0),mRevA=Array(12).fill(0),mRevB=Array(12).fill(0);
+  goalsA.forEach(g=>mCols.forEach((c,i)=>mGoalA[i]+=(g[c]||0)));
+  goalsB.forEach(g=>mCols.forEach((c,i)=>mGoalB[i]+=(g[c]||0)));
+  revA.forEach(r=>{if(r.date){const m=parseInt(r.date.split('-')[1])-1;if(m>=0&&m<12)mRevA[m]+=(r.amount_usd||0);}});
+  revB.forEach(r=>{if(r.date){const m=parseInt(r.date.split('-')[1])-1;if(m>=0&&m<12)mRevB[m]+=(r.amount_usd||0);}});
+  document.getElementById('rep-monthly').innerHTML=MONTHS.map((m,i)=>{
+    const pA=mGoalA[i]>0?Math.round(mRevA[i]/mGoalA[i]*100):null;
+    const pB=mGoalB[i]>0?Math.round(mRevB[i]/mGoalB[i]*100):null;
+    const yoy=mRevB[i]>0?Math.round((mRevA[i]-mRevB[i])/mRevB[i]*100):null;
+    return`<tr><td><strong>${m}</strong></td><td>$${fmt(mRevA[i])}</td><td>$${fmt(mGoalA[i])}</td><td class="${pA===null?'':pA>=100?'ach-good':pA>=70?'ach-warn':'ach-bad'}">${pA!==null?pA+'%':'—'}</td><td>$${fmt(mRevB[i])}</td><td>$${fmt(mGoalB[i])}</td><td class="${pB===null?'':pB>=100?'ach-good':pB>=70?'ach-warn':'ach-bad'}">${pB!==null?pB+'%':'—'}</td><td class="${yoy===null?'':yoy>=0?'ach-good':'ach-bad'}">${yoy!==null?(yoy>=0?'+':'')+yoy+'%':'—'}</td></tr>`;
+  }).join('');
+  const quarters=[[0,3],[3,6],[6,9],[9,12]];
+  const qNames=['Q1 (Jan–Mar)','Q2 (Apr–Jun)','Q3 (Jul–Sep)','Q4 (Oct–Dec)'];
+  document.getElementById('rep-quarterly').innerHTML=quarters.map(([s,e],qi)=>{
+    const qrA=mRevA.slice(s,e).reduce((a,b)=>a+b,0),qrB=mRevB.slice(s,e).reduce((a,b)=>a+b,0);
+    const qgA=mGoalA.slice(s,e).reduce((a,b)=>a+b,0),qgB=mGoalB.slice(s,e).reduce((a,b)=>a+b,0);
+    const pA=qgA>0?Math.round(qrA/qgA*100):null,pB=qgB>0?Math.round(qrB/qgB*100):null;
+    const yoy=qrB>0?Math.round((qrA-qrB)/qrB*100):null;
+    return`<tr><td><strong>${qNames[qi]}</strong></td><td>$${fmt(qrA)}</td><td>$${fmt(qgA)}</td><td class="${pA===null?'':pA>=100?'ach-good':pA>=70?'ach-warn':'ach-bad'}">${pA!==null?pA+'%':'—'}</td><td>$${fmt(qrB)}</td><td>$${fmt(qgB)}</td><td class="${pB===null?'':pB>=100?'ach-good':pB>=70?'ach-warn':'ach-bad'}">${pB!==null?pB+'%':'—'}</td><td class="${yoy===null?'':yoy>=0?'ach-good':'ach-bad'}">${yoy!==null?(yoy>=0?'+':'')+yoy+'%':'—'}</td></tr>`;
+  }).join('');
+  const cRevA={},cRevB={};
+  revA.forEach(r=>{cRevA[r.country||'N/A']=(cRevA[r.country||'N/A']||0)+(r.amount_usd||0);});
+  revB.forEach(r=>{cRevB[r.country||'N/A']=(cRevB[r.country||'N/A']||0)+(r.amount_usd||0);});
+  const allC=[...new Set([...Object.keys(cRevA),...Object.keys(cRevB)])].sort();
+  document.getElementById('rep-country').innerHTML=allC.map(c=>{
+    const a=cRevA[c]||0,b=cRevB[c]||0;
+    const yoy=b>0?Math.round((a-b)/b*100):null;
+    return`<tr><td>${c}</td><td>$${fmt(a)}</td><td>$${fmt(b)}</td><td class="${yoy===null?'':yoy>=0?'ach-good':'ach-bad'}">${yoy!==null?(yoy>=0?'+':'')+yoy+'%':'—'}</td></tr>`;
+  }).join('');
+  const distRevA={};
+  revA.forEach(r=>{distRevA[r.distributor||'N/A']=(distRevA[r.distributor||'N/A']||0)+(r.amount_usd||0);});
+  document.getElementById('rep-dist').innerHTML=goalsA.filter(g=>g.target_amount_usd>0).sort((a,b)=>b.target_amount_usd-a.target_amount_usd).map(g=>{
+    const rev=distRevA[g.distributor]||0,pct=g.target_amount_usd>0?Math.round(rev/g.target_amount_usd*100):null;
+    return`<tr><td><strong>${g.distributor}</strong></td><td>${g.country||'-'}</td><td>${g.division||'-'}</td><td>$${fmt(rev)}</td><td>$${fmt(g.target_amount_usd)}</td><td class="${pct===null?'':pct>=100?'ach-good':pct>=70?'ach-warn':'ach-bad'}">${pct!==null?pct+'%':'—'}</td></tr>`;
+  }).join('');
+  document.getElementById('rep-load').style.display='none';
+  document.getElementById('rep-data').style.display='block';
 }
 
 // ── TABLE LOADER ──────────────────────────────────────────────────────────────
@@ -744,7 +1079,13 @@ function rowHTML(page,r){
   if(page==='collections') return`<tr><td>${r.collection_id}</td><td>${piLink(r.pi_number,r.pi_number)}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td>$${fmt(r.invoice_amount_usd)}</td><td>$${fmt(r.collected_amount_usd)}</td><td>${r.collection_date||'-'}</td><td>${pill(r.status)}</td>${acts}</tr>`;
   if(page==='distributors') return`<tr><td><strong>${r.code}</strong></td><td>${r.company_name}</td><td>${r.country||'-'}</td><td>${r.contact_person||'-'}</td><td>${r.email||'-'}</td><td style="max-width:200px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.address||'-'}</td>${acts}</tr>`;
   if(page==='products') return`<tr><td><strong>${r.code}</strong></td><td>${r.product_name}</td><td>$${fmt(r.unit_price_usd)}</td>${acts}</tr>`;
-  if(page==='goals') return`<tr><td>${r.year}</td><td>${r.country||'-'}</td><td>${r.distributor||'-'}</td><td>$${fmt(r.target_amount_usd)}</td>${acts}</tr>`;
+  if(page==='goals'){
+    const q1=(r.jan_usd||0)+(r.feb_usd||0)+(r.mar_usd||0);
+    const q2=(r.apr_usd||0)+(r.may_usd||0)+(r.jun_usd||0);
+    const q3=(r.jul_usd||0)+(r.aug_usd||0)+(r.sep_usd||0);
+    const q4=(r.oct_usd||0)+(r.nov_usd||0)+(r.dec_usd||0);
+    return`<tr><td>${r.year}</td><td>${r.country||'-'}</td><td>${r.distributor||'-'}</td><td>${r.division||'-'}</td><td><strong>$${fmt(r.target_amount_usd)}</strong></td><td>$${fmt(q1)}</td><td>$${fmt(q2)}</td><td>$${fmt(q3)}</td><td>$${fmt(q4)}</td>${acts}</tr>`;
+  }
 }
 
 function filterTbl(page){
