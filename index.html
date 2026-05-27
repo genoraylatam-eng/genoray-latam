@@ -1151,9 +1151,9 @@ if(sessionStorage.getItem('gl_auth')){
   const badge=role==='admin'?' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>':'';
   document.getElementById('logged-in-user').innerHTML='👤 '+u+badge;
   // d-data is always visible (no display:none in HTML)
-  // Show loading indicator in topbar
-  const ptitle=document.getElementById('page-title');
-  if(ptitle)ptitle.innerHTML='Dashboard <span id="tb-loading" style="font-size:11px;color:var(--g400);font-weight:400">● Loading...</span>';
+  // tb-loading is already in topbar HTML as a sibling to page-title
+  const tbLoad=document.getElementById('tb-loading');
+  if(tbLoad){tbLoad.style.display='inline';tbLoad.textContent='● Loading...';}
 }
 
 // ── STATE ────────────────────────────────────────────────────────────────────
@@ -1181,16 +1181,7 @@ function navigateTo(p){
   loadPage(p);
 }
 
-document.querySelectorAll('.nav-item').forEach(el=>{
-  // Use both click and touchend for max compatibility on Android/iOS
-  const handler=(e)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    navigateTo(el.dataset.page);
-  };
-  el.addEventListener('click', handler);
-  el.addEventListener('touchend', handler, {passive:false});
-});
+
 function loadPage(p){
   if(p==='dashboard')return loadDash();
   if(p==='pipeline')return loadPipeline();
@@ -1247,6 +1238,7 @@ async function loadDash(){
 
   // KPI Cards
   try {
+    if(!document.getElementById('stat-cards'))throw new Error('stat-cards element missing');
     document.getElementById('stat-cards').innerHTML=[
       ['blue','📈','Revenue ('+yr+', Shipped)','$'+fmt(sales),shipsYr.length+' shipments'],
       [pct>=100?'green':pct>=70?'amber':'red','🎯','Goal Achievement',pct+'%','Target $'+fmt(totalGoal)],
@@ -3930,10 +3922,12 @@ async function init(){
     masterCache.products=prods||[];
     loadDash();
   } catch(err) {
-    showPloError(
-      'Cannot connect to database',
-      'Check your internet connection and reload.\n\nError: '+err.message
-    );
+    const sc=document.getElementById('stat-cards');
+    if(sc)sc.innerHTML='<div style="grid-column:1/-1;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:16px 20px">'
+      +'<div style="font-size:14px;font-weight:700;color:#dc2626;margin-bottom:6px">⚠️ Cannot connect to database</div>'
+      +'<div style="font-size:12px;color:#7f1d1d;margin-bottom:12px">'+err.message+'</div>'
+      +'<button onclick="location.reload()" style="padding:8px 18px;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">🔄 Reload</button>'
+      +'</div>';
   }
 }
 
@@ -3968,24 +3962,7 @@ function updateBottomNav(page){
 }
 
 
-// ── MOBILE SIDEBAR ──────────────────────────────────────────────────────────
-function toggleSidebar(){
-  const sb=document.getElementById('sidebar');
-  const ov=document.getElementById('mob-overlay');
-  sb.classList.toggle('mob-open');
-  ov.classList.toggle('show');
-  document.body.style.overflow=sb.classList.contains('mob-open')?'hidden':'';
-}
-function closeSidebar(){
-  document.getElementById('sidebar').classList.remove('mob-open');
-  document.getElementById('mob-overlay').classList.remove('show');
-  document.body.style.overflow='';
-}
-// Close sidebar when nav item clicked on mobile
-document.querySelectorAll('.nav-item').forEach(el=>{
-  el.addEventListener('click',()=>{if(window.innerWidth<=768)closeSidebar();});
-});
-// Add PWA meta + viewport if not present
+
 
 </script>
 
