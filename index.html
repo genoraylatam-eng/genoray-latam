@@ -1136,11 +1136,18 @@ tr[data-paid="true"] td{opacity:.55}
     <!-- PRICING -->
     <div id="page-pricing" class="page">
 
-      <!-- Tab Bar -->
-      <div style="display:flex;gap:0;background:#fff;border-radius:var(--rlg);box-shadow:var(--sh);margin-bottom:14px;overflow:hidden">
-        <button id="ptab-tp" onclick="setPricingTab('tp')" style="flex:1;padding:11px 0;border:none;background:var(--blue);color:#fff;font-size:13px;font-weight:700;cursor:pointer;border-right:1px solid rgba(255,255,255,.2)">📋 TP Reference</button>
-        <button id="ptab-dist" onclick="setPricingTab('dist')" style="flex:1;padding:11px 0;border:none;background:var(--g100);color:var(--g600);font-size:13px;font-weight:700;cursor:pointer;border-right:1px solid var(--g200)">🏢 Distributor Prices</button>
-        <button id="ptab-hist" onclick="setPricingTab('hist')" style="flex:1;padding:11px 0;border:none;background:var(--g100);color:var(--g600);font-size:13px;font-weight:700;cursor:pointer">🕐 Price History</button>
+      <!-- Tab navigation (left-aligned, consistent with app style) -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;background:#fff;border-radius:var(--rlg);box-shadow:var(--sh);padding:10px 16px;align-items:center">
+        <span style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.06em;margin-right:4px">View</span>
+        <button id="ptab-tp" onclick="setPricingTab('tp')"
+          style="padding:7px 16px;border:1.5px solid var(--blue);border-radius:var(--rsm);background:var(--blue);color:#fff;font-size:12px;font-weight:700;cursor:pointer">
+          📋 TP Reference</button>
+        <button id="ptab-dist" onclick="setPricingTab('dist')"
+          style="padding:7px 16px;border:1.5px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:700;cursor:pointer">
+          🏢 Distributor Prices</button>
+        <button id="ptab-hist" onclick="setPricingTab('hist')"
+          style="padding:7px 16px;border:1.5px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:700;cursor:pointer">
+          🕐 Price History</button>
       </div>
 
       <!-- TAB 1: TP Reference -->
@@ -4931,7 +4938,11 @@ function setPricingTab(tab){
     const btn=document.getElementById('ptab-'+t);
     const pnl=document.getElementById('pricing-'+t);
     const active=t===tab;
-    if(btn){btn.style.background=active?'var(--blue)':'var(--g100)';btn.style.color=active?'#fff':'var(--g600)';}
+    if(btn){
+      btn.style.background=active?'var(--blue)':'#fff';
+      btn.style.color=active?'#fff':'var(--g600)';
+      btn.style.borderColor=active?'var(--blue)':'var(--g200)';
+    }
     if(pnl)pnl.style.display=active?'block':'none';
   });
   if(tab==='tp')loadTPReference();
@@ -5118,18 +5129,26 @@ function _openDPForm(){
   if(!dist)return;
   const cats={};
   _tpData.forEach(t=>{ if(!cats[t.category])cats[t.category]=[]; cats[t.category].push(t); });
-  const modelOpts=Object.entries(cats).map(([cat,items])=>
-    `<optgroup label="${cat}">${items.map(t=>`<option value="${esc(t.model)}" data-tp="${t.sa_usd||t.tp_usd||0}" data-min="${t.min_price_usd||0}">${t.model} (LATAM TP: ${t.sa_usd?'$'+Number(t.sa_usd).toLocaleString():'—'})</option>`).join('')}</optgroup>`
+  // Build datalist options for search input
+  const allModelItems=Object.values(cats).flat();
+  const modelDatalist=allModelItems.map(t=>
+    `<option value="${esc(t.model)}">${esc(t.model)} — ${t.category} (TP: ${t.sa_usd?'$'+Number(t.sa_usd).toLocaleString():'—'})</option>`
   ).join('');
+  // Keep hidden map for data lookup
+  window._dpModelMap={};
+  allModelItems.forEach(t=>{ window._dpModelMap[t.model]={tp:t.sa_usd||t.tp_usd||0, min:t.min_price_usd||0, cat:t.category}; });
 
   openModal(`
     <h3 style="margin:0 0 16px;font-size:15px;font-weight:800">Set Offer Price — ${esc(dist)}</h3>
     <div style="display:grid;gap:12px">
       <div>
-        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px"><span style="color:var(--red)">*</span> Model</label>
-        <select id="dp-model" onchange="onDPModelChange()" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px">
-          <option value="">— Select model —</option>${modelOpts}
-        </select>
+        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px"><span style="color:var(--red)">*</span> Model <span style="font-size:10px;color:var(--g400);font-weight:400">(type to search)</span></label>
+        <input id="dp-model-search" list="dp-model-list" placeholder="Type model name to search..." 
+          oninput="onDPModelSearch(this.value)"
+          style="width:100%;padding:8px 12px;border:1.5px solid var(--blue);border-radius:7px;font-size:13px;box-sizing:border-box">
+        <datalist id="dp-model-list">${modelDatalist}</datalist>
+        <input type="hidden" id="dp-model" value="">
+        <div id="dp-model-match" style="font-size:11px;color:var(--g400);margin-top:3px"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
         <div>
@@ -5170,9 +5189,8 @@ function _openDPForm(){
   const pf=window._dp_prefill;
   if(pf){
     setTimeout(()=>{
-      const sel=document.getElementById('dp-model');
-      if(sel){for(const o of sel.options){if(o.value===pf.model){o.selected=true;break;}}}
-      onDPModelChange();
+      const searchEl=document.getElementById('dp-model-search');
+      if(searchEl){searchEl.value=pf.model||'';onDPModelSearch(pf.model||'');}
       const offerEl=document.getElementById('dp-offer');
       if(offerEl){offerEl.value=pf.offer||'';onDPOfferChange();}
       const untilEl=document.getElementById('dp-until');
@@ -5181,6 +5199,29 @@ function _openDPForm(){
       if(notesEl)notesEl.value=pf.notes||'';
       window._dp_prefill=null;
     },80);
+  }
+}
+
+function onDPModelSearch(val){
+  const trimmed=val.trim();
+  // Find exact or partial match
+  const map=window._dpModelMap||{};
+  const exactMatch=map[trimmed];
+  const matchEl=document.getElementById('dp-model-match');
+  if(exactMatch){
+    document.getElementById('dp-model').value=trimmed;
+    window._dp_tp=exactMatch.tp;
+    window._dp_min=exactMatch.min;
+    const tpEl=document.getElementById('dp-tp');
+    const minEl=document.getElementById('dp-min');
+    if(tpEl)tpEl.value=exactMatch.tp?'$'+Number(exactMatch.tp).toLocaleString():'';
+    if(minEl)minEl.value=exactMatch.min?'$'+Number(exactMatch.min).toLocaleString():'';
+    if(matchEl)matchEl.innerHTML='<span style="color:var(--green);font-weight:600">✅ '+esc(trimmed)+'</span> selected';
+    onDPOfferChange();
+  } else {
+    document.getElementById('dp-model').value='';
+    if(matchEl&&trimmed)matchEl.innerHTML='<span style="color:var(--g400)">Type more to find a match...</span>';
+    else if(matchEl)matchEl.innerHTML='';
   }
 }
 
@@ -5244,7 +5285,7 @@ async function saveDistPrice(dist){
   if(error){toast('Error: '+error.message,'err');return;}
   window._dp_edit_id=null;
   closeModal();
-  toast('Price saved ✅');
+  toast('✅ Price saved successfully');
   _distPrices=[];
   loadDistributorPrices();
 }
@@ -5282,6 +5323,17 @@ async function loadPriceHistory(){
   }
 }
 
+
+// ── PRICING MODAL HELPERS ────────────────────────────────────────────────────
+function openModal(html, title=''){
+  document.getElementById('modal-title').textContent=title||'Price Settings';
+  document.getElementById('modal-body').innerHTML=html;
+  document.getElementById('modal-foot').innerHTML='';
+  document.getElementById('overlay').classList.add('show');
+}
+function closeModal(){
+  document.getElementById('overlay').classList.remove('show');
+}
 
 // ── PRICE LIST PDF EXPORT ────────────────────────────────────────────────────
 function openPriceListPrint(){
