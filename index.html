@@ -1153,10 +1153,10 @@ async function loadCompareChart(){
 }
 
 function renderCompareChart(years,yearData,colors,colorsLight){
-  const W=820,H=160;
-  const pL=42,pR=10,pT=22,pB=40;
+  const W=820,H=150;
+  const pL=40,pR=40,pT=30,pB=36;
   const cW=W-pL-pR,cH=H-pT-pB;
-  const maxVal=Math.max(...years.flatMap(y=>yearData[y]||[]),1);
+  const maxVal=Math.max(...years.flatMap(y=>yearData[y]||[]),1)*1.15;
   const colW=cW/12;
   const n=years.length;
   const bw=Math.min(colW*0.22, 12); // thin bars per year
@@ -1194,9 +1194,9 @@ function renderCompareChart(years,yearData,colors,colorsLight){
     }
     if(pts.length>=2){
       const path=pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
-      lines+='<path d="'+path+'" fill="none" stroke="'+colors[yi]+'" stroke-width="1.8"/>';
+      lines+='<path d="'+path+'" fill="none" stroke="'+colors[yi]+'" stroke-width="1"/>';
       pts.forEach(([x,y],idx)=>{
-        lines+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+(idx===pts.length-1?3:2)+'" fill="'+colors[yi]+'" stroke="#fff" stroke-width="1"/>';
+        lines+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+(idx===pts.length-1?2.5:1.8)+'" fill="'+colors[yi]+'" stroke="#fff" stroke-width="0.8"/>';
       });
       const [lx,ly]=pts[pts.length-1];
       const tot=mRev.slice(0,maxMo).reduce((a,b)=>a+b,0);
@@ -1248,10 +1248,10 @@ function renderMonthlyChart(){
   document.getElementById('dash-monthly-title').textContent='Monthly Revenue vs Goal — '+yr+' ('+divLabel+')';
 
   // Chart dimensions
-  const W=820, H=160;
-  const pL=42, pR=10, pT=22, pB=40;
+  const W=820, H=155;
+  const pL=40, pR=45, pT=28, pB=36;
   const cW=W-pL-pR, cH=H-pT-pB;
-  const maxVal=Math.max(...mRev,...mGoal,1);
+  const maxVal=Math.max(...mRev,...mGoal,1)*1.15;
   const colW=cW/12;
   const bw=colW*0.26; // thin bars
 
@@ -1326,13 +1326,13 @@ function renderMonthlyChart(){
   // Cumulative lines
   let lines='';
   if(goalPts.length>=2){
-    lines+='<path d="'+toP(goalPts)+'" fill="none" stroke="#93c5fd" stroke-width="1.3" stroke-dasharray="3,3"/>';
+    lines+='<path d="'+toP(goalPts)+'" fill="none" stroke="#93c5fd" stroke-width="0.9" stroke-dasharray="3,3"/>';
   }
   if(revPts.length>=2){
-    lines+='<path d="'+toP(revPts)+'" fill="none" stroke="#1d4ed8" stroke-width="1.8"/>';
+    lines+='<path d="'+toP(revPts)+'" fill="none" stroke="#1d4ed8" stroke-width="1"/>';
     revPts.forEach(([x,y],idx)=>{
       const isLast=idx===revPts.length-1;
-      lines+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+(isLast?3:2)+'" fill="'+(isLast?'#1d4ed8':'#6baaf7')+'" stroke="#fff" stroke-width="1"/>';
+      lines+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+(isLast?2.5:1.5)+'" fill="'+(isLast?'#1d4ed8':'#6baaf7')+'" stroke="#fff" stroke-width="0.8"/>';
     });
     // YTD label at last point
     const [lx,ly]=revPts[revPts.length-1];
