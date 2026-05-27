@@ -2012,6 +2012,7 @@ function setRepDiv(div){
 async function loadReport(){
   showPageLoading('Loading Report...');
   document.getElementById('rep-data').style.display='none';
+  try {
 
   const yrA=parseInt(document.getElementById('rep-year-a').value);
   const yrB=parseInt(document.getElementById('rep-year-b').value);
@@ -2178,12 +2179,19 @@ async function loadReport(){
     }).join('');
 
   // ── Model Analysis ────────────────────────────────────────
-  window._repModelData={shipsAll, years, yrA, yrB, yrC, divFilter, shipMatchesDivFilter};
-  renderModelSection(shipsAll, yrA, yrB, yrC, divFilter, shipMatchesDivFilter, window._modelTab||'rev');
-  // renderModelSection handles its own title
+    try {
+      window._repModelData={shipsAll, years, yrA, yrB, yrC, divFilter, shipMatchesDivFilter};
+      renderModelSection(shipsAll, yrA, yrB, yrC, divFilter, shipMatchesDivFilter, window._modelTab||'rev');
+    } catch(modelErr){ console.error('Model section error:', modelErr); }
 
-  hidePageLoading();
-  document.getElementById('rep-data').style.display='block';
+  } catch(err) {
+    console.error('loadReport error:', err);
+    const sc=document.getElementById('rep-stat-cards');
+    if(sc) sc.innerHTML='<div style="grid-column:1/-1;color:var(--red);padding:16px">⚠️ '+err.message+'</div>';
+  } finally {
+    hidePageLoading();
+    document.getElementById('rep-data').style.display='block';
+  }
 }
 
 function setModelTab(tab){} // kept for compatibility
