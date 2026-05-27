@@ -242,13 +242,13 @@ tr:hover td{background:var(--g50)}
 .pipe-stat-val{font-size:22px;font-weight:800}
 .pipe-stat-lbl{font-size:11px;color:var(--g400);margin-top:2px}
 /* spinner */
-.spin-wrap{text-align:center;padding:40px;color:var(--g400)}
+.spin-wrap{text-align:center;padding:40px;color:var(--g400);display:none}
 .spinner{width:28px;height:28px;border:2.5px solid var(--g200);border-top-color:var(--blue);border-radius:50%;animation:spin .65s linear infinite;margin:0 auto 10px}
 @keyframes spin{to{transform:rotate(360deg)}}
 /* Full-screen loading overlay */
 #page-loading-overlay{
-  position:fixed;inset:0;background:rgba(15,39,68,0.92);
-  z-index:9998;display:none;
+  position:fixed;inset:0;background:rgba(15,39,68,0.95);
+  z-index:10000;display:none;
   flex-direction:column;align-items:center;justify-content:center;gap:18px;
 }
 #page-loading-overlay.show{display:flex}
@@ -571,7 +571,7 @@ tr:hover td{background:var(--g50)}
 
     <!-- DASHBOARD -->
     <div id="page-dashboard" class="page active">
-      <div id="d-load" class="spin-wrap"><div class="spinner"></div>Loading...</div>
+      
       <div id="d-data" style="display:none">
         <!-- Stat Cards -->
         <div class="stat-grid" id="stat-cards"></div>
@@ -683,7 +683,7 @@ tr:hover td{background:var(--g50)}
 
     <!-- PIPELINE -->
     <div id="page-pipeline" class="page">
-      <div id="pipe-load" class="spin-wrap"><div class="spinner"></div>Loading...</div>
+      
       <div id="pipe-data" style="display:none">
         <div id="pipe-stats" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px"></div>
         <div class="panel">
@@ -721,7 +721,7 @@ tr:hover td{background:var(--g50)}
 
     <!-- REPORT -->
     <div id="page-report" class="page">
-      <div id="rep-load" class="spin-wrap"><div class="spinner"></div>Loading...</div>
+      
       <div id="rep-data" style="display:none">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;background:#fff;padding:14px 20px;border-radius:var(--rlg);box-shadow:var(--sh)">
           <label style="font-size:12px;font-weight:600;color:var(--g500)">Year A:</label>
@@ -1236,7 +1236,7 @@ const fmtK=v=>v>=1000000?(v/1000000).toFixed(1)+'M':v>=1000?Math.round(v/1000)+'
 
 async function loadDash(){
   showPageLoading('Loading Dashboard...','Fetching sales data');
-  document.getElementById('d-load').style.display='none';
+  
   document.getElementById('d-data').style.display='none';
   const yr=parseInt(document.getElementById('dash-yr')?.value||new Date().getFullYear());
   document.getElementById('dash-monthly-title').textContent='Monthly Revenue vs Goal ('+yr+')';
@@ -1246,6 +1246,7 @@ async function loadDash(){
   const moSel=document.getElementById('ach-month');
   if(moSel&&!moSel._inited){moSel.value=String(nowMo);moSel._inited=true;}
 
+  try {
   const [sd, pd, cd, gd] = await Promise.all([
     sb.from('shipments').select('*'),
     sb.from('pi').select('*'),
@@ -1413,6 +1414,9 @@ async function loadDash(){
 
   hidePageLoading();
   document.getElementById('d-data').style.display='block';
+  } catch(err) {
+    showPloError('Dashboard failed to load', 'Check your connection and reload.\nError: '+err.message);
+  }
 }
 
 function setMcMode(mode){
@@ -3972,13 +3976,22 @@ async function init(){
   const badge=role==='admin'?' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>':'';
   document.getElementById('logged-in-user').innerHTML=user?'👤 '+user+badge:'';
   document.getElementById('yr-badge').textContent=new Date().getFullYear();
-  const[{data:dists},{data:prods}]=await Promise.all([
-    sb.from('distributors').select('*').order('company_name'),
-    sb.from('products').select('*').order('product_name')
-  ]);
-  masterCache.distributors=dists||[];
-  masterCache.products=prods||[];
-  loadDash();
+  showPageLoading('Connecting...','Loading Genoray LATAM');
+  try {
+    const[{data:dists,error:e1},{data:prods,error:e2}]=await Promise.all([
+      sb.from('distributors').select('*').order('company_name'),
+      sb.from('products').select('*').order('product_name')
+    ]);
+    if(e1||e2) throw new Error((e1||e2).message);
+    masterCache.distributors=dists||[];
+    masterCache.products=prods||[];
+    loadDash();
+  } catch(err) {
+    showPloError(
+      'Cannot connect to database',
+      'Check your internet connection and reload.\n\nError: '+err.message
+    );
+  }
 }
 
 // Global error handler — catches crashes during loading
