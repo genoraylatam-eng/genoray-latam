@@ -462,6 +462,10 @@ tr:hover td{background:var(--g50)}
   .hs-title{font-size:15px}
 }
 
+
+/* Collections paid row toggle */
+#collections-table.hide-paid tr[data-paid="true"]{display:none}
+tr[data-paid="true"] td{opacity:.55}
 </style>
 </head>
 <body>
@@ -943,10 +947,13 @@ tr:hover td{background:var(--g50)}
           <span class="panel-title">Collections</span><button class="sh-btn" onclick="showStatusHelp('collections',this)" title="Show auto status rules">?</button>
           <div class="panel-acts">
             <div class="search-box"><span>🔍</span><input id="collections-search" placeholder="Search..." oninput="filterTbl('collections')"></div>
+            <button id="col-paid-toggle" onclick="togglePaidRows()" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px">
+              <span id="col-paid-icon">👁</span> <span id="col-paid-label">Show Paid</span>
+            </button>
             <button class="btn btn-primary" onclick="openForm('collections')">+ New Collection</button>
           </div>
         </div>
-        <div class="tbl-wrap"><table>
+        <div class="tbl-wrap"><table id="collections-table">
           <thead><tr>
             <th class="sortable" onclick="sortTbl('collections','collection_id')">ID</th>
             <th class="sortable" onclick="sortTbl('collections','pi_number')">PI No.</th>
@@ -957,7 +964,6 @@ tr:hover td{background:var(--g50)}
             <th>Outstanding</th>
             <th>Due Date</th>
             <th>Days</th>
-            <th>Outstanding</th>
             <th class="sortable" onclick="sortTbl('collections','collection_date')">Collection Date</th>
             <th>Status ⚙</th>
             <th>Actions</th>
@@ -1591,6 +1597,38 @@ function renderCompareChart(years,yearData,colors,colorsLight){
   document.getElementById('monthly-chart').innerHTML=legend+svg+summary;
 }
 
+
+let _colShowPaid=false;
+function togglePaidRows(){
+  _colShowPaid=!_colShowPaid;
+  const tbl=document.getElementById('collections-table');
+  const lbl=document.getElementById('col-paid-label');
+  const icon=document.getElementById('col-paid-icon');
+  const btn=document.getElementById('col-paid-toggle');
+  if(_colShowPaid){
+    tbl&&tbl.classList.remove('hide-paid');
+    if(lbl)lbl.textContent='Hide Paid';
+    if(icon)icon.textContent='🙈';
+    if(btn){btn.style.background='var(--green)';btn.style.color='#fff';btn.style.borderColor='var(--green)';}
+  } else {
+    tbl&&tbl.classList.add('hide-paid');
+    if(lbl)lbl.textContent='Show Paid';
+    if(icon)icon.textContent='👁';
+    if(btn){btn.style.background='#fff';btn.style.color='var(--g600)';btn.style.borderColor='var(--g200)';}
+  }
+  // Update count in panel title
+  updateColCount();
+}
+
+function updateColCount(){
+  const tbl=document.getElementById('collections-table');
+  if(!tbl)return;
+  const allRows=tbl.querySelectorAll('tbody tr');
+  const paidRows=tbl.querySelectorAll('tbody tr[data-paid="true"]');
+  const showing=_colShowPaid?allRows.length:allRows.length-paidRows.length;
+  const title=document.querySelector('#page-collections .panel-title');
+  if(title)title.textContent=`Collections (${showing} showing${paidRows.length>0&&!_colShowPaid?' · '+paidRows.length+' paid hidden':''})`;
+}
 
 function showDashDrill(key){
   const D=window._dashDrill; if(!D)return;
@@ -2906,6 +2944,15 @@ async function loadTable(page){
   if(error){hidePageLoading();toast('Error: '+error.message,'err');return;}
   // Render overdue panel for collections
   if(page==='collections'){
+    // Apply current paid filter state
+    setTimeout(()=>{
+      const tbl=document.getElementById('collections-table');
+      if(tbl){
+        if(_colShowPaid){tbl.classList.remove('hide-paid');}
+        else{tbl.classList.add('hide-paid');}
+      }
+      updateColCount();
+    },50);
     const xr=await loadXRef();
     const today=new Date(); today.setHours(0,0,0,0);
     const overdueRecs=data.filter(r=>{
@@ -3052,7 +3099,8 @@ function rowHTML(page,r){
     } else if(outstanding===0&&dueDate) {
       daysBadge='<span style="color:var(--green);font-size:11px">✓ Paid</span>';
     }
-    return '<tr>'
+    const isPaid=outstanding<=0;
+    return '<tr'+(isPaid?' data-paid="true"':'')+'>'
       +'<td>'+r.collection_id+'</td>'
       +'<td>'+piLink(r.pi_number,r.pi_number)+'</td>'
       +'<td>'+(r.distributor||'-')+'</td>'
