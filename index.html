@@ -1187,6 +1187,9 @@ tr[data-paid="true"] td{opacity:.55}
                 <option value="">— Select Distributor —</option>
               </select>
               <button class="btn btn-primary" onclick="openDistPriceForm()" id="dist-price-add-btn" style="display:none">+ Set Prices</button>
+              <button onclick="openPriceListPrint()" id="dist-price-print-btn" style="display:none;padding:7px 14px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;font-size:12px;font-weight:600;cursor:pointer;display:none;gap:5px;align-items:center">
+                📄 Export Price List
+              </button>
             </div>
           </div>
           <div id="dist-price-info" style="background:#f0fdf4;border-left:3px solid var(--green);padding:10px 16px;font-size:11px;color:#065f46">
@@ -5055,6 +5058,8 @@ async function loadDistributorPrices(){
   const distInfo=(masterCache.distributors||[]).find(d=>d.company_name===dist);
   if(title)title.textContent='Prices — '+dist+(distInfo?' ('+distInfo.country+')':'');
   if(addBtn)addBtn.style.display='flex';
+  const printBtn=document.getElementById('dist-price-print-btn');
+  if(printBtn)printBtn.style.display='flex';
   if(info)info.style.display='none';
 
   if(_distPrices.length===0){
@@ -5275,6 +5280,305 @@ async function loadPriceHistory(){
       </tr>`;
     }).join('');
   }
+}
+
+
+// ── PRICE LIST PDF EXPORT ────────────────────────────────────────────────────
+function openPriceListPrint(){
+  const dist=document.getElementById('dist-price-sel')?.value;
+  if(!dist){toast('Please select a distributor first','err');return;}
+  const distInfo=(masterCache.distributors||[]).find(d=>d.company_name===dist);
+  const division=distInfo?.division||'Both';
+
+  // Open print dialog UI
+  openModal(`
+    <h3 style="margin:0 0 16px;font-size:15px;font-weight:800">📄 Export Price List — ${esc(dist)}</h3>
+    <div style="display:grid;gap:14px">
+      <!-- Sender company -->
+      <div>
+        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:6px">Sender (Genoray Entity)</label>
+        <div style="display:flex;gap:8px">
+          <label style="flex:1;cursor:pointer">
+            <input type="radio" name="pl-company" value="korea" checked style="margin-right:6px">
+            <span style="font-size:13px;font-weight:600">🇰🇷 Genoray Co., Ltd. (Korea)</span>
+            <div style="font-size:10px;color:var(--g400);margin-left:18px">Seongnam-si, Korea · Ex-Factory</div>
+          </label>
+          <label style="flex:1;cursor:pointer">
+            <input type="radio" name="pl-company" value="america" style="margin-right:6px">
+            <span style="font-size:13px;font-weight:600">🇺🇸 Genoray America, Inc.</span>
+            <div style="font-size:10px;color:var(--g400);margin-left:18px">Torrance, CA · Ex-Factory</div>
+          </label>
+        </div>
+      </div>
+      <!-- Division selection -->
+      <div>
+        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:6px">Product Division to Include</label>
+        <div style="display:flex;gap:8px">
+          ${division==='Medical'?`
+            <label style="flex:1;cursor:pointer;padding:10px;border:2px solid var(--blue);border-radius:8px;background:#eff6ff">
+              <input type="radio" name="pl-div" value="Medical" checked style="margin-right:6px">
+              <span style="font-size:13px;font-weight:700;color:var(--blue)">🏥 Medical Only</span>
+            </label>`:`
+            <label style="flex:1;cursor:pointer;padding:10px;border:1.5px solid var(--g200);border-radius:8px">
+              <input type="radio" name="pl-div" value="Medical" style="margin-right:6px">
+              <span style="font-size:13px;font-weight:700">🏥 Medical Only</span>
+            </label>`}
+          ${division==='Dental'?`
+            <label style="flex:1;cursor:pointer;padding:10px;border:2px solid var(--green);border-radius:8px;background:#f0fdf4">
+              <input type="radio" name="pl-div" value="Dental" checked style="margin-right:6px">
+              <span style="font-size:13px;font-weight:700;color:var(--green)">🦷 Dental Only</span>
+            </label>`:`
+            <label style="flex:1;cursor:pointer;padding:10px;border:1.5px solid var(--g200);border-radius:8px">
+              <input type="radio" name="pl-div" value="Dental" style="margin-right:6px">
+              <span style="font-size:13px;font-weight:700">🦷 Dental Only</span>
+            </label>`}
+          <label style="flex:1;cursor:pointer;padding:10px;border:1.5px solid var(--g200);border-radius:8px">
+            <input type="radio" name="pl-div" value="Both" ${division==='Both'?'checked':''} style="margin-right:6px">
+            <span style="font-size:13px;font-weight:700">🏥+🦷 Both</span>
+          </label>
+        </div>
+      </div>
+      <!-- Year & Validity -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Price Year</label>
+          <select id="pl-year" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px">
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Valid Until</label>
+          <input id="pl-valid" type="date" value="${new Date().getFullYear()}-12-31" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box">
+        </div>
+      </div>
+      <!-- Note -->
+      <div>
+        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Additional Notes (optional)</label>
+        <input id="pl-notes" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="e.g. Subject to change without notice · Minimum order quantities may apply">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
+      <button onclick="generatePriceListPDF('${esc(dist)}')" style="padding:9px 20px;background:#1d4ed8;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">📄 Generate PDF</button>
+    </div>
+  `);
+}
+
+async function generatePriceListPDF(dist){
+  const compKey=document.querySelector('input[name="pl-company"]:checked')?.value||'korea';
+  const divSel=document.querySelector('input[name="pl-div"]:checked')?.value||'Both';
+  const year=parseInt(document.getElementById('pl-year')?.value||2026);
+  const validUntil=document.getElementById('pl-valid')?.value||'';
+  const notes=document.getElementById('pl-notes')?.value||'';
+  const co=COMPANIES[compKey];
+
+  // Fetch TP prices
+  if(_tpData.length===0){
+    const {data}=await sb.from('tp_prices').select('*').eq('year',year).order('category').order('model');
+    _tpData=data||[];
+  }
+
+  // Fetch distributor offer prices
+  const {data:dpRows=[]}=await sb.from('distributor_prices').select('*').eq('distributor',dist).order('model');
+  const dpMap={}; (dpRows||[]).forEach(r=>dpMap[r.model]=r);
+
+  // Filter TP rows by division
+  const showDiv=divSel==='Both'?['Medical','Dental']:[divSel];
+  const tpFiltered=_tpData.filter(r=>showDiv.includes(r.division));
+
+  // Group by division, then category
+  const grouped={};
+  tpFiltered.forEach(r=>{
+    const div=r.division||'?';
+    if(!grouped[div])grouped[div]={};
+    if(!grouped[div][r.category])grouped[div][r.category]=[];
+    grouped[div][r.category].push(r);
+  });
+
+  const distInfo=(masterCache.distributors||[]).find(d=>d.company_name===dist)||{};
+  const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  const validStr=validUntil?new Date(validUntil).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}):'December 31, '+year;
+
+  const fmtP=v=>v?'$'+Number(v).toLocaleString('en',{minimumFractionDigits:0,maximumFractionDigits:0}):'—';
+
+  // Build price table rows per division+category
+  const buildRows=(divName,cats)=>{
+    let rows='';
+    const divColor=divName==='Medical'?'#1e40af':'#065f46';
+    const divBg=divName==='Medical'?'#dbeafe':'#dcfce7';
+    rows+=`<tr><td colspan="4" style="background:${divBg};color:${divColor};font-size:10px;font-weight:800;padding:8px 12px;letter-spacing:.06em;text-transform:uppercase;border-bottom:2px solid ${divColor}22">
+      ${divName==='Medical'?'■ MEDICAL EQUIPMENT':'■ DENTAL EQUIPMENT'}
+    </td></tr>`;
+    Object.entries(cats).forEach(([cat,items])=>{
+      rows+=`<tr><td colspan="4" style="background:#f8fafc;color:#64748b;font-size:9.5px;font-weight:700;padding:5px 12px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e2e8f0">${cat}</td></tr>`;
+      items.forEach((r,i)=>{
+        const dp=dpMap[r.model];
+        const offerPrice=dp?.offer_price_usd;
+        const latamTP=r.sa_usd;
+        const row_bg=i%2===0?'#ffffff':'#fafafa';
+        rows+=`<tr style="background:${row_bg}">
+          <td style="padding:7px 12px;font-size:11px;font-weight:600;color:#1e293b;border-bottom:1px solid #f1f5f9">${r.model}</td>
+          <td style="padding:7px 12px;font-size:11px;color:#374151;text-align:center;border-bottom:1px solid #f1f5f9">Ex-Factory</td>
+          <td style="padding:7px 12px;font-size:11px;font-weight:700;color:${offerPrice?'#1d4ed8':'#94a3b8'};text-align:right;border-bottom:1px solid #f1f5f9">${offerPrice?fmtP(offerPrice):fmtP(latamTP)}</td>
+          <td style="padding:7px 12px;font-size:10px;color:${offerPrice?'#059669':'#94a3b8'};text-align:center;border-bottom:1px solid #f1f5f9">${offerPrice?'Offer Price':'Ref. Price'}</td>
+        </tr>`;
+      });
+    });
+    return rows;
+  };
+
+  let allRows='';
+  const DIV_ORDER=['Medical','Dental'];
+  DIV_ORDER.forEach(div=>{ if(grouped[div])allRows+=buildRows(div,grouped[div]); });
+
+  const totalModels=tpFiltered.filter(r=>dpMap[r.model]?.offer_price_usd).length;
+  const totalRef=tpFiltered.filter(r=>!dpMap[r.model]?.offer_price_usd&&r.sa_usd).length;
+
+  const html=`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Price List — ${dist} — ${year}</title>
+<style>
+  @page{size:letter;margin:0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;color:#1e293b;background:#fff;width:8.5in;min-height:11in;padding:0}
+  .page{padding:.5in .55in .45in;min-height:11in;position:relative;display:flex;flex-direction:column}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:3px solid #1e3a8a;margin-bottom:18px}
+  .logo-area h1{font-size:20px;font-weight:900;color:#1e3a8a;letter-spacing:-.02em}
+  .logo-area .sub{font-size:9px;color:#64748b;margin-top:2px;font-weight:500}
+  .co-info{text-align:right;font-size:9.5px;color:#475569;line-height:1.7}
+  .doc-title{text-align:center;margin-bottom:18px}
+  .doc-title h2{font-size:17px;font-weight:800;color:#1e3a8a;letter-spacing:.01em}
+  .doc-title .sub{font-size:10px;color:#64748b;margin-top:4px}
+  .meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;background:#f8fafc;border-radius:8px;padding:14px 16px;border:1px solid #e2e8f0}
+  .meta-block .label{font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+  .meta-block .val{font-size:12px;font-weight:700;color:#1e293b}
+  .meta-block .val-sub{font-size:10px;color:#64748b;margin-top:1px}
+  .notice{background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:flex-start;gap:8px}
+  .notice .icon{font-size:14px}
+  .notice .text{font-size:9.5px;color:#1e40af;line-height:1.6}
+  table{width:100%;border-collapse:collapse;margin-bottom:16px}
+  thead th{background:#1e3a8a;color:#fff;font-size:9.5px;font-weight:700;padding:8px 12px;text-align:left;letter-spacing:.03em}
+  thead th:nth-child(2){text-align:center}
+  thead th:nth-child(3){text-align:right}
+  thead th:nth-child(4){text-align:center}
+  .footer{margin-top:auto;border-top:1px solid #e2e8f0;padding-top:12px;display:flex;justify-content:space-between;align-items:center}
+  .footer-left{font-size:8.5px;color:#94a3b8;line-height:1.6}
+  .footer-right{font-size:8.5px;color:#94a3b8;text-align:right}
+  .sig-area{margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:40px}
+  .sig-block{border-top:1px solid #cbd5e1;padding-top:6px;font-size:9px;color:#64748b}
+  @media print{body{width:8.5in}@page{margin:.4in .45in}}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-area">
+      <h1>GENORAY</h1>
+      <div class="sub">${co.name}</div>
+      <div style="font-size:8.5px;color:#94a3b8;margin-top:2px">${co.addr1} ${co.addr2}</div>
+      <div style="font-size:8.5px;color:#94a3b8">Tel: ${co.tel} &nbsp;|&nbsp; ${co.web}</div>
+    </div>
+    <div class="co-info">
+      <div style="font-size:16px;font-weight:900;color:#1e3a8a;letter-spacing:.05em">PRICE LIST</div>
+      <div style="font-size:11px;font-weight:700;color:#64748b;margin-top:2px">${year} Ex-Factory Prices</div>
+      <div style="font-size:9px;color:#94a3b8;margin-top:8px">Issued: ${today}</div>
+      <div style="font-size:9px;color:#94a3b8">Valid Until: ${validStr}</div>
+    </div>
+  </div>
+
+  <!-- Meta info -->
+  <div class="meta-grid">
+    <div class="meta-block">
+      <div class="label">Distributor</div>
+      <div class="val">${dist}</div>
+      <div class="val-sub">${distInfo.country||''}</div>
+    </div>
+    <div class="meta-block">
+      <div class="label">Division</div>
+      <div class="val">${divSel==='Both'?'Medical & Dental':divSel}</div>
+      <div class="val-sub">${totalModels} offer prices · ${totalRef} reference prices</div>
+    </div>
+    <div class="meta-block">
+      <div class="label">Price Basis</div>
+      <div class="val">Ex-Factory</div>
+      <div class="val-sub">Prices in USD · Excludes freight, insurance & duties</div>
+    </div>
+    <div class="meta-block">
+      <div class="label">Issued By</div>
+      <div class="val">${co.name}</div>
+      <div class="val-sub">Authorized Sales Department</div>
+    </div>
+  </div>
+
+  <!-- Notice -->
+  <div class="notice">
+    <div class="icon">ℹ</div>
+    <div class="text">
+      All prices are quoted Ex-Factory (${compKey==='korea'?'Seongnam-si, Korea':'Torrance, CA, USA'}) in USD.
+      Prices are valid for the period specified and subject to change without prior notice.
+      Freight, insurance, customs duties, taxes and other charges are not included and are for the account of the buyer.
+      ${notes||'Prices shown are for reference only and are subject to final written confirmation.'}
+    </div>
+  </div>
+
+  <!-- Price Table -->
+  <table>
+    <thead>
+      <tr>
+        <th style="width:45%">Model / Description</th>
+        <th style="width:15%;text-align:center">Delivery Terms</th>
+        <th style="width:20%;text-align:right">Unit Price (USD)</th>
+        <th style="width:20%;text-align:center">Price Type</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${allRows}
+    </tbody>
+  </table>
+
+  <!-- Signature -->
+  <div class="sig-area">
+    <div class="sig-block">
+      Authorized by (Genoray)<br><br><br>
+      ______________________________<br>
+      Name &nbsp;·&nbsp; Title &nbsp;·&nbsp; Date
+    </div>
+    <div class="sig-block">
+      Acknowledged by (${dist})<br><br><br>
+      ______________________________<br>
+      Name &nbsp;·&nbsp; Title &nbsp;·&nbsp; Date
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-left">
+      ${co.name} &nbsp;|&nbsp; ${co.addr1} ${co.addr2}<br>
+      Tel: ${co.tel} &nbsp;|&nbsp; Web: ${co.web}
+    </div>
+    <div class="footer-right">
+      CONFIDENTIAL &nbsp;|&nbsp; ${year} Price List<br>
+      <span style="color:#bfdbfe">For authorized distributor use only</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>`;
+
+  closeModal();
+
+  // Open in new window for print-to-PDF
+  const win=window.open('','_blank','width=900,height=700');
+  if(!win){toast('Please allow popups to export PDF','err');return;}
+  win.document.write(html);
+  win.document.close();
+  setTimeout(()=>{win.focus();win.print();},600);
 }
 
 
