@@ -1005,13 +1005,19 @@ tr[data-paid="true"] td{opacity:.55}
 
     <!-- PRODUCTS -->
     <div id="page-products" class="page">
-      <div class="panel">
-        <div class="panel-head">
-          <span class="panel-title">Products</span>
-          <button class="btn btn-primary" onclick="openForm('products')">+ Add Product</button>
-        </div>
-        <div class="tbl-wrap"><table>
-          <thead><tr>
+      <!-- Division Tabs -->
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <button id="pdiv-all" onclick="setProdDiv('all')" style="padding:7px 18px;border:1px solid var(--blue);border-radius:var(--rsm);background:var(--blue);color:#fff;font-size:12px;font-weight:700;cursor:pointer">All</button>
+        <button id="pdiv-med" onclick="setProdDiv('medical')" style="padding:7px 18px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:700;cursor:pointer">🏥 Medical</button>
+        <button id="pdiv-den" onclick="setProdDiv('dental')" style="padding:7px 18px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:700;cursor:pointer">🦷 Dental</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-primary" onclick="openForm('products')">+ Add Product</button>
+      </div>
+      <!-- Products grouped display -->
+      <div id="products-grouped"></div>
+      <!-- Hidden original table (for compatibility with sort/filter/edit) -->
+      <div style="display:none"><div class="tbl-wrap"><table>
+        <thead><tr>
             <th class="sortable" onclick="sortTbl('products','code')">Code</th>
             <th class="sortable" onclick="sortTbl('products','product_name')">Product Name</th>
             <th class="sortable" onclick="sortTbl('products','unit_price_usd')">Unit Price (USD)</th>
@@ -1019,7 +1025,7 @@ tr[data-paid="true"] td{opacity:.55}
           </tr></thead>
           <tbody id="products-tbody"></tbody>
         </table></div>
-      </div>
+      </div></div><!-- end hidden table -->
     </div>
 
     <!-- GOALS -->
@@ -1597,6 +1603,112 @@ function renderCompareChart(years,yearData,colors,colorsLight){
   document.getElementById('monthly-chart').innerHTML=legend+svg+summary;
 }
 
+
+// ── PRODUCTS GROUPED UI ──────────────────────────────────────────────────────
+let _prodDiv='all';
+function setProdDiv(div){
+  _prodDiv=div;
+  ['all','med','den'].forEach(d=>{
+    const btn=document.getElementById('pdiv-'+d);
+    if(!btn)return;
+    const active=d===div;
+    btn.style.background=active?'var(--blue)':'#fff';
+    btn.style.color=active?'#fff':'var(--g600)';
+    btn.style.borderColor=active?'var(--blue)':'var(--g200)';
+  });
+  renderProductsGrouped(cache.products_data||[]);
+}
+
+function renderProductsGrouped(prods){
+  const container=document.getElementById('products-grouped');
+  if(!container)return;
+
+  // Code format: DIV-CAT-## → parse division, category, type
+  const parse=code=>{
+    const parts=(code||'').split('-');
+    const div=parts[0]==='MED'?'Medical':parts[0]==='DEN'?'Dental':'?';
+    const catRaw=parts[1]||'';
+    const cat={'CARM':'C-Arm','MAMM':'Mammography','CBCT':'CBCT / 3D','PAN':'Panoramic','PORT':'Portable','INTR':'Intraoral'}[catRaw]||catRaw;
+    const isOpt=parts[2]&&parts[2].startsWith('O');
+    return{div,cat,isOpt};
+  };
+
+  // Filter by division
+  const filtered=_prodDiv==='all'?prods:prods.filter(p=>{
+    const {div}=parse(p.code);
+    return(_prodDiv==='medical'&&div==='Medical')||(_prodDiv==='dental'&&div==='Dental');
+  });
+
+  // Group: div → cat → {products, options}
+  const groups={};
+  filtered.forEach(p=>{
+    const {div,cat,isOpt}=parse(p.code);
+    if(!groups[div])groups[div]={};
+    if(!groups[div][cat])groups[div][cat]={products:[],options:[]};
+    if(isOpt)groups[div][cat].options.push(p);
+    else groups[div][cat].products.push(p);
+  });
+
+  const divColor={'Medical':'var(--blue)','Dental':'var(--green)'};
+  const catIcon={'C-Arm':'🏥','Mammography':'🩺','CBCT / 3D':'🦷','Panoramic':'🦷','Portable':'🦷','Intraoral':'🦷'};
+
+  let html='';
+  Object.entries(groups).forEach(([div,cats])=>{
+    html+=`<div style="margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="width:4px;height:22px;background:${divColor[div]||'var(--g400)'};border-radius:2px"></div>
+        <span style="font-size:15px;font-weight:800;color:var(--g900)">${div==='Medical'?'🏥 Medical':'🦷 Dental'}</span>
+      </div>`;
+    Object.entries(cats).forEach(([cat,{products,options}])=>{
+      html+=`<div style="background:#fff;border-radius:var(--rlg);box-shadow:var(--sh);margin-bottom:10px;overflow:hidden">
+        <div style="padding:10px 18px;background:linear-gradient(90deg,${divColor[div]||'var(--g300)'}18,transparent);border-bottom:1px solid var(--g100);display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;font-weight:700;color:${divColor[div]||'var(--g700)'}">${catIcon[cat]||'📦'} ${cat}</span>
+          <span style="font-size:11px;color:var(--g400);margin-left:auto">${products.length} model${products.length!==1?'s':''}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;padding:0">`;
+
+      // Products section
+      if(products.length){
+        html+=`<div style="padding:12px 18px;border-right:1px solid var(--g100)">
+          <div style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Products</div>`;
+        products.forEach(p=>{
+          html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--g50)">
+            <span style="font-size:13px;font-weight:600;color:var(--g800)">${p.product_name}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;font-weight:700;color:${divColor[div]||'var(--g700)'};min-width:80px;text-align:right">$${fmt(p.unit_price_usd)}</span>
+              <button onclick="openForm('products','${p.id}')" style="padding:2px 8px;font-size:10px;border:1px solid var(--g200);border-radius:4px;background:#fff;cursor:pointer;color:var(--g500)">Edit</button>
+            </div>
+          </div>`;
+        });
+        html+='</div>';
+      }
+
+      // Options section
+      html+='<div style="padding:12px 18px;background:var(--g50)">';
+      if(options.length){
+        html+=`<div style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Options / Accessories</div>`;
+        options.forEach(p=>{
+          html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.04)">
+            <span style="font-size:12px;color:var(--g700)">${p.product_name}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;font-weight:600;color:var(--g600);min-width:70px;text-align:right">$${fmt(p.unit_price_usd)}</span>
+              <button onclick="openForm('products','${p.id}')" style="padding:2px 8px;font-size:10px;border:1px solid var(--g200);border-radius:4px;background:#fff;cursor:pointer;color:var(--g500)">Edit</button>
+            </div>
+          </div>`;
+        });
+      } else {
+        html+='<div style="font-size:11px;color:var(--g300);padding:8px 0">No options</div>';
+      }
+      html+='</div>'; // end options
+
+      html+='</div></div>'; // end grid, end panel
+    });
+    html+='</div>'; // end div section
+  });
+
+  if(!html)html='<div style="padding:40px;text-align:center;color:var(--g400)">No products found</div>';
+  container.innerHTML=html;
+}
 
 let _colShowPaid=false;
 function togglePaidRows(){
@@ -2942,6 +3054,10 @@ async function loadTable(page){
   ]);
   cache._xref=null; // force refresh
   if(error){hidePageLoading();toast('Error: '+error.message,'err');return;}
+  if(page==='products'){
+    cache.products_data=data||[];
+    renderProductsGrouped(cache.products_data);
+  }
   // Render overdue panel for collections
   if(page==='collections'){
     // Apply current paid filter state
