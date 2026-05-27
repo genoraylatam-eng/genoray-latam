@@ -310,32 +310,57 @@ tr:hover td{background:var(--g50)}
     <div id="page-dashboard" class="page active">
       <div id="d-load" class="spin-wrap"><div class="spinner"></div>Loading...</div>
       <div id="d-data" style="display:none">
+        <!-- Stat Cards -->
         <div class="stat-grid" id="stat-cards"></div>
 
-        <!-- Monthly Chart - Full width -->
+        <!-- Monthly Chart -->
         <div class="panel" style="margin-bottom:16px">
-          <div class="panel-head">
+          <div class="panel-head" style="flex-wrap:wrap;gap:10px">
             <span class="panel-title" id="dash-monthly-title">Monthly Revenue vs Goal (2026)</span>
-            <div style="display:flex;gap:6px">
-              <span style="font-size:11px;color:var(--g400);align-self:center">Shipment 기준 매출</span>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span style="font-size:11px;color:var(--g400)">Year:</span>
+              <select id="dash-yr" onchange="loadDash()" style="padding:4px 8px;border:1px solid var(--g200);border-radius:var(--rsm);font-size:12px">
+                <option value="2026" selected>2026</option><option value="2025">2025</option><option value="2027">2027</option>
+              </select>
             </div>
           </div>
           <div style="padding:16px 20px 12px" id="monthly-chart"></div>
         </div>
 
-        <!-- Goal Achievement Full Panel -->
+        <!-- Goal Achievement Panel -->
         <div class="panel" style="margin-bottom:16px">
           <div class="panel-head" style="flex-wrap:wrap;gap:10px">
             <span class="panel-title">Goal Achievement by Country</span>
-            <div style="display:flex;gap:6px">
-              <button id="ach-tab-all" onclick="setAchTab('all')" class="btn btn-primary btn-sm" style="font-size:11px">All</button>
-              <button id="ach-tab-med" onclick="setAchTab('medical')" class="btn btn-secondary btn-sm" style="font-size:11px">Medical</button>
-              <button id="ach-tab-den" onclick="setAchTab('dental')" class="btn btn-secondary btn-sm" style="font-size:11px">Dental</button>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <div style="display:flex;border:1px solid var(--g200);border-radius:var(--rsm);overflow:hidden">
+                <button id="ach-tab-all" onclick="setAchTab('all')" style="padding:5px 12px;border:none;background:var(--blue);color:#fff;font-size:11px;font-weight:600;cursor:pointer">All</button>
+                <button id="ach-tab-med" onclick="setAchTab('Medical')" style="padding:5px 12px;border:none;background:var(--g100);color:var(--g700);font-size:11px;font-weight:600;cursor:pointer">Medical</button>
+                <button id="ach-tab-den" onclick="setAchTab('Dental')" style="padding:5px 12px;border:none;background:var(--g100);color:var(--g700);font-size:11px;font-weight:600;cursor:pointer">Dental</button>
+              </div>
+              <span style="font-size:11px;color:var(--g400)">View month:</span>
+              <select id="ach-month" onchange="renderAchPanel()" style="padding:4px 8px;border:1px solid var(--g200);border-radius:var(--rsm);font-size:12px">
+                <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mar</option>
+                <option value="4">Apr</option><option value="5" selected>May</option><option value="6">Jun</option>
+                <option value="7">Jul</option><option value="8">Aug</option><option value="9">Sep</option>
+                <option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
+              </select>
             </div>
           </div>
-          <div id="country-ach-wrap" style="padding:0 20px 20px"></div>
+          <!-- YTD Summary Row -->
+          <div id="ach-summary" style="display:flex;gap:0;border-bottom:1px solid var(--g100)"></div>
+          <!-- Country Cards -->
+          <div id="country-ach-wrap" style="padding:16px 20px 4px"></div>
+          <!-- Monthly Detail Section -->
+          <div style="border-top:2px solid var(--g100);margin:0 20px 0">
+            <div style="padding:14px 0 10px;display:flex;align-items:center;gap:10px">
+              <span style="font-size:13px;font-weight:700" id="month-detail-title">May 2026 — Shipment Detail</span>
+              <span style="font-size:11px;color:var(--g400)">선적 완료 기준</span>
+            </div>
+          </div>
+          <div id="month-detail-wrap" style="padding:0 20px 20px"></div>
         </div>
 
+        <!-- Charts Row -->
         <div class="dash-grid" style="margin-bottom:16px">
           <div class="panel">
             <div class="panel-head"><span class="panel-title">Sales by Country</span></div>
@@ -854,107 +879,80 @@ function loadPage(p){
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MO_COLS=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_usd','aug_usd','sep_usd','oct_usd','nov_usd','dec_usd'];
+const fmtK=v=>v>=1000000?(v/1000000).toFixed(1)+'M':v>=1000?Math.round(v/1000)+'K':Math.round(v)+'';
+
 async function loadDash(){
   document.getElementById('d-load').style.display='block';
   document.getElementById('d-data').style.display='none';
-  const yr=new Date().getFullYear();
-  document.getElementById('yr-badge').textContent=yr;
+  const yr=parseInt(document.getElementById('dash-yr')?.value||new Date().getFullYear());
+  document.getElementById('dash-monthly-title').textContent='Monthly Revenue vs Goal ('+yr+')';
 
-  // ★ 매출 기준: Shipment date(J열) + Shipment amount(I열)
-  const[{data:ships=[]},{data:piAll=[]},{data:cols=[]},{data:goalsAll=[]}]=await Promise.all([
+  // Init month select to current month
+  const nowMo=new Date().getMonth()+1;
+  const moSel=document.getElementById('ach-month');
+  if(moSel&&!moSel._inited){moSel.value=String(nowMo);moSel._inited=true;}
+
+  const [sd, pd, cd, gd] = await Promise.all([
     sb.from('shipments').select('*'),
     sb.from('pi').select('*'),
     sb.from('collections').select('*'),
     sb.from('goals').select('*').eq('year',yr)
   ]);
-
-  // 당해연도 선적 완료 = 매출 (date 있는 것 = 선적완료)
+  const ships=sd.data||[], piAll=pd.data||[], cols=cd.data||[], goalsAll=gd.data||[];
   const shipsYr=ships.filter(r=>r.date&&r.date.startsWith(String(yr)));
   const sales=shipsYr.reduce((s,r)=>s+(r.amount_usd||0),0);
   const coll=cols.reduce((s,r)=>s+(r.collected_amount_usd||0),0);
   const totalGoal=goalsAll.reduce((s,r)=>s+(r.target_amount_usd||0),0);
   const pct=totalGoal>0?Math.round(sales/totalGoal*100):0;
-  // Active PI = has no shipment date yet
   const shippedPIs=new Set(ships.filter(r=>r.date).map(r=>r.pi_number));
   const piPending=piAll.filter(r=>!shippedPIs.has(r.pi_number)&&r.status!=='Cancelled').length;
-  // Outstanding = invoiced but not collected
   const totalInvoiced=cols.reduce((s,r)=>s+(r.invoice_amount_usd||0),0);
   const outstanding=Math.max(0,totalInvoiced-coll);
 
-  document.getElementById('stat-cards').innerHTML=`
-    <div class="stat-card blue"><div class="stat-label">Revenue (${yr}, Shipped)</div><div class="stat-value">$${fmt(sales)}</div><div class="stat-sub">${shipsYr.length}건 선적완료 기준</div><div class="stat-icon">📈</div></div>
-    <div class="stat-card ${pct>=100?'green':pct>=70?'amber':'red'}"><div class="stat-label">Goal Achievement</div><div class="stat-value">${pct}%</div><div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(pct,100)}%"></div></div><div class="stat-sub">Target $${fmt(totalGoal)}</div><div class="stat-icon">🎯</div></div>
-    <div class="stat-card green"><div class="stat-label">Collected</div><div class="stat-value">$${fmt(coll)}</div><div class="stat-sub">실제 수금액</div><div class="stat-icon">✅</div></div>
-    <div class="stat-card amber"><div class="stat-label">Outstanding (A/R)</div><div class="stat-value">$${fmt(outstanding)}</div><div class="stat-sub">미수금</div><div class="stat-icon">⏳</div></div>
-    <div class="stat-card purple"><div class="stat-label">Active PI</div><div class="stat-value">${piPending}</div><div class="stat-sub">미선적 PI</div><div class="stat-icon">📋</div></div>`;
+  // Stat cards
+  document.getElementById('stat-cards').innerHTML=[
+    ['blue','📈','Revenue ('+yr+', Shipped)','$'+fmt(sales),shipsYr.length+' shipments 기준'],
+    [pct>=100?'green':pct>=70?'amber':'red','🎯','Goal Achievement',pct+'%','Target $'+fmt(totalGoal)],
+    ['green','✅','Collected','$'+fmt(coll),'실제 수금'],
+    ['amber','⏳','Outstanding (A/R)','$'+fmt(outstanding),'미수금'],
+    ['purple','📋','Active PI',piPending,'미선적 PI']
+  ].map(([c,ic,lbl,val,sub])=>`<div class="stat-card ${c}"><div class="stat-label">${lbl}</div><div class="stat-value">${val}</div><div class="stat-sub">${sub}</div><div class="stat-icon">${ic}</div></div>`).join('');
 
-  // ── Monthly chart: numbers above bars ──
-  const mRev=Array(12).fill(0),mGoal=Array(12).fill(0);
-  const mCols=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_usd','aug_usd','sep_usd','oct_usd','nov_usd','dec_usd'];
+  // Monthly chart
+  const mRev=Array(12).fill(0), mGoal=Array(12).fill(0);
   shipsYr.forEach(r=>{const m=parseInt(r.date.split('-')[1])-1;if(m>=0&&m<12)mRev[m]+=(r.amount_usd||0);});
-  goalsAll.forEach(g=>mCols.forEach((c,i)=>mGoal[i]+=(g[c]||0)));
+  goalsAll.forEach(g=>MO_COLS.forEach((c,i)=>mGoal[i]+=(g[c]||0)));
   const maxMG=Math.max(...mRev,...mGoal,1);
   const curMo=new Date().getMonth();
-  document.getElementById('dash-monthly-title').textContent='Monthly Revenue vs Goal ('+yr+')';
-  const fmtK=v=>v>=1000000?(v/1000000).toFixed(1)+'M':v>=1000?Math.round(v/1000)+'K':Math.round(v).toString();
-  document.getElementById('monthly-chart').innerHTML='<div class="mc-bars">'+MONTHS.map((m,i)=>{
-    const rh=Math.round(mRev[i]/maxMG*100),gh=Math.round(mGoal[i]/maxMG*100);
-    const isCur=i===curMo,hasRev=mRev[i]>0;
-    const lbl=hasRev?'$'+fmtK(mRev[i]):(i<curMo&&mGoal[i]>0?'—':'');
-    return'<div class="mc-col">'
-      +'<div class="mc-val-top" style="'+(hasRev?'color:var(--blue)':'color:var(--g300)')+'">'+lbl+'</div>'
-      +'<div class="mc-bar-wrap" title="'+m+': Revenue $'+fmt(mRev[i])+' / Goal $'+fmt(mGoal[i])+'">'
-      +'<div class="mc-bar-goal" style="height:'+gh+'%"></div>'
-      +'<div class="mc-bar-rev" style="height:'+rh+'%"></div>'
-      +'</div>'
-      +'<div class="mc-lbl" style="'+(isCur?'color:var(--blue);font-weight:700':'')+'">'+(isCur?'▼':'')+m+'</div>'
-      +'</div>';
-  }).join('')+'</div>'
-  +'<div style="display:flex;justify-content:space-between;align-items:center">'
-  +'<div class="mc-legend"><span><div class="dot" style="background:var(--blue)"></div>Revenue (Shipped)</span><span><div class="dot" style="background:rgba(59,130,246,.25)"></div>Goal</span></div>'
-  +'<div style="font-size:11px;color:var(--g400)">YTD: <strong style="color:var(--g700)">$'+fmt(sales)+'</strong> / Goal: <strong style="color:var(--g700)">$'+fmt(totalGoal)+'</strong><span style="margin-left:8px;font-weight:700;color:'+(pct>=100?'var(--green)':pct>=70?'var(--amber)':'var(--red)')+'">'+pct+'%</span></div>'
-  +'</div>';
+  document.getElementById('monthly-chart').innerHTML=
+    '<div class="mc-bars">'+MONTHS.map((m,i)=>{
+      const rh=Math.round(mRev[i]/maxMG*100), gh=Math.round(mGoal[i]/maxMG*100);
+      const isCur=i===curMo, hasRev=mRev[i]>0;
+      const lbl=hasRev?'$'+fmtK(mRev[i]):(i<curMo&&mGoal[i]>0?'—':'');
+      return '<div class="mc-col">'
+        +'<div class="mc-val-top" style="color:'+(hasRev?'var(--blue)':'var(--g300)')+'">'+lbl+'</div>'
+        +'<div class="mc-bar-wrap" title="'+m+' Revenue: $'+fmt(mRev[i])+' / Goal: $'+fmt(mGoal[i])+'">'
+        +'<div class="mc-bar-goal" style="height:'+gh+'%"></div>'
+        +'<div class="mc-bar-rev" style="height:'+rh+'%"></div></div>'
+        +'<div class="mc-lbl" style="'+(isCur?'color:var(--blue);font-weight:700':'')+'">'+(isCur?'▶':'')+m+'</div>'
+        +'</div>';
+    }).join('')+'</div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">'
+    +'<div class="mc-legend"><span><div class="dot" style="background:var(--blue)"></div>Revenue</span><span><div class="dot" style="background:rgba(59,130,246,.25)"></div>Goal</span></div>'
+    +'<span style="font-size:11px;color:var(--g500)">YTD <strong style="color:var(--g700)">$'+fmt(sales)+'</strong> / Goal <strong style="color:var(--g700)">$'+fmt(totalGoal)+'</strong> <strong style="color:'+(pct>=100?'var(--green)':pct>=70?'var(--amber)':'var(--red)')+'">'+pct+'%</strong></span>'
+    +'</div>';
 
-  // ── Country chart ──
-  const byC={},goalByC={};
-  shipsYr.forEach(r=>{byC[r.country||'N/A']=(byC[r.country||'N/A']||0)+(r.amount_usd||0);});
-  goalsAll.forEach(g=>{goalByC[g.country||'N/A']=(goalByC[g.country||'N/A']||0)+(g.target_amount_usd||0);});
+  // Country chart (bar chart)
+  const byC={};
+  shipsYr.forEach(r=>{const c=r.country||'N/A';byC[c]=(byC[c]||0)+(r.amount_usd||0);});
   const cSorted=Object.entries(byC).sort((a,b)=>b[1]-a[1]);
-  const cMax=cSorted.length?cSorted[0][1]:1;
+  const cMax=cSorted[0]?cSorted[0][1]:1;
   document.getElementById('country-chart').innerHTML=cSorted.length
     ?cSorted.map(([c,a])=>'<div class="bc-row"><div class="bc-label" style="width:90px">'+c+'</div><div class="bc-bar-bg"><div class="bc-bar" style="width:'+Math.round(a/cMax*100)+'%;background:linear-gradient(90deg,var(--blue),var(--blue2))"><span>'+Math.round(a/cMax*100)+'%</span></div></div><div class="bc-val">$'+fmt(a)+'</div></div>').join('')
     :'<p style="color:var(--g400);font-size:13px">No data</p>';
 
-  // ── Goal Achievement: compute data then render ──
-  const curMonth=new Date().getMonth()+1;
-  const revByCountry={all:{},Medical:{},Dental:{}};
-  const piMap={};piAll.forEach(p=>{piMap[p.pi_number]=p;});
-  shipsYr.forEach(r=>{
-    const c=r.country||'N/A';
-    const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
-    const div=(dist&&dist.division)||'N/A';
-    revByCountry.all[c]=(revByCountry.all[c]||0)+(r.amount_usd||0);
-    if(div==='Medical')revByCountry.Medical[c]=(revByCountry.Medical[c]||0)+(r.amount_usd||0);
-    if(div==='Dental')revByCountry.Dental[c]=(revByCountry.Dental[c]||0)+(r.amount_usd||0);
-  });
-  const goalByCountry={all:{annual:{},ytd:{},curMo:{}},Medical:{annual:{},ytd:{},curMo:{}},Dental:{annual:{},ytd:{},curMo:{}}};
-  goalsAll.forEach(g=>{
-    const c=g.country||'N/A';
-    const div=g.division||'N/A';
-    const annAmt=g.target_amount_usd||0;
-    const moKeys=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_usd','aug_usd','sep_usd','oct_usd','nov_usd','dec_usd'];
-    let ytdGoal=0;for(let i=0;i<curMonth;i++)ytdGoal+=(g[moKeys[i]]||0);
-    const curGoal=g[moKeys[curMonth-1]]||0;
-    (['all',...(div!=='N/A'?[div]:[])] ).forEach(key=>{
-      goalByCountry[key].annual[c]=(goalByCountry[key].annual[c]||0)+annAmt;
-      goalByCountry[key].ytd[c]=(goalByCountry[key].ytd[c]||0)+ytdGoal;
-      goalByCountry[key].curMo[c]=(goalByCountry[key].curMo[c]||0)+curGoal;
-    });
-  });
-  window._achGoalData={revByCountry,goalByCountry,curMonth,yr};
-  renderAchTab('all');
-
-  // ── Division chart ──
+  // Division chart
   const byDiv={};
   shipsYr.forEach(r=>{
     const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
@@ -963,94 +961,289 @@ async function loadDash(){
   });
   const divColors={'Medical':'var(--blue)','Dental':'var(--green)','N/A':'var(--g400)'};
   const divS=Object.entries(byDiv).sort((a,b)=>b[1]-a[1]);
-  const divMax=divS.length?divS[0][1]:1;
+  const divMax=divS[0]?divS[0][1]:1;
   document.getElementById('division-chart').innerHTML=divS.length
     ?divS.map(([d,a])=>'<div class="bc-row"><div class="bc-label" style="width:70px">'+d+'</div><div class="bc-bar-bg"><div class="bc-bar" style="width:'+Math.round(a/divMax*100)+'%;background:'+(divColors[d]||'var(--purple)')+'"><span>'+Math.round(a/divMax*100)+'%</span></div></div><div class="bc-val">$'+fmt(a)+'</div></div>').join('')
     :'<p style="color:var(--g400);font-size:13px">No data</p>';
 
-  // ── Sales rep chart ──
+  // Rep chart
+  const piMap={};piAll.forEach(p=>{piMap[p.pi_number]=p;});
   const byRep={};
-  shipsYr.forEach(r=>{
-    const pi=piMap[r.pi_number];
-    const rep=(pi&&pi.sales_rep)||'Unassigned';
-    byRep[rep]=(byRep[rep]||0)+(r.amount_usd||0);
-  });
+  shipsYr.forEach(r=>{const pi=piMap[r.pi_number];const rep=(pi&&pi.sales_rep)||'Unassigned';byRep[rep]=(byRep[rep]||0)+(r.amount_usd||0);});
   const repS=Object.entries(byRep).sort((a,b)=>b[1]-a[1]);
-  const repMax=repS.length?repS[0][1]:1;
+  const repMax=repS[0]?repS[0][1]:1;
   document.getElementById('rep-chart').innerHTML=repS.length
     ?repS.map(([r,a])=>'<div class="bc-row"><div class="bc-label" style="width:70px">'+r+'</div><div class="bc-bar-bg"><div class="bc-bar" style="width:'+Math.round(a/repMax*100)+'%;background:linear-gradient(90deg,var(--purple),#a855f7)"><span>'+Math.round(a/repMax*100)+'%</span></div></div><div class="bc-val">$'+fmt(a)+'</div></div>').join('')
     :'<p style="color:var(--g400);font-size:13px">No data</p>';
 
-  // ── Recent PI ──
+  // Recent PI
   const recent=[...piAll].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,7);
   document.getElementById('recent-pi').innerHTML=recent.length
     ?recent.map(r=>'<tr><td><span class="pi-link" onclick="showPIPrint(\''+r.pi_number+'\')">'+r.pi_number+'</span></td><td>'+(r.distributor||'-')+'</td><td>$'+fmt(r.amount_usd)+'</td><td>'+pill(r.status)+'</td></tr>').join('')
     :'<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--g400)">No records</td></tr>';
 
+  // ── Build Achievement Data (all at once, clean) ──
+  // Revenue by country + division from shipments
+  const revAll={}, revMed={}, revDen={};
+  shipsYr.forEach(r=>{
+    const c=r.country||'N/A';
+    const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
+    const div=(dist&&dist.division)||'N/A';
+    const a=r.amount_usd||0;
+    revAll[c]=(revAll[c]||0)+a;
+    if(div==='Medical')revMed[c]=(revMed[c]||0)+a;
+    if(div==='Dental')revDen[c]=(revDen[c]||0)+a;
+  });
+  // Goal totals by country + division, including monthly breakdown
+  const goalsMap={all:{},Medical:{},Dental:{}};
+  // goalsMap[div][country] = {annual, ytd_jan..ytd_curMo, months:[0..11]}
+  const buildGoalEntry=()=>({annual:0, ytd:0, curMo:0, months:Array(12).fill(0)});
+  const addGoal=(map,key,country,g,curM)=>{
+    if(!map[key][country])map[key][country]=buildGoalEntry();
+    const e=map[key][country];
+    e.annual+=(g.target_amount_usd||0);
+    MO_COLS.forEach((c,i)=>{e.months[i]+=(g[c]||0);});
+    for(let i=0;i<curM;i++)e.ytd+=(g[MO_COLS[i]]||0);
+    e.curMo+=(g[MO_COLS[curM-1]]||0);
+  };
+  goalsAll.forEach(g=>{
+    const c=g.country||'N/A';
+    const div=g.division||'N/A';
+    const curM=parseInt(document.getElementById('ach-month')?.value||nowMo);
+    addGoal(goalsMap,'all',c,g,curM);
+    if(div==='Medical')addGoal(goalsMap,'Medical',c,g,curM);
+    if(div==='Dental')addGoal(goalsMap,'Dental',c,g,curM);
+  });
+  // Build monthly shipment detail lookup: month -> [{pi_number,distributor,country,amount_usd}]
+  const shipsByMonth={};
+  shipsYr.forEach(r=>{
+    if(!r.date)return;
+    const m=parseInt(r.date.split('-')[1]);
+    if(!shipsByMonth[m])shipsByMonth[m]=[];
+    shipsByMonth[m].push(r);
+  });
+  window._dashData={revAll,revMed,revDen,goalsMap,shipsByMonth,shipsYr,yr,nowMo,piMap,_goalsRaw:goalsAll};
+  setAchTab('all');
+
   document.getElementById('d-load').style.display='none';
   document.getElementById('d-data').style.display='block';
 }
 
-function setAchTab(tab){
-  const map={all:'all',medical:'Medical',dental:'Dental',med:'Medical',den:'Dental'};
-  const key=map[tab]||'all';
-  ['all','med','den'].forEach(t=>{
-    const btn=document.getElementById('ach-tab-'+t);
+function setAchTab(div){
+  window._achTab=div;
+  ['all','Medical','Dental'].forEach(d=>{
+    const btn=document.getElementById('ach-tab-'+(d==='all'?'all':d==='Medical'?'med':'den'));
     if(!btn)return;
-    const active=(t==='all'&&key==='all')||(t==='med'&&key==='Medical')||(t==='den'&&key==='Dental');
-    btn.className='btn btn-'+(active?'primary':'secondary')+' btn-sm';btn.style.fontSize='11px';
+    const active=d===div;
+    btn.style.background=active?'var(--blue)':'var(--g100)';
+    btn.style.color=active?'#fff':'var(--g700)';
   });
-  renderAchTab(key);
+  renderAchPanel();
 }
 
-function renderAchTab(divKey){
-  const d=window._achGoalData;if(!d)return;
-  const {revByCountry,goalByCountry,curMonth}=d;
-  const revKey=divKey==='Medical'?'Medical':divKey==='Dental'?'Dental':'all';
-  const gKey=divKey==='Medical'?'Medical':divKey==='Dental'?'Dental':'all';
-  const rev=revByCountry[revKey]||{};
-  const goals=goalByCountry[gKey]||{annual:{},ytd:{},curMo:{}};
-  const MO_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const curMoName=MO_NAMES[curMonth-1];
-  const allCountries=[...new Set([...Object.keys(rev),...Object.keys(goals.annual)])].filter(c=>c!=='N/A').sort();
-  const hasData=allCountries.filter(c=>(rev[c]||0)>0||(goals.ytd[c]||0)>0);
-  const zeroCountries=allCountries.filter(c=>(rev[c]||0)===0&&(goals.annual[c]||0)>0);
+function renderAchPanel(){
+  const D=window._dashData;
+  if(!D)return;
+  const {revAll,revMed,revDen,goalsMap,shipsByMonth,yr,piMap}=D;
+  const div=window._achTab||'all';
+  const curM=parseInt(document.getElementById('ach-month')?.value||D.nowMo);
+  const moName=MONTHS[curM-1];
+
+  // Recalculate ytd and curMo goals with the selected month
+  const reCalcGoals={};
+  (window._dashData._goalsRaw||[]).forEach(g=>{
+    const c=g.country||'N/A';
+    const gDiv=g.division||'N/A';
+    const matchDiv=div==='all'||gDiv===div;
+    if(!matchDiv)return;
+    if(!reCalcGoals[c])reCalcGoals[c]={annual:0,ytd:0,curMo:0};
+    reCalcGoals[c].annual+=(g.target_amount_usd||0);
+    for(let i=0;i<curM;i++)reCalcGoals[c].ytd+=(g[MO_COLS[i]]||0);
+    reCalcGoals[c].curMo+=(g[MO_COLS[curM-1]]||0);
+  });
+
+  const gMap=goalsMap[div]||{};
+  const rev=div==='all'?revAll:div==='Medical'?revMed:revDen;
+
+  // Recalc with current month selection
+  const countries={};
+  Object.keys(gMap).filter(c=>c!=='N/A').forEach(c=>{
+    const g=gMap[c];
+    // Recalc ytd/curMo with selected month
+    let ytd=0, curMoGoal=0;
+    for(let i=0;i<curM;i++)ytd+=g.months[i];
+    curMoGoal=g.months[curM-1]||0;
+    countries[c]={annual:g.annual, ytd, curMoGoal, rev:rev[c]||0};
+  });
+  // Also add countries with revenue but no goal
+  Object.keys(rev).filter(c=>c!=='N/A'&&!countries[c]).forEach(c=>{
+    countries[c]={annual:0,ytd:0,curMoGoal:0,rev:rev[c]||0};
+  });
+
+  const allC=Object.keys(countries).sort();
+  const withRev=allC.filter(c=>countries[c].rev>0);
+  const zeroRev=allC.filter(c=>countries[c].rev===0&&countries[c].annual>0);
+
+  // Summary strip
+  const totRev=withRev.reduce((s,c)=>s+countries[c].rev,0);
+  const totAnn=allC.reduce((s,c)=>s+countries[c].annual,0);
+  const totYtd=allC.reduce((s,c)=>s+countries[c].ytd,0);
+  const totCurMoGoal=allC.reduce((s,c)=>s+countries[c].curMoGoal,0);
+  const totCurMoRev=(shipsByMonth[curM]||[]).reduce((s,r)=>{
+    const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
+    const rDiv=(dist&&dist.division)||'N/A';
+    const ok=div==='all'||rDiv===div;
+    return s+(ok?r.amount_usd||0:0);
+  },0);
+
+  const pA=totAnn>0?Math.round(totRev/totAnn*100):0;
+  const pY=totYtd>0?Math.round(totRev/totYtd*100):0;
+  const pM=totCurMoGoal>0?Math.round(totCurMoRev/totCurMoGoal*100):0;
+  const bStyle=(p)=>'background:'+(p>=100?'var(--green-pale)':p>=70?'var(--amber-pale)':'var(--red-pale)')+';color:'+(p>=100?'var(--green)':p>=70?'var(--amber)':'var(--red)')+';';
+
+  document.getElementById('ach-summary').innerHTML=[
+    ['YTD Revenue','$'+fmt(totRev),'vs Annual Goal','var(--blue)'],
+    ['Annual Goal','$'+fmt(totAnn),'('+yr+')','var(--g500)'],
+    ['YTD Goal ('+MONTHS[curM-1]+'까지)','$'+fmt(totYtd),'누적목표','var(--g700)'],
+    ['YTD Ach%',pY+'%','vs YTD Goal',pY>=100?'var(--green)':pY>=70?'var(--amber)':'var(--red)'],
+    ['Annual Ach%',pA+'%','vs Annual',pA>=100?'var(--green)':pA>=70?'var(--amber)':'var(--red)'],
+    [moName+' Revenue','$'+fmt(totCurMoRev),moName+' Goal $'+fmt(totCurMoGoal),'var(--blue)'],
+    [moName+' Ach%',pM+'%','vs '+moName+' Goal',pM>=100?'var(--green)':pM>=70?'var(--amber)':'var(--red)']
+  ].map(([lbl,val,sub,col])=>'<div style="flex:1;text-align:center;padding:12px 8px;border-right:1px solid var(--g100)">'
+    +'<div style="font-size:10px;font-weight:600;color:var(--g400);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">'+lbl+'</div>'
+    +'<div style="font-size:16px;font-weight:800;color:'+col+'">'+val+'</div>'
+    +'<div style="font-size:10px;color:var(--g400);margin-top:2px">'+sub+'</div>'
+    +'</div>').join('');
+
+  // Country cards
   const pctColor=p=>p===null?'var(--g400)':p>=100?'var(--green)':p>=70?'var(--amber)':'var(--red)';
   const pctBg=p=>p===null?'var(--g200)':p>=100?'var(--green)':p>=70?'var(--amber)':'var(--red)';
-  const badge=p=>p===null?'background:var(--g100);color:var(--g400)':p>=100?'background:var(--green-pale);color:var(--green)':p>=70?'background:var(--amber-pale);color:var(--amber)':'background:var(--red-pale);color:var(--red)';
-  let html='<div class="ach-country-grid">';
-  hasData.forEach(c=>{
-    const revenue=rev[c]||0;
-    const annGoal=goals.annual[c]||0;
-    const ytdGoal=goals.ytd[c]||0;
-    const curGoal=goals.curMo[c]||0;
-    const pAnn=annGoal>0?Math.round(revenue/annGoal*100):null;
-    const pYtd=ytdGoal>0?Math.round(revenue/ytdGoal*100):null;
-    const pCur=curGoal>0?Math.round(revenue/curGoal*100):null;
-    html+='<div class="ach-card">'
+  const badge=(p,size='12px')=>'<span style="font-size:'+size+';font-weight:700;padding:2px 8px;border-radius:12px;'+bStyle(p||0)+'white-space:nowrap">'+(p!==null?p+'%':'—')+'</span>';
+
+  let cardsHtml='<div class="ach-country-grid">';
+  withRev.forEach(c=>{
+    const e=countries[c];
+    const pAnn=e.annual>0?Math.round(e.rev/e.annual*100):null;
+    const pYtd=e.ytd>0?Math.round(e.rev/e.ytd*100):null;
+    // Current month revenue for this country
+    const cMoRev=(shipsByMonth[curM]||[]).filter(r=>{
+      if(r.country!==c)return false;
+      const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
+      const rDiv=(dist&&dist.division)||'N/A';
+      return div==='all'||rDiv===div;
+    }).reduce((s,r)=>s+(r.amount_usd||0),0);
+    const pCur=e.curMoGoal>0?Math.round(cMoRev/e.curMoGoal*100):null;
+
+    cardsHtml+='<div class="ach-card">'
+      // Header
       +'<div class="ach-card-head">'
-      +'<div><div class="ach-card-country">'+c+'</div><div class="ach-card-annual">Annual Target: $'+fmt(annGoal)+'</div></div>'
-      +'<span class="ach-badge" style="'+badge(pAnn)+'">'+(pAnn!==null?pAnn+'%':'—')+'</span>'
+      +'<div><div class="ach-card-country">'+c+'</div>'
+      +'<div style="font-size:10px;color:var(--g400);margin-top:1px">Annual Target: $'+fmt(e.annual)+'</div></div>'
+      +badge(pAnn,'13px')
       +'</div>'
+      // Three metric rows
       +'<div class="ach-rows">'
-      +'<div class="ach-row"><span class="ach-row-lbl">vs Annual</span><div class="ach-prog-bg"><div class="ach-prog-fill" style="width:'+Math.min(pAnn||0,100)+'%;background:'+pctBg(pAnn)+'"></div></div><span class="ach-row-val" style="color:'+pctColor(pAnn)+'">'+(pAnn!==null?pAnn+'%':'—')+'</span></div>'
-      +'<div class="ach-row"><span class="ach-row-lbl">vs YTD Goal</span><div class="ach-prog-bg"><div class="ach-prog-fill" style="width:'+Math.min(pYtd||0,100)+'%;background:'+pctBg(pYtd)+'"></div></div><span class="ach-row-val" style="color:'+pctColor(pYtd)+'">'+(pYtd!==null?pYtd+'%':'—')+'</span></div>'
-      +'<div class="ach-row"><span class="ach-row-lbl">'+curMoName+' Goal</span><div class="ach-prog-bg"><div class="ach-prog-fill" style="width:'+Math.min(pCur||0,100)+'%;background:'+pctBg(pCur)+'"></div></div><span class="ach-row-val" style="color:'+pctColor(pCur)+'">'+(pCur!==null?pCur+'%':'—')+'</span></div>'
+      // YTD vs Annual
+      +'<div class="ach-row">'
+      +'<span class="ach-row-lbl">vs Annual</span>'
+      +'<div class="ach-prog-bg"><div class="ach-prog-fill" style="width:'+Math.min(pAnn||0,100)+'%;background:'+pctBg(pAnn)+'"></div></div>'
+      +'<span class="ach-row-val" style="color:'+pctColor(pAnn)+'">'+(pAnn!==null?pAnn+'%':'—')+'</span>'
       +'</div>'
+      // YTD vs YTD Goal
+      +'<div class="ach-row">'
+      +'<span class="ach-row-lbl" style="width:105px">YTD / YTD Goal</span>'
+      +'<div class="ach-prog-bg"><div class="ach-prog-fill" style="width:'+Math.min(pYtd||0,100)+'%;background:'+pctBg(pYtd)+'"></div></div>'
+      +'<span class="ach-row-val" style="color:'+pctColor(pYtd)+'">'+(pYtd!==null?pYtd+'%':'—')+'</span>'
+      +'</div>'
+      // Current month
+      +'<div class="ach-row">'
+      +'<span class="ach-row-lbl" style="width:105px">'+moName+' / '+moName+' Goal</span>'
+      +'<div class="ach-prog-bg"><div class="ach-prog-fill" style="width:'+Math.min(pCur||0,100)+'%;background:'+pctBg(pCur)+'"></div></div>'
+      +'<span class="ach-row-val" style="color:'+pctColor(pCur)+'">'+(pCur!==null?pCur+'%':'—')+'</span>'
+      +'</div>'
+      +'</div>'
+      // Amounts grid
       +'<div class="ach-amounts">'
-      +'<div class="ach-amt-item"><div class="ach-amt-val" style="color:var(--blue)">$'+fmt(revenue)+'</div><div class="ach-amt-lbl">YTD Revenue</div></div>'
-      +'<div class="ach-amt-item"><div class="ach-amt-val">$'+fmt(ytdGoal)+'</div><div class="ach-amt-lbl">YTD Target ('+curMoName+'까지)</div></div>'
-      +'<div class="ach-amt-item"><div class="ach-amt-val" style="color:'+(annGoal-revenue>0?'var(--red)':'var(--green)')+'">$'+fmt(Math.max(0,annGoal-revenue))+'</div><div class="ach-amt-lbl">Remaining</div></div>'
-      +'</div></div>';
+      +'<div class="ach-amt-item"><div class="ach-amt-val" style="color:var(--blue)">$'+fmt(e.rev)+'</div><div class="ach-amt-lbl">YTD Revenue</div></div>'
+      +'<div class="ach-amt-item"><div class="ach-amt-val">$'+fmt(e.ytd)+'</div><div class="ach-amt-lbl">YTD Goal ('+moName+')</div></div>'
+      +'<div class="ach-amt-item"><div class="ach-amt-val" style="color:var(--blue)">$'+fmt(cMoRev)+'</div><div class="ach-amt-lbl">'+moName+' Revenue</div></div>'
+      +'<div class="ach-amt-item"><div class="ach-amt-val">$'+fmt(e.curMoGoal)+'</div><div class="ach-amt-lbl">'+moName+' Goal</div></div>'
+      +'</div>'
+      +'</div>';
   });
-  html+='</div>';
-  if(zeroCountries.length>0){
-    html+='<div class="ach-zero-box"><span class="ach-zero-lbl">🔴 미진척 (0%) —</span>';
-    zeroCountries.forEach(c=>{html+='<span class="ach-zero-pill">'+c+' $'+fmt(goals.annual[c]||0)+'</span>';});
-    html+='</div>';
+  cardsHtml+='</div>';
+
+  // Zero countries
+  if(zeroRev.length>0){
+    cardsHtml+='<div class="ach-zero-box" style="margin-top:12px"><span class="ach-zero-lbl">🔴 미진척 (0%) —</span>';
+    zeroRev.forEach(c=>{
+      const e=countries[c];
+      cardsHtml+='<span class="ach-zero-pill" title="Annual Goal: $'+fmt(e.annual)+'">'+c+' | Goal $'+fmt(e.annual)+'</span>';
+    });
+    cardsHtml+='</div>';
   }
-  const wrap=document.getElementById('country-ach-wrap');
-  if(wrap)wrap.innerHTML=html;
+  document.getElementById('country-ach-wrap').innerHTML=cardsHtml;
+
+  // Monthly detail section
+  document.getElementById('month-detail-title').textContent=moName+' '+yr+' — Shipment Detail';
+  const moShips=(shipsByMonth[curM]||[]).filter(r=>{
+    const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
+    const rDiv=(dist&&dist.division)||'N/A';
+    return div==='all'||rDiv===div;
+  });
+  if(!moShips.length){
+    document.getElementById('month-detail-wrap').innerHTML='<p style="color:var(--g400);font-size:13px;padding:8px 0">'+moName+'에 선적 완료된 건 없음</p>';
+    return;
+  }
+  // Group by country > distributor
+  const moByC={};
+  moShips.forEach(r=>{
+    const c=r.country||'N/A';
+    if(!moByC[c])moByC[c]={ships:[],total:0};
+    moByC[c].ships.push(r);
+    moByC[c].total+=(r.amount_usd||0);
+  });
+  let detailHtml='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead><tr style="background:var(--g50)">'
+    +'<th style="padding:7px 10px;text-align:left;color:var(--g500);font-weight:600;font-size:11px;border-bottom:1px solid var(--g200)">Country</th>'
+    +'<th style="padding:7px 10px;text-align:left;color:var(--g500);font-weight:600;font-size:11px;border-bottom:1px solid var(--g200)">Distributor</th>'
+    +'<th style="padding:7px 10px;text-align:left;color:var(--g500);font-weight:600;font-size:11px;border-bottom:1px solid var(--g200)">PI No.</th>'
+    +'<th style="padding:7px 10px;text-align:left;color:var(--g500);font-weight:600;font-size:11px;border-bottom:1px solid var(--g200)">Models</th>'
+    +'<th style="padding:7px 10px;text-align:right;color:var(--g500);font-weight:600;font-size:11px;border-bottom:1px solid var(--g200)">Qty</th>'
+    +'<th style="padding:7px 10px;text-align:right;color:var(--g500);font-weight:600;font-size:11px;border-bottom:1px solid var(--g200)">Amount</th>'
+    +'<th style="padding:7px 10px;text-align:left;color:var(--g500);font-weight:600;font-size:11px;border-bottom:1px solid var(--g200)">Ship Date</th>'
+    +'</tr></thead><tbody>';
+
+  Object.keys(moByC).sort().forEach(c=>{
+    const grp=moByC[c];
+    let firstRow=true;
+    grp.ships.forEach(s=>{
+      const pi=piMap[s.pi_number]||{};
+      detailHtml+='<tr style="border-bottom:1px solid var(--g100)">'
+        +(firstRow?'<td style="padding:8px 10px;font-weight:600;vertical-align:top" rowspan="'+grp.ships.length+'">'+c+'</td>':'')
+        +'<td style="padding:8px 10px;color:var(--g700)">'+(s.distributor||'-')+'</td>'
+        +'<td style="padding:8px 10px"><span class="pi-link" onclick="showPIPrint(\''+s.pi_number+'\')">'+s.pi_number+'</span></td>'
+        +'<td style="padding:8px 10px;color:var(--g700);font-size:11px">'+(pi.product_name||s.models||'-')+'</td>'
+        +'<td style="padding:8px 10px;text-align:right">'+(s.quantity||pi.quantity||'—')+'</td>'
+        +'<td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--blue)">$'+fmt(s.amount_usd)+'</td>'
+        +'<td style="padding:8px 10px;color:var(--g500);font-size:11px">'+(s.date||'-')+'</td>'
+        +'</tr>';
+      firstRow=false;
+    });
+    // Country subtotal
+    detailHtml+='<tr style="background:var(--g50);border-bottom:2px solid var(--g200)">'
+      +'<td colspan="5" style="padding:5px 10px;text-align:right;font-size:11px;color:var(--g500)">'+c+' subtotal</td>'
+      +'<td style="padding:5px 10px;text-align:right;font-weight:800;color:var(--navy)">$'+fmt(grp.total)+'</td>'
+      +'<td></td></tr>';
+  });
+  // Grand total
+  const moTotal=moShips.reduce((s,r)=>s+(r.amount_usd||0),0);
+  detailHtml+='<tr style="background:var(--navy)">'
+    +'<td colspan="5" style="padding:8px 10px;text-align:right;font-weight:700;color:rgba(255,255,255,.7);font-size:12px">'+moName+' '+yr+' TOTAL</td>'
+    +'<td style="padding:8px 10px;text-align:right;font-weight:900;color:#fff;font-size:14px">$'+fmt(moTotal)+'</td>'
+    +'<td></td></tr>';
+  detailHtml+='</tbody></table></div>';
+  document.getElementById('month-detail-wrap').innerHTML=detailHtml;
 }
 
 // ── PIPELINE & BACKLOG ────────────────────────────────────────────────────────
