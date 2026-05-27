@@ -1624,10 +1624,10 @@ function updateProdCode(){
 
 function validateProductForm(data){
   const errors=[];
-  if(!data._division)errors.push('Division을 선택해주세요');
-  if(!data._category)errors.push('Category를 선택해주세요');
-  if(!data.product_name?.trim())errors.push('Product Name을 입력해주세요');
-  if(!data.description?.trim())errors.push('Description을 입력해주세요');
+  if(!data._division)errors.push('Please select a Division');
+  if(!data._category)errors.push('Please select a Category');
+  if(!data.product_name?.trim())errors.push('Please enter a Product Name');
+  if(!data.description?.trim())errors.push('Please enter a Description');
   return errors;
 }
 
@@ -3963,16 +3963,16 @@ const FORMS={
 
     <!-- Required notice -->
     <div style="background:linear-gradient(90deg,#eff6ff,#f0fdf4);border-radius:8px;padding:10px 16px;font-size:11.5px;color:#374151;margin-bottom:16px;display:flex;gap:16px;align-items:center">
-      <span><span style="color:#dc2626;font-weight:700">*</span> 필수 입력 항목</span>
+      <span><span style="color:#dc2626;font-weight:700">*</span> Required fields</span>
       <span style="color:#9ca3af">|</span>
-      <span style="color:#6b7280">Unit Price는 선택 사항 (나중에 수정 가능)</span>
+      <span style="color:#6b7280">Unit Price is optional (can be edited later)</span>
     </div>
 
     <!-- SECTION 1: Classification -->
     <div style="border:1.5px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:12px">
       <div style="font-size:11px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;display:flex;align-items:center;gap:6px">
         <span style="width:16px;height:16px;background:#3b82f6;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:900">1</span>
-        분류 설정 (Classification)
+        Classification
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
 
@@ -3982,11 +3982,11 @@ const FORMS={
             <span style="color:#dc2626">*</span> Division
           </label>
           <select name="_division" id="prod-div-sel" onchange="updateProdCode()" style="width:100%;padding:8px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer">
-            <option value="">— 선택 —</option>
+            <option value="">— Select —</option>
             <option value="Medical" ${selDiv==='Medical'?'selected':''}>🏥 Medical</option>
             <option value="Dental" ${selDiv==='Dental'?'selected':''}>🦷 Dental</option>
           </select>
-          <div style="font-size:10px;color:#9ca3af;margin-top:3px">Medical = C-Arm / Mammo, Dental = CBCT / Pan / 등</div>
+          <div style="font-size:10px;color:#9ca3af;margin-top:3px">Medical: C-Arm / Mammo  |  Dental: CBCT / Pan / Portable / Intraoral</div>
         </div>
 
         <!-- Category -->
@@ -3995,28 +3995,28 @@ const FORMS={
             <span style="color:#dc2626">*</span> Category (제품군)
           </label>
           <select name="_category" id="prod-cat-sel" onchange="updateProdCode()" style="width:100%;padding:8px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;cursor:pointer">
-            <option value="">— Division 먼저 선택 —</option>
+            <option value="">— Select Division first —</option>
           </select>
-          <div style="font-size:10px;color:#9ca3af;margin-top:3px">Division 선택 후 자동 업데이트</div>
+          <div style="font-size:10px;color:#9ca3af;margin-top:3px">Auto-updated when Division is selected</div>
         </div>
 
         <!-- Type -->
         <div>
           <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px">
-            <span style="color:#dc2626">*</span> Type (종류)
+            <span style="color:#dc2626">*</span> Type (Type)
           </label>
           <select name="_type" id="prod-type-sel" onchange="updateProdCode()" style="width:100%;padding:8px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;cursor:pointer">
-            <option value="Product" ${selType==='Product'?'selected':''}>📦 Product — 메인 제품</option>
-            <option value="Option" ${selType==='Option'?'selected':''}>🔧 Option — 옵션 / 액세서리</option>
+            <option value="Product" ${selType==='Product'?'selected':''}>📦 Product — Main Product</option>
+            <option value="Option" ${selType==='Option'?'selected':''}>🔧 Option — Option / Accessory</option>
           </select>
-          <div style="font-size:10px;color:#9ca3af;margin-top:3px">메인 제품이면 Product, 부속품은 Option</div>
+          <div style="font-size:10px;color:#9ca3af;margin-top:3px">Main Product이면 Product, 부속품은 Option</div>
         </div>
 
       </div>
 
       <!-- Code preview -->
       <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
-        <span style="font-size:11px;color:#9ca3af">자동 생성 Code:</span>
+        <span style="font-size:11px;color:#9ca3af">Auto-generated Code:</span>
         <input name="code" id="prod-code-inp" value="${esc(codeOnly)}" readonly
           style="background:#f9fafb;border:1px dashed #d1d5db;border-radius:5px;padding:4px 10px;font-size:12px;font-family:monospace;color:#6b7280;min-width:140px">
       </div>
@@ -4026,27 +4026,27 @@ const FORMS={
     <div style="border:1.5px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:12px">
       <div style="font-size:11px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;display:flex;align-items:center;gap:6px">
         <span style="width:16px;height:16px;background:#10b981;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:900">2</span>
-        제품 정보 (Product Info)
+        Product Info
       </div>
 
       <div style="margin-bottom:10px">
         <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px">
-          <span style="color:#dc2626">*</span> Model Name (제품명)
+          <span style="color:#dc2626">*</span> Model Name
         </label>
         <input name="product_name" value="${esc(d.product_name||'')}"
-          placeholder="예: OSCAR 15FD, Papaya 3D Premium + SC"
+          placeholder="e.g. OSCAR 15FD, Papaya 3D Premium + SC"
           style="width:100%;padding:8px 12px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;font-weight:600;box-sizing:border-box">
-        <div style="font-size:10px;color:#9ca3af;margin-top:3px">PI 생성 시 모델 선택에 표시되는 이름</div>
+        <div style="font-size:10px;color:#9ca3af;margin-top:3px">Model name shown when selecting in PI form</div>
       </div>
 
       <div>
         <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px">
-          <span style="color:#dc2626">*</span> Description (제품 설명)
+          <span style="color:#dc2626">*</span> Description
         </label>
         <input name="description" value="${esc(existDesc)}"
-          placeholder="예: Mobile C-Arm X-Ray System (30x30), Digital Mammography System"
+          placeholder="e.g. Mobile C-Arm X-Ray System (30x30)"
           style="width:100%;padding:8px 12px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;box-sizing:border-box">
-        <div style="font-size:10px;color:#9ca3af;margin-top:3px">제품의 상세 설명 (PI 라인 아이템에 표시)</div>
+        <div style="font-size:10px;color:#9ca3af;margin-top:3px">Shown in PI line items</div>
       </div>
     </div>
 
@@ -4054,14 +4054,14 @@ const FORMS={
     <div style="border:1.5px solid #fef3c7;background:#fffbeb;border-radius:10px;padding:16px">
       <div style="font-size:11px;font-weight:800;color:#92400e;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;display:flex;align-items:center;gap:6px">
         <span style="width:16px;height:16px;background:#f59e0b;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:900">3</span>
-        가격 정보 (선택 사항)
+        Pricing (Optional)
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <span style="font-size:18px;font-weight:700;color:#92400e">$</span>
         <input type="number" name="unit_price_usd" value="${d.unit_price_usd||''}"
           placeholder="0"  min="0" step="100"
           style="padding:8px 12px;border:1.5px solid #fcd34d;border-radius:7px;font-size:15px;font-weight:700;width:180px">
-        <span style="font-size:12px;color:#b45309">USD — 기본 단가 (PI 작성 시 수동 변경 가능)</span>
+        <span style="font-size:12px;color:#b45309">USD — Default unit price (can be adjusted in PI)</span>
       </div>
     </div>
 
@@ -4075,7 +4075,7 @@ const FORMS={
     function initCats(div,sc){
       const sel=document.getElementById('prod-cat-sel');
       if(!sel)return;
-      sel.innerHTML='<option value="">— 선택 —</option>'+(CATS[div]||[]).map(c=>{
+      sel.innerHTML='<option value="">— Select —</option>'+(CATS[div]||[]).map(c=>{
         const[v,l]=c.split('|');
         return '<option value="'+v+'"'+(v==='${selCat}'?' selected':'')+'>'+l+'</option>';
       }).join('');
