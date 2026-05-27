@@ -1606,6 +1606,31 @@ function renderCompareChart(years,yearData,colors,colorsLight){
 
 // ── PRODUCTS GROUPED UI ──────────────────────────────────────────────────────
 let _prodDiv='all';
+function updateProdCode(){
+  const div=document.getElementById('prod-div-sel')?.value||'';
+  const cat=document.getElementById('prod-cat-sel')?.value||'';
+  const typeVal=document.getElementById('prod-type-sel')?.value||'Product';
+  const inp=document.getElementById('prod-code-inp');
+  if(!inp)return;
+  if(!div||!cat){inp.value='';return;}
+  const divPfx=div==='Medical'?'MED':'DEN';
+  const isOpt=typeVal==='Option';
+  // Count existing products with same div+cat to generate next number
+  const pattern=divPfx+'-'+cat+'-';
+  const existing=(cache.products_data||[]).filter(p=>(p.code||'').startsWith(pattern));
+  const seq=String(existing.length+1).padStart(2,'0');
+  inp.value=pattern+(isOpt?'O':'')+seq;
+}
+
+function validateProductForm(data){
+  const errors=[];
+  if(!data._division)errors.push('Division을 선택해주세요');
+  if(!data._category)errors.push('Category를 선택해주세요');
+  if(!data.product_name?.trim())errors.push('Product Name을 입력해주세요');
+  if(!data.description?.trim())errors.push('Description을 입력해주세요');
+  return errors;
+}
+
 function setProdDiv(div){
   _prodDiv=div;
   ['all','med','den'].forEach(d=>{
@@ -1624,7 +1649,10 @@ function renderProductsGrouped(prods){
   if(!container)return;
 
   // Code format: DIV-CAT-## → parse division, category, type
-  const parse=code=>{
+  // Parse: DIV-CAT-SEQ|Description  or  DIV-CAT-OSEQ|Description
+  const getDesc=code=>{ const p=(code||'').indexOf('|'); return p>=0?code.slice(p+1):''; };
+  const getCode=code=>{ const p=(code||'').indexOf('|'); return p>=0?code.slice(0,p):code; };
+  const parse=code=>{ code=getCode(code);
     const parts=(code||'').split('-');
     const div=parts[0]==='MED'?'Medical':parts[0]==='DEN'?'Dental':'?';
     const catRaw=parts[1]||'';
@@ -1632,6 +1660,7 @@ function renderProductsGrouped(prods){
     const isOpt=parts[2]&&parts[2].startsWith('O');
     return{div,cat,isOpt};
   };
+
 
   // Filter by division
   const filtered=_prodDiv==='all'?prods:prods.filter(p=>{
@@ -1673,7 +1702,10 @@ function renderProductsGrouped(prods){
           <div style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Products</div>`;
         products.forEach(p=>{
           html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--g50)">
-            <span style="font-size:13px;font-weight:600;color:var(--g800)">${p.product_name}</span>
+            <div>
+              <span style="font-size:13px;font-weight:600;color:var(--g800)">${p.product_name}</span>
+              ${getDesc(p.code)?`<div style="font-size:11px;color:var(--g400);margin-top:1px">${getDesc(p.code)}</div>`:''}
+            </div>
             <div style="display:flex;align-items:center;gap:8px">
               <span style="font-size:12px;font-weight:700;color:${divColor[div]||'var(--g700)'};min-width:80px;text-align:right">$${fmt(p.unit_price_usd)}</span>
               <button onclick="openForm('products','${p.id}')" style="padding:2px 8px;font-size:10px;border:1px solid var(--g200);border-radius:4px;background:#fff;cursor:pointer;color:var(--g500)">Edit</button>
@@ -1689,7 +1721,10 @@ function renderProductsGrouped(prods){
         html+=`<div style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Options / Accessories</div>`;
         options.forEach(p=>{
           html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.04)">
-            <span style="font-size:12px;color:var(--g700)">${p.product_name}</span>
+            <div>
+              <span style="font-size:12px;color:var(--g700)">${p.product_name}</span>
+              ${getDesc(p.code)?`<div style="font-size:10px;color:var(--g400);margin-top:1px">${getDesc(p.code)}</div>`:''}
+            </div>
             <div style="display:flex;align-items:center;gap:8px">
               <span style="font-size:12px;font-weight:600;color:var(--g600);min-width:70px;text-align:right">$${fmt(p.unit_price_usd)}</span>
               <button onclick="openForm('products','${p.id}')" style="padding:2px 8px;font-size:10px;border:1px solid var(--g200);border-radius:4px;background:#fff;cursor:pointer;color:var(--g500)">Edit</button>
@@ -3914,11 +3949,144 @@ const FORMS={
     <div class="fg full"><label>Address</label><textarea name="address">${esc(d.address||'')}</textarea></div>
   </div>`,
 
-  products:d=>`<div class="form-grid">
-    <div class="fg"><label>Code</label><input name="code" value="${esc(d.code||'')}"></div>
-    <div class="fg"><label>Product Name</label><input name="product_name" value="${esc(d.product_name||'')}"></div>
-    <div class="fg full"><label>Unit Price (USD)</label><input type="number" name="unit_price_usd" value="${d.unit_price_usd||''}"></div>
-  </div>`,
+  products:d=>{
+  // Parse code: DIV-CAT-SEQ|description  e.g. MED-CARM-01|Mobile C-Arm System
+  const rawCode=d.code||'';
+  const pipeIdx=rawCode.indexOf('|');
+  const codeOnly=pipeIdx>=0?rawCode.slice(0,pipeIdx):rawCode;
+  const existDesc=pipeIdx>=0?rawCode.slice(pipeIdx+1):'';
+  const parts=codeOnly.split('-');
+  const selDiv=parts[0]==='MED'?'Medical':parts[0]==='DEN'?'Dental':'';
+  const selCat=parts[1]||'';
+  const selType=parts[2]&&parts[2].startsWith('O')?'Option':'Product';
+  return`<div style="display:flex;flex-direction:column;gap:0">
+
+    <!-- Required notice -->
+    <div style="background:linear-gradient(90deg,#eff6ff,#f0fdf4);border-radius:8px;padding:10px 16px;font-size:11.5px;color:#374151;margin-bottom:16px;display:flex;gap:16px;align-items:center">
+      <span><span style="color:#dc2626;font-weight:700">*</span> 필수 입력 항목</span>
+      <span style="color:#9ca3af">|</span>
+      <span style="color:#6b7280">Unit Price는 선택 사항 (나중에 수정 가능)</span>
+    </div>
+
+    <!-- SECTION 1: Classification -->
+    <div style="border:1.5px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+        <span style="width:16px;height:16px;background:#3b82f6;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:900">1</span>
+        분류 설정 (Classification)
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+
+        <!-- Division -->
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px">
+            <span style="color:#dc2626">*</span> Division
+          </label>
+          <select name="_division" id="prod-div-sel" onchange="updateProdCode()" style="width:100%;padding:8px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer">
+            <option value="">— 선택 —</option>
+            <option value="Medical" ${selDiv==='Medical'?'selected':''}>🏥 Medical</option>
+            <option value="Dental" ${selDiv==='Dental'?'selected':''}>🦷 Dental</option>
+          </select>
+          <div style="font-size:10px;color:#9ca3af;margin-top:3px">Medical = C-Arm / Mammo, Dental = CBCT / Pan / 등</div>
+        </div>
+
+        <!-- Category -->
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px">
+            <span style="color:#dc2626">*</span> Category (제품군)
+          </label>
+          <select name="_category" id="prod-cat-sel" onchange="updateProdCode()" style="width:100%;padding:8px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;cursor:pointer">
+            <option value="">— Division 먼저 선택 —</option>
+          </select>
+          <div style="font-size:10px;color:#9ca3af;margin-top:3px">Division 선택 후 자동 업데이트</div>
+        </div>
+
+        <!-- Type -->
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px">
+            <span style="color:#dc2626">*</span> Type (종류)
+          </label>
+          <select name="_type" id="prod-type-sel" onchange="updateProdCode()" style="width:100%;padding:8px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;cursor:pointer">
+            <option value="Product" ${selType==='Product'?'selected':''}>📦 Product — 메인 제품</option>
+            <option value="Option" ${selType==='Option'?'selected':''}>🔧 Option — 옵션 / 액세서리</option>
+          </select>
+          <div style="font-size:10px;color:#9ca3af;margin-top:3px">메인 제품이면 Product, 부속품은 Option</div>
+        </div>
+
+      </div>
+
+      <!-- Code preview -->
+      <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:#9ca3af">자동 생성 Code:</span>
+        <input name="code" id="prod-code-inp" value="${esc(codeOnly)}" readonly
+          style="background:#f9fafb;border:1px dashed #d1d5db;border-radius:5px;padding:4px 10px;font-size:12px;font-family:monospace;color:#6b7280;min-width:140px">
+      </div>
+    </div>
+
+    <!-- SECTION 2: Product Info -->
+    <div style="border:1.5px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+        <span style="width:16px;height:16px;background:#10b981;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:900">2</span>
+        제품 정보 (Product Info)
+      </div>
+
+      <div style="margin-bottom:10px">
+        <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px">
+          <span style="color:#dc2626">*</span> Model Name (제품명)
+        </label>
+        <input name="product_name" value="${esc(d.product_name||'')}"
+          placeholder="예: OSCAR 15FD, Papaya 3D Premium + SC"
+          style="width:100%;padding:8px 12px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;font-weight:600;box-sizing:border-box">
+        <div style="font-size:10px;color:#9ca3af;margin-top:3px">PI 생성 시 모델 선택에 표시되는 이름</div>
+      </div>
+
+      <div>
+        <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px">
+          <span style="color:#dc2626">*</span> Description (제품 설명)
+        </label>
+        <input name="description" value="${esc(existDesc)}"
+          placeholder="예: Mobile C-Arm X-Ray System (30x30), Digital Mammography System"
+          style="width:100%;padding:8px 12px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;box-sizing:border-box">
+        <div style="font-size:10px;color:#9ca3af;margin-top:3px">제품의 상세 설명 (PI 라인 아이템에 표시)</div>
+      </div>
+    </div>
+
+    <!-- SECTION 3: Pricing -->
+    <div style="border:1.5px solid #fef3c7;background:#fffbeb;border-radius:10px;padding:16px">
+      <div style="font-size:11px;font-weight:800;color:#92400e;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+        <span style="width:16px;height:16px;background:#f59e0b;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:900">3</span>
+        가격 정보 (선택 사항)
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px;font-weight:700;color:#92400e">$</span>
+        <input type="number" name="unit_price_usd" value="${d.unit_price_usd||''}"
+          placeholder="0"  min="0" step="100"
+          style="padding:8px 12px;border:1.5px solid #fcd34d;border-radius:7px;font-size:15px;font-weight:700;width:180px">
+        <span style="font-size:12px;color:#b45309">USD — 기본 단가 (PI 작성 시 수동 변경 가능)</span>
+      </div>
+    </div>
+
+  </div>
+  <script>
+  (function(){
+    const CATS={
+      Medical:['CARM|🏥 C-Arm','MAMM|🩺 Mammography'],
+      Dental:['CBCT|🦷 CBCT / 3D','PAN|🦷 Panoramic','PORT|🦷 Portable','INTR|🦷 Intraoral']
+    };
+    function initCats(div,sc){
+      const sel=document.getElementById('prod-cat-sel');
+      if(!sel)return;
+      sel.innerHTML='<option value="">— 선택 —</option>'+(CATS[div]||[]).map(c=>{
+        const[v,l]=c.split('|');
+        return '<option value="'+v+'"'+(v==='${selCat}'?' selected':'')+'>'+l+'</option>';
+      }).join('');
+      if(sc){sel.value=sc;}
+    }
+    initCats('${selDiv}','${selCat}');
+    const ds=document.getElementById('prod-div-sel');
+    if(ds)ds.addEventListener('change',()=>initCats(ds.value,''));
+  })();
+  </scr`+`ipt>`;
+},
 
   goals:d=>'' // Goals use separate openGoalForm() modal
 };
@@ -3975,6 +4143,25 @@ async function saveForm(){
   if(!data.hq_po_number&&formState.page==='hqpo')data.hq_po_number=`HQ-${yr}-${rnd()}`;
   if(!data.shipment_number&&formState.page==='shipments')data.shipment_number=`SH-${yr}-${rnd()}`;
   if(!data.collection_id&&formState.page==='collections')data.collection_id=`COL-${yr}-${rnd()}`;
+  // Products: validate required fields + auto-generate code from division/category
+  if(formState.page==='products'){
+    const errs=validateProductForm(data);
+    if(errs.length){toast('⚠️ '+errs[0],'err');btn.textContent='Save';btn.disabled=false;return;}
+    // Build code from division + category + type
+    const divPfx=data._division==='Medical'?'MED':'DEN';
+    const isOpt=data._type==='Option';
+    const catCode=data._category||'UNK';
+    const pattern=divPfx+'-'+catCode+'-';
+    const existing=(cache.products_data||[]).filter(p=>(p.code||'').startsWith(pattern));
+    const seq=String(existing.length+1).padStart(2,'0');
+    const desc=(data.description||'').trim();
+    data.code=pattern+(isOpt?'O':'')+seq+(desc?'|'+desc:'');
+    delete data.description; // stored in code field after pipe
+    // Remove helper fields (not in DB)
+    delete data._division; delete data._category; delete data._type;
+    // Ensure description is stored (product_name stays as model name)
+    if(!data.unit_price_usd)data.unit_price_usd=null;
+  }
   const{error}=formState.id
     ?await sb.from(formState.table).update(data).eq('id',formState.id)
     :await sb.from(formState.table).insert(data);
