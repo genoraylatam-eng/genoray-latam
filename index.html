@@ -2180,9 +2180,7 @@ async function loadReport(){
   // ── Model Analysis ────────────────────────────────────────
   window._repModelData={shipsAll, years, yrA, yrB, yrC, divFilter, shipMatchesDivFilter};
   renderModelSection(shipsAll, yrA, yrB, yrC, divFilter, shipMatchesDivFilter, window._modelTab||'rev');
-  document.getElementById('rep-model-title').textContent=
-    `Model Performance${divFilter?' ('+divFilter+')':''} — ${yrA}`+(yrB?` vs ${yrB}`:'')+(yrC?` vs ${yrC}`:'');
-  document.getElementById('rep-model-yr-lbl').textContent=String(yrA);
+  // renderModelSection handles its own title
 
   hidePageLoading();
   document.getElementById('rep-data').style.display='block';
