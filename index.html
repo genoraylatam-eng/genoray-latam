@@ -727,6 +727,20 @@ tr:hover td{background:var(--g50)}
           <input type="hidden" id="rep-div" value="">
         </div>
         <div class="stat-grid" id="rep-stat-cards"></div>
+        <!-- Revenue Drill-Down Panel -->
+        <div id="rep-drill" style="display:none;background:#fff;border-radius:var(--rlg);box-shadow:var(--sh);margin-bottom:16px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--g100)">
+            <span id="rep-drill-title" style="font-size:14px;font-weight:700;color:var(--g900)">Shipment Detail</span>
+            <button onclick="document.getElementById('rep-drill').style.display='none'" style="background:none;border:none;font-size:18px;color:var(--g400);cursor:pointer;padding:0 4px;line-height:1">×</button>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Shipment #</th><th>PI Number</th><th>Distributor</th><th>Country</th><th>Model</th><th>Qty</th><th style="text-align:right">Amount</th></tr></thead>
+              <tbody id="rep-drill-body"></tbody>
+            </table>
+          </div>
+          <div id="rep-drill-footer" style="padding:10px 20px;text-align:right;font-size:13px;font-weight:700;color:var(--g700);border-top:1px solid var(--g100)"></div>
+        </div>
         <div class="dash-grid" style="margin-bottom:16px">
           <div class="panel">
             <div class="panel-head"><span class="panel-title">Quarterly Comparison</span></div>
@@ -2103,15 +2117,36 @@ async function loadReport(){
   const cc2=p=>p>=100?'green':p>=70?'amber':'red';
   const yoyCard=(y,lbl)=>y===null?'':
     `<div class="stat-card ${y>=0?'green':'red'}"><div class="stat-label">YoY Growth ${lbl}</div><div class="stat-value">${y>=0?'+':''}${y}%</div><div class="stat-sub">vs prior year</div></div>`;
+  // Store shipment data for drill-down
+  window._repShipData={};
+  years.forEach(y=>{ window._repShipData[y]=revByYr[y]; });
+
+  // Revenue card with click handler
+  const revCard=(yr,col,borderStyle)=>{
+    const ships=revByYr[yr], rev=totalRev[yr], cnt=ships.length;
+    const style=borderStyle||`border-top-color:${col}`;
+    return`<div class="stat-card" style="${style};cursor:pointer" onclick="showRepDrill(${yr})" title="Click to view shipment details">
+      <div class="stat-label">Revenue ${yr}</div>
+      <div class="stat-value" style="color:${col}">$${fmt(rev)}</div>
+      <div class="stat-sub">${cnt} shipments ${divFilter?'('+divFilter+') ':''}<span style="font-size:10px;opacity:.6">▼ details</span></div>
+    </div>`;
+  };
+  const achCard=(yr,p,goal)=>{
+    return`<div class="stat-card ${cc2(p)}">
+      <div class="stat-label">Achievement ${yr}</div>
+      <div class="stat-value">${p}%</div>
+      <div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(p,100)}%"></div></div>
+      <div class="stat-sub">Goal $${fmt(goal)}</div>
+    </div>`;
+  };
+
   document.getElementById('rep-stat-cards').innerHTML=
-    `<div class="stat-card blue"><div class="stat-label">Revenue ${yrA}</div><div class="stat-value">$${fmt(totalRev[yrA])}</div><div class="stat-sub">${revByYr[yrA].length} shipments${divFilter?' ('+divFilter+')':''}</div></div>`+
-    `<div class="stat-card ${cc2(pct[yrA])}"><div class="stat-label">Achievement ${yrA}</div><div class="stat-value">${pct[yrA]}%</div><div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(pct[yrA],100)}%"></div></div><div class="stat-sub">Goal $${fmt(totalGoal[yrA])}</div></div>`+
-    `<div class="stat-card" style="border-top-color:var(--green)"><div class="stat-label">Revenue ${yrB}</div><div class="stat-value" style="color:var(--green)">$${fmt(totalRev[yrB])}</div><div class="stat-sub">${revByYr[yrB].length} shipments</div></div>`+
-    `<div class="stat-card ${cc2(pct[yrB])}"><div class="stat-label">Achievement ${yrB}</div><div class="stat-value">${pct[yrB]}%</div><div class="stat-sub">Goal $${fmt(totalGoal[yrB])}</div></div>`+
+    revCard(yrA,'var(--blue)','border-top-color:var(--blue)')+
+    achCard(yrA,pct[yrA],totalGoal[yrA])+
+    revCard(yrB,'var(--green)','border-top-color:var(--green)')+
+    achCard(yrB,pct[yrB],totalGoal[yrB])+
     yoyCard(yoyAB,`${yrB}→${yrA}`)+
-    (yrC?`<div class="stat-card" style="border-top-color:var(--amber)"><div class="stat-label">Revenue ${yrC}</div><div class="stat-value" style="color:var(--amber)">$${fmt(totalRev[yrC])}</div><div class="stat-sub">${revByYr[yrC].length} shipments</div></div>`+
-    `<div class="stat-card ${cc2(pct[yrC])}"><div class="stat-label">Achievement ${yrC}</div><div class="stat-value">${pct[yrC]}%</div><div class="stat-sub">Goal $${fmt(totalGoal[yrC])}</div></div>`+
-    yoyCard(yoyAC,`${yrC}→${yrA}`):'');
+    (yrC?revCard(yrC,'var(--amber)','border-top-color:var(--amber)')+achCard(yrC,pct[yrC],totalGoal[yrC])+yoyCard(yoyAC,`${yrC}→${yrA}`):'');
 
   // Monthly arrays
   const MO_COLS=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_usd','aug_usd','sep_usd','oct_usd','nov_usd','dec_usd'];
@@ -2192,6 +2227,46 @@ async function loadReport(){
     hidePageLoading();
     document.getElementById('rep-data').style.display='block';
   }
+}
+
+function showRepDrill(yr){
+  const ships=window._repShipData&&window._repShipData[yr]?window._repShipData[yr]:[];
+  const drill=document.getElementById('rep-drill');
+  const title=document.getElementById('rep-drill-title');
+  const body=document.getElementById('rep-drill-body');
+  const footer=document.getElementById('rep-drill-footer');
+  if(!drill||!body)return;
+
+  // Sort by date
+  const sorted=[...ships].sort((a,b)=>{
+    const da=a.date||'0', db=b.date||'0';
+    return da<db?-1:da>db?1:0;
+  });
+
+  title.textContent=`${yr} Revenue — Shipment Detail (${sorted.length} records)`;
+
+  body.innerHTML=sorted.length?sorted.map(s=>{
+    const dt=s.date?s.date.slice(0,10):'—';
+    const amt=parseFloat(s.amount_usd||0);
+    return`<tr>
+      <td>${dt}</td>
+      <td style="font-size:11px;color:var(--g500)">${s.shipment_number||'—'}</td>
+      <td><span style="font-size:12px;font-weight:600;color:var(--blue)">${s.pi_number||'—'}</span></td>
+      <td>${s.distributor||'—'}</td>
+      <td>${s.country||'—'}</td>
+      <td style="font-size:12px">${s.models||'—'}</td>
+      <td style="text-align:center">${s.quantity||'—'}</td>
+      <td style="text-align:right;font-weight:700;color:var(--g900)">$${fmt(amt)}</td>
+    </tr>`;
+  }).join('')
+  :'<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--g400)">No shipment data for '+yr+'</td></tr>';
+
+  const total=sorted.reduce((s,r)=>s+(parseFloat(r.amount_usd)||0),0);
+  footer.innerHTML=`Total: <span style="color:var(--blue)">$${fmt(total)}</span> &nbsp;|&nbsp; ${sorted.length} shipments`;
+
+  // Show panel and scroll to it
+  drill.style.display='block';
+  setTimeout(()=>drill.scrollIntoView({behavior:'smooth',block:'nearest'}),50);
 }
 
 function setModelTab(tab){} // kept for compatibility
