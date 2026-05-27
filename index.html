@@ -585,15 +585,24 @@ function formatPayTermDisplay(raw) {
 }
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
-const USERS={'chris':'Latam@2026','weverson':'Latam@450','admin':'genoray2026'};
+const USERS={
+  'chris':  {pw:'Latam@2026',  role:'user'},
+  'weverson':{pw:'Latam@450',  role:'user'},
+  'mitchel': {pw:'ehdPdnjs0114',role:'admin'},
+  'admin':   {pw:'LatamGenoray@450', role:'admin'},
+};
+
 function doLogin(){
   const u=document.getElementById('lu').value.trim().toLowerCase();
   const p=document.getElementById('lp').value;
   const e=document.getElementById('lerr');
-  if(USERS[u]&&USERS[u]===p){
+  const acc=USERS[u];
+  if(acc&&acc.pw===p){
     document.getElementById('login-screen').classList.add('hidden');
     sessionStorage.setItem('gl_auth',u);
-    document.getElementById('logged-in-user').textContent='👤 '+u;
+    sessionStorage.setItem('gl_role',acc.role);
+    const badge=acc.role==='admin'?' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>':'';
+    document.getElementById('logged-in-user').innerHTML='👤 '+u+badge;
     e.textContent='';
     resetTimer();
     init();
@@ -602,6 +611,11 @@ function doLogin(){
 if(sessionStorage.getItem('gl_auth')){
   document.getElementById('login-screen').classList.add('hidden');
   resetTimer();
+  // Restore badge
+  const u=sessionStorage.getItem('gl_auth');
+  const role=sessionStorage.getItem('gl_role')||'user';
+  const badge=role==='admin'?' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>':'';
+  document.getElementById('logged-in-user').innerHTML='👤 '+u+badge;
 }
 
 // ── STATE ────────────────────────────────────────────────────────────────────
@@ -705,9 +719,11 @@ function renderTbl(page,rows){
 }
 
 function rowHTML(page,r){
+  const isAdmin=sessionStorage.getItem('gl_role')==='admin';
+  const delBtn=isAdmin?`<button class="btn btn-danger btn-sm" onclick="delRow('${page}','${r.id}')">Del</button>`:'';
   const acts=`<td><div class="td-acts">
     <button class="btn btn-secondary btn-sm" onclick="openForm('${page}','${r.id}')">Edit</button>
-    <button class="btn btn-danger btn-sm" onclick="delRow('${page}','${r.id}')">Del</button>
+    ${delBtn}
   </div></td>`;
   const piLink=(num,label)=>num?`<span class="pi-link" onclick="showPIPrint('${num}')">${label||num}</span>`:'-';
   if(page==='pi') return`<tr>
@@ -720,7 +736,7 @@ function rowHTML(page,r){
     <td><div class="td-acts">
       <button class="btn btn-secondary btn-sm" onclick="openPI('${r.id}')">Edit</button>
       <button class="btn btn-print btn-sm" onclick="showPIPrint('${r.pi_number}')">🖨️</button>
-      <button class="btn btn-danger btn-sm" onclick="delRow('pi','${r.id}')">Del</button>
+      ${isAdmin?`<button class="btn btn-danger btn-sm" onclick="delRow('pi','${r.id}')">Del</button>`:''}
     </div></td></tr>`;
   if(page==='po') return`<tr><td><strong>${r.po_number}</strong></td><td>${r.date||'-'}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td>${piLink(r.pi_number,r.pi_number)}</td><td>$${fmt(r.amount_usd)}</td><td>${pill(r.status)}</td>${acts}</tr>`;
   if(page==='hqpo') return`<tr><td><strong>${r.hq_po_number}</strong></td><td>${r.issue_date||'-'}</td><td>${piLink(r.pi_number,r.pi_number)}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.models||'-'}</td><td>${r.quantity||'-'}</td><td>$${fmt(r.pi_total_usd)}</td><td>${pill(r.delivery_status)}</td><td>${pill(r.ship_status)}</td><td>${r.owner||'-'}</td>${acts}</tr>`;
@@ -1385,7 +1401,9 @@ function resetTimer(){
 
 async function init(){
   const user=sessionStorage.getItem('gl_auth')||'';
-  document.getElementById('logged-in-user').textContent=user?'👤 '+user:'';
+  const role=sessionStorage.getItem('gl_role')||'user';
+  const badge=role==='admin'?' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>':'';
+  document.getElementById('logged-in-user').innerHTML=user?'👤 '+user+badge:'';
   document.getElementById('yr-badge').textContent=new Date().getFullYear();
   const[{data:dists},{data:prods}]=await Promise.all([
     sb.from('distributors').select('*').order('company_name'),
