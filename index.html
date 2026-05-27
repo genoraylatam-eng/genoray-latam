@@ -242,9 +242,19 @@ tr:hover td{background:var(--g50)}
 .pipe-stat-val{font-size:22px;font-weight:800}
 .pipe-stat-lbl{font-size:11px;color:var(--g400);margin-top:2px}
 /* spinner */
-.spin-wrap{text-align:center;padding:52px;color:var(--g400)}
-.spinner{width:30px;height:30px;border:3px solid var(--g200);border-top-color:var(--blue);border-radius:50%;animation:spin .65s linear infinite;margin:0 auto 12px}
+.spin-wrap{text-align:center;padding:40px;color:var(--g400)}
+.spinner{width:28px;height:28px;border:2.5px solid var(--g200);border-top-color:var(--blue);border-radius:50%;animation:spin .65s linear infinite;margin:0 auto 10px}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* Full-screen loading overlay */
+#page-loading-overlay{
+  position:fixed;inset:0;background:rgba(15,39,68,0.92);
+  z-index:9998;display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:18px;
+}
+#page-loading-overlay.show{display:flex}
+.plo-spinner{width:44px;height:44px;border:3.5px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+.plo-msg{color:rgba(255,255,255,.9);font-size:14px;font-weight:500;letter-spacing:.02em}
+.plo-sub{color:rgba(255,255,255,.4);font-size:11px;margin-top:-8px}
 .dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 #toast{position:fixed;bottom:28px;right:28px;background:var(--g900);color:#fff;padding:12px 18px;border-radius:var(--r);font-size:13px;font-weight:500;box-shadow:var(--sh-lg);z-index:9999;opacity:0;transform:translateY(10px);transition:all .25s;pointer-events:none}
 #toast.show{opacity:1;transform:translateY(0)}
@@ -466,6 +476,13 @@ tr:hover td{background:var(--g50)}
 <body>
 
 <!-- LOGIN -->
+<!-- Full-page loading overlay -->
+<div id="page-loading-overlay">
+  <div class="plo-spinner"></div>
+  <div class="plo-msg" id="plo-msg">Loading...</div>
+  <div class="plo-sub" id="plo-sub"></div>
+</div>
+
 <div id="login-screen">
   <div class="login-box">
     <div class="login-logo"><h1>Genoray LATAM</h1><p>Sales Management System</p></div>
@@ -1194,7 +1211,8 @@ const MO_COLS=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_
 const fmtK=v=>v>=1000000?(v/1000000).toFixed(1)+'M':v>=1000?Math.round(v/1000)+'K':Math.round(v)+'';
 
 async function loadDash(){
-  document.getElementById('d-load').style.display='block';
+  showPageLoading('Loading Dashboard...','Fetching sales data');
+  document.getElementById('d-load').style.display='none';
   document.getElementById('d-data').style.display='none';
   const yr=parseInt(document.getElementById('dash-yr')?.value||new Date().getFullYear());
   document.getElementById('dash-monthly-title').textContent='Monthly Revenue vs Goal ('+yr+')';
@@ -1369,7 +1387,7 @@ async function loadDash(){
   window._dashData={revAll,revMed,revDen,goalsMap,shipsByMonth,shipsYr,yr,nowMo,piMap,_goalsRaw:goalsAll};
   setAchTab('all');
 
-  document.getElementById('d-load').style.display='none';
+  hidePageLoading();
   document.getElementById('d-data').style.display='block';
 }
 
@@ -1407,7 +1425,7 @@ async function loadCompareChart(){
 
   // Load shipments for all needed years
   const el=document.getElementById('monthly-chart');
-  el.innerHTML='<div style="text-align:center;padding:20px;color:var(--g400);font-size:12px">⏳ Loading data...</div>';
+  showPageLoading('Comparing Years...','Loading shipment data');
 
   const {data:allShips=[]}=await sb.from('shipments').select('date,amount_usd,distributor,country').in('date',years.flatMap(y=>[y+'-01',y+'-12']).concat(['dummy']));
   // Actually query by year range
@@ -1426,6 +1444,7 @@ async function loadCompareChart(){
   const YEAR_COLORS=['#3b82f6','#16a34a','#d97706'];
   const YEAR_COLORS_LIGHT=['rgba(59,130,246,0.18)','rgba(22,163,74,0.18)','rgba(217,119,6,0.18)'];
   renderCompareChart(years,yearData,YEAR_COLORS,YEAR_COLORS_LIGHT);
+  hidePageLoading();
 }
 
 function renderCompareChart(years,yearData,colors,colorsLight){
@@ -1878,7 +1897,7 @@ function renderAchPanel(){
 let pipelineData=[],pipeSort={col:'days_since',dir:'desc'};
 
 async function loadPipeline(){
-  document.getElementById('pipe-load').style.display='block';
+  showPageLoading('Loading Pipeline...','Analysing PI status');
   document.getElementById('pipe-data').style.display='none';
   const[{data:piAll=[]},{data:poAll=[]},{data:hqAll=[]},{data:ships=[]}]=await Promise.all([
     sb.from('pi').select('*').order('date',{ascending:false}),
@@ -1915,7 +1934,7 @@ async function loadPipeline(){
     <div class="pipe-stat"><div class="pipe-stat-val" style="color:var(--green)">${shipped.length}</div><div class="pipe-stat-lbl">✅ Shipped / Done</div></div>
     <div class="pipe-stat"><div class="pipe-stat-val">${pipelineData.length}</div><div class="pipe-stat-lbl">Total PIs</div></div>`;
   renderPipeline(pipelineData);
-  document.getElementById('pipe-load').style.display='none';
+  hidePageLoading();
   document.getElementById('pipe-data').style.display='block';
 }
 
@@ -1967,7 +1986,7 @@ function sortPipe(col){
 
 // ── REPORT ────────────────────────────────────────────────────────────────────
 async function loadReport(){
-  document.getElementById('rep-load').style.display='block';
+  showPageLoading('Loading Report...','Calculating year-over-year data');
   document.getElementById('rep-data').style.display='none';
   const yrA=parseInt(document.getElementById('rep-year-a').value);
   const yrB=parseInt(document.getElementById('rep-year-b').value);
@@ -2037,7 +2056,7 @@ async function loadReport(){
     const rev=distRevA[g.distributor]||0,pct=g.target_amount_usd>0?Math.round(rev/g.target_amount_usd*100):null;
     return`<tr><td><strong>${g.distributor}</strong></td><td>${g.country||'-'}</td><td>${g.division||'-'}</td><td>$${fmt(rev)}</td><td>$${fmt(g.target_amount_usd)}</td><td class="${pct===null?'':pct>=100?'ach-good':pct>=70?'ach-warn':'ach-bad'}">${pct!==null?pct+'%':'—'}</td></tr>`;
   }).join('');
-  document.getElementById('rep-load').style.display='none';
+  hidePageLoading();
   document.getElementById('rep-data').style.display='block';
 }
 
@@ -2058,10 +2077,10 @@ function setGoalView(v){
 function baseName(name){return (name||'').replace(/[-–]\s*[MD]$/,'').trim();}
 
 async function loadGoals(){
-  const wrap=document.getElementById('goals-tbody');
-  if(wrap)wrap.innerHTML=`<tr><td colspan="12"><div class="spin-wrap" style="padding:32px"><div class="spinner"></div></div></td></tr>`;
+  showPageLoading('Loading Annual Goals...');
   const{data}=await sb.from('goals').select('*').order('country').order('distributor');
   cache.goals=data||[];
+  hidePageLoading();
   renderGoals();
 }
 
@@ -2428,7 +2447,9 @@ function pillAuto(statusObj, page){
 // ── TABLE LOADER ──────────────────────────────────────────────────────────────
 async function loadTable(page){
   const tbody=document.getElementById(page+'-tbody');
-  tbody.innerHTML=`<tr><td colspan="20"><div class="spin-wrap" style="padding:32px"><div class="spinner"></div></div></td></tr>`;
+  tbody.innerHTML='';
+  const pageLabels={pi:'PI Management',po:'PO Management',hqpo:'HQ PO',shipments:'Shipments',collections:'Collections',distributors:'Distributors',products:'Products',goals:'Annual Goals'};
+  showPageLoading('Loading '+( pageLabels[page]||page)+'...');
   // Load page data + cross-reference data in parallel
   const needsXRef=['pi','po','hqpo','shipments','collections'];
   const[{data,error}]=await Promise.all([
@@ -2436,10 +2457,11 @@ async function loadTable(page){
     ...(needsXRef.includes(page)?[loadXRef().then(()=>{cache._xref=null;})]:[]) // refresh xref
   ]);
   cache._xref=null; // force refresh
-  if(error){toast('Error: '+error.message,'err');return;}
+  if(error){hidePageLoading();toast('Error: '+error.message,'err');return;}
   cache[page]=data||[];
   await loadXRef(); // ensure fresh xref
   renderTbl(page,cache[page]);
+  hidePageLoading();
 }
 
 function renderTbl(page,rows){
@@ -3745,6 +3767,7 @@ const MANUAL_SECTIONS = [
 ];
 
 function loadHelp(){
+  showPageLoading('Loading Manual...');
   const tocNav=document.getElementById('help-toc-nav');
   const helpContent=document.getElementById('help-content');
   if(!tocNav||!helpContent)return;
@@ -3767,6 +3790,7 @@ function loadHelp(){
     </div>
   `).join('');
 
+  hidePageLoading();
   // Scroll spy
   const observer=new IntersectionObserver(entries=>{
     entries.forEach(e=>{
@@ -3819,6 +3843,20 @@ function helpSearch(q){
   }
 }
 
+
+// ── PAGE LOADING OVERLAY ─────────────────────────────────────────────────────
+function showPageLoading(msg, sub){
+  const ov=document.getElementById('page-loading-overlay');
+  if(!ov)return;
+  document.getElementById('plo-msg').textContent=msg||'Loading...';
+  document.getElementById('plo-sub').textContent=sub||'';
+  ov.classList.add('show');
+}
+function hidePageLoading(){
+  const ov=document.getElementById('page-loading-overlay');
+  if(ov)ov.classList.remove('show');
+}
+
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function autoId(p){return`${p}-${new Date().getFullYear()}-${String(Math.floor(Math.random()*900)+100)}`;}
 function tod(){return new Date().toISOString().split('T')[0];}
@@ -3839,12 +3877,23 @@ function toast(msg,type='ok'){
 function doLogout(auto=false){
   if(!auto&&!confirm('Log out?'))return;
   sessionStorage.removeItem('gl_auth');
+  sessionStorage.removeItem('gl_role');
   clearTimeout(window._autoLogoutTimer);
-  document.getElementById('login-screen').classList.remove('hidden');
+  // Show login screen immediately and cleanly
+  const loginScreen=document.getElementById('login-screen');
+  loginScreen.classList.remove('hidden');
+  loginScreen.style.opacity='0';
+  loginScreen.style.transition='opacity .35s';
+  requestAnimationFrame(()=>{ loginScreen.style.opacity='1'; });
   document.getElementById('lu').value='';
   document.getElementById('lp').value='';
-  document.getElementById('logged-in-user').textContent='';
-  if(auto)toast('Session expired. Please log in again.','err');
+  document.getElementById('logged-in-user').innerHTML='';
+  if(auto){
+    document.getElementById('lerr').textContent='Your session expired after 60 minutes. Please log in again.';
+    document.getElementById('lerr').style.color='#fca5a5';
+  } else {
+    document.getElementById('lerr').textContent='';
+  }
 }
 
 // ── AUTO LOGOUT (60 min inactivity) ──────────────────────────────────────────
