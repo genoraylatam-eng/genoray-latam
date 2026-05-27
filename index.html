@@ -2,6 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="theme-color" content="#0f2744">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Genoray LATAM">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Genoray LATAM | Sales Management</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -245,6 +250,117 @@ tr:hover td{background:var(--g50)}
 #toast.show{opacity:1;transform:translateY(0)}
 #toast.ok{border-left:4px solid var(--green)}
 #toast.err{border-left:4px solid var(--red)}
+
+/* ════════════════════════════════════════
+   MOBILE RESPONSIVE  (≤ 768px)
+═══════════════════════════════════════ */
+#mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:199}
+#mob-overlay.show{display:block}
+#hamburger{display:none;background:none;border:none;cursor:pointer;padding:6px;color:var(--g700);flex-shrink:0}
+#hamburger svg{display:block}
+#mob-close{display:none;position:absolute;top:14px;right:14px;background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.7);font-size:20px;cursor:pointer;border-radius:6px;width:30px;height:30px;align-items:center;justify-content:center}
+
+@media(max-width:768px){
+  /* Show hamburger, hide sidebar by default */
+  #hamburger{display:flex;align-items:center;justify-content:center}
+  #mob-close{display:flex}
+
+  #sidebar{
+    position:fixed;left:-100%;top:0;bottom:0;z-index:200;
+    width:260px;transition:left .25s ease;
+    box-shadow:4px 0 20px rgba(0,0,0,.3);
+  }
+  #sidebar.mob-open{left:0}
+
+  /* Topbar compact */
+  #topbar{padding:0 12px;height:52px}
+  #topbar .tb-right .tb-connected{display:none}
+  #page-title{font-size:15px}
+
+  /* Content padding reduced */
+  #content{padding:12px}
+
+  /* Stat cards: 2 per row */
+  .stat-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .stat-value{font-size:18px}
+  .stat-icon{font-size:20px}
+
+  /* Panels */
+  .panel-head{padding:10px 14px;gap:8px}
+  .panel-acts{flex-wrap:wrap;gap:6px}
+  .panel-acts .search-box input{width:100px}
+
+  /* Tables: horizontal scroll */
+  .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{min-width:600px}
+  th,td{padding:8px 10px;font-size:12px;white-space:nowrap}
+
+  /* Dash grids: single column */
+  .dash-grid{grid-template-columns:1fr}
+
+  /* Stat cards in dashboard: 2 cols */
+  #stat-cards{grid-template-columns:repeat(2,1fr)}
+
+  /* Achievement cards: 1 col */
+  .ach-country-grid{grid-template-columns:1fr}
+
+  /* Modal: full screen */
+  .overlay{padding:0;align-items:flex-end}
+  .modal{width:100%!important;max-height:92vh;border-radius:var(--rlg) var(--rlg) 0 0}
+  .modal-body{padding:16px}
+  .modal-foot{padding:12px 16px}
+
+  /* Forms: single column */
+  .form-grid{grid-template-columns:1fr!important}
+  .fg.full{grid-column:1}
+
+  /* Goal form grid */
+  .form-grid > div[style*="grid-column"]{grid-column:1}
+
+  /* PI form seller buttons: stack */
+  .seller-selector{flex-direction:column}
+
+  /* Payment preset buttons: smaller */
+  .btn.btn-secondary.btn-sm[onclick*="applyPT"]{font-size:10px;padding:4px 7px}
+
+  /* Items table in PI form */
+  .items-tbl{font-size:11px}
+  .items-tbl th,.items-tbl td{padding:4px 5px}
+
+  /* Tab buttons */
+  .sh-popover{width:calc(100vw - 24px);left:12px!important}
+
+  /* Goal achievement summary strip: 2+3 layout */
+  #ach-summary{flex-wrap:wrap}
+  #ach-summary>div{min-width:50%;flex:unset}
+
+  /* Monthly chart summary */
+  #monthly-chart > div:last-child{flex-wrap:wrap}
+  #monthly-chart > div:last-child > div{min-width:50%}
+
+  /* Pipeline stats */
+  #pipe-stats{display:grid;grid-template-columns:repeat(2,1fr)}
+
+  /* Hide less important table columns on mobile */
+  .mob-hide{display:none!important}
+
+  /* Bigger touch targets for buttons */
+  .btn{min-height:36px}
+  .btn-sm{min-height:30px;padding:5px 10px}
+
+  /* Nav items bigger touch area */
+  .nav-item{padding:12px 16px}
+
+  /* Bottom padding for safe area (iOS) */
+  #content{padding-bottom:max(12px, env(safe-area-inset-bottom))}
+}
+
+@media(max-width:480px){
+  .stat-grid{grid-template-columns:1fr}
+  #stat-cards{grid-template-columns:1fr}
+  .stat-value{font-size:20px}
+}
+
 @media print{
   body>*:not(.pi-print-overlay){display:none!important}
   .pi-print-overlay{position:static!important;background:none!important;padding:0!important;display:block!important}
@@ -286,7 +402,9 @@ tr:hover td{background:var(--g50)}
 </div>
 
 <!-- SIDEBAR -->
+<div id="mob-overlay" onclick="closeSidebar()"></div>
 <div id="sidebar">
+  <button id="mob-close" onclick="closeSidebar()">×</button>
   <div class="logo"><h1>Genoray LATAM</h1><p>Sales Management</p></div>
   <div class="nav-sec">
     <div class="nav-lbl">Overview</div>
@@ -313,14 +431,21 @@ tr:hover td{background:var(--g50)}
 <!-- MAIN -->
 <div id="main">
   <div id="topbar">
-    <div style="display:flex;align-items:center">
+    <div style="display:flex;align-items:center;gap:10px">
+      <button id="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <rect y="4" width="22" height="2.5" rx="1.25" fill="#374151"/>
+          <rect y="10" width="22" height="2.5" rx="1.25" fill="#374151"/>
+          <rect y="16" width="22" height="2.5" rx="1.25" fill="#374151"/>
+        </svg>
+      </button>
       <span id="page-title">Dashboard</span>
       <span class="tbadge" id="yr-badge">2026</span>
     </div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <span style="font-size:12px;color:var(--g400)">● Connected</span>
-      <span style="font-size:12px;color:var(--g500);font-weight:500" id="logged-in-user"></span>
-      <button class="btn btn-secondary btn-sm" onclick="doLogout()" style="font-size:12px">🚪 Logout</button>
+    <div class="tb-right" style="display:flex;align-items:center;gap:10px">
+      <span class="tb-connected" style="font-size:11px;color:var(--g400)">● Connected</span>
+      <span style="font-size:11px;color:var(--g500);font-weight:500" id="logged-in-user"></span>
+      <button class="btn btn-secondary btn-sm" onclick="doLogout()" style="font-size:11px">🚪</button>
     </div>
   </div>
   <div id="content">
@@ -3210,6 +3335,26 @@ async function init(){
 }
 
 if(sessionStorage.getItem('gl_auth'))init();
+
+// ── MOBILE SIDEBAR ──────────────────────────────────────────────────────────
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('mob-overlay');
+  sb.classList.toggle('mob-open');
+  ov.classList.toggle('show');
+  document.body.style.overflow=sb.classList.contains('mob-open')?'hidden':'';
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('mob-open');
+  document.getElementById('mob-overlay').classList.remove('show');
+  document.body.style.overflow='';
+}
+// Close sidebar when nav item clicked on mobile
+document.querySelectorAll('.nav-item').forEach(el=>{
+  el.addEventListener('click',()=>{if(window.innerWidth<=768)closeSidebar();});
+});
+// Add PWA meta + viewport if not present
+
 </script>
 </body>
 </html>
