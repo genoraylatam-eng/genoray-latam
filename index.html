@@ -1071,6 +1071,17 @@ tr:hover td{background:var(--g50)}
 const {createClient}=supabase;
 const sb=createClient('https://cqvtqcnjmmfvvynsgmei.supabase.co','sb_publishable_pCAcvd2jsuIx_1hcksk9NQ_UVlUqK8S');
 
+// ── AUTH STORAGE (uses both session + local storage for reliability) ──────────
+function getAuth(){ return sessionStorage.getItem('gl_auth')||localStorage.getItem('gl_auth')||null; }
+function getRole(){ return sessionStorage.getItem('gl_role')||localStorage.getItem('gl_role')||'user'; }
+function setAuth(u,r){ 
+  sessionStorage.setItem('gl_auth',u); localStorage.setItem('gl_auth',u);
+  sessionStorage.setItem('gl_role',r); localStorage.setItem('gl_role',r);
+}
+function clearAuth(){
+  ['gl_auth','gl_role'].forEach(k=>{ sessionStorage.removeItem(k); localStorage.removeItem(k); });
+}
+
 // ── COMPANY PROFILES ─────────────────────────────────────────────────────────
 const COMPANIES = {
   korea: {
@@ -1134,8 +1145,7 @@ function doLogin(){
   const acc=USERS[u];
   if(acc&&acc.pw===p){
     document.getElementById('login-screen').classList.add('hidden');
-    sessionStorage.setItem('gl_auth',u);
-    sessionStorage.setItem('gl_role',acc.role);
+    setAuth(u,acc.role);
     const badge=acc.role==='admin'?' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>':'';
     document.getElementById('logged-in-user').innerHTML='👤 '+u+badge;
     e.textContent='';
@@ -1143,18 +1153,7 @@ function doLogin(){
     init();
   }else{e.textContent='Incorrect username or password.';document.getElementById('lp').value='';}
 }
-if(sessionStorage.getItem('gl_auth')){
-  document.getElementById('login-screen').classList.add('hidden');
-  resetTimer();
-  const u=sessionStorage.getItem('gl_auth');
-  const role=sessionStorage.getItem('gl_role')||'user';
-  const badge=role==='admin'?' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>':'';
-  document.getElementById('logged-in-user').innerHTML='👤 '+u+badge;
-  // d-data is always visible (no display:none in HTML)
-  // tb-loading is already in topbar HTML as a sibling to page-title
-  const tbLoad=document.getElementById('tb-loading');
-  if(tbLoad){tbLoad.style.display='inline';tbLoad.textContent='● Loading...';}
-}
+
 
 // ── STATE ────────────────────────────────────────────────────────────────────
 let activePage='dashboard',formState={table:'',id:null,page:''},cache={},masterCache={distributors:[],products:[]};
@@ -2715,7 +2714,7 @@ function renderPIForm(){
     <div class="fg"><label>Delivery</label><input id="pif-delivery" value="${d.delivery||'4 weeks after receipt of payment'}"></div>
     <div class="fg"><label>Authorized By (Seller)</label><input id="pif-auth" value="${d.authorized_by||'Christopher Yoon'}"></div>
     <div class="fg"><label>Sales Rep (Internal — not printed)</label>
-      <input id="pif-sales-rep" value="${d.sales_rep||sessionStorage.getItem('gl_auth')||''}" placeholder="Sales representative name" style="border-color:var(--purple);background:var(--purple-pale)">
+      <input id="pif-sales-rep" value="${d.sales_rep||getAuth()||''}" placeholder="Sales representative name" style="border-color:var(--purple);background:var(--purple-pale)">
     </div>
     <div class="fg full"><label>Notes / Remarks</label><textarea id="pif-notes">${d.notes||''}</textarea></div>
   </div>`;
@@ -3879,8 +3878,7 @@ function toast(msg,type='ok'){
 // ── INIT ─────────────────────────────────────────────────────────────────────
 function doLogout(auto=false){
   if(!auto&&!confirm('Log out?'))return;
-  sessionStorage.removeItem('gl_auth');
-  sessionStorage.removeItem('gl_role');
+  clearAuth();
   clearTimeout(window._autoLogoutTimer);
   // Show login screen immediately and cleanly
   const loginScreen=document.getElementById('login-screen');
@@ -3903,7 +3901,7 @@ function doLogout(auto=false){
 const AUTO_LOGOUT_MS = 60 * 60 * 1000; // 60 minutes
 function resetTimer(){
   clearTimeout(window._autoLogoutTimer);
-  if(!sessionStorage.getItem('gl_auth'))return;
+  if(!getAuth())return;
   window._autoLogoutTimer=setTimeout(()=>doLogout(true), AUTO_LOGOUT_MS);
 }
 ['click','keydown','mousemove','touchstart','scroll'].forEach(evt=>
@@ -3918,8 +3916,8 @@ function setStatus(msg, isErr){
 }
 
 async function init(){
-  const user=sessionStorage.getItem('gl_auth')||'';
-  const role=sessionStorage.getItem('gl_role')||'user';
+  const user=getAuth()||'';
+  const role=getRole();
   const badge=role==='admin'?' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>':'';
   const lui=document.getElementById('logged-in-user');
   if(lui)lui.innerHTML=user?'👤 '+user+badge:'';
@@ -3947,7 +3945,26 @@ window.addEventListener('unhandledrejection', function(e){
   console.error('Unhandled rejection:', e.reason);
 });
 
-if(sessionStorage.getItem('gl_auth'))init();
+// ── AUTO-START ON REFRESH ───────────────────────────────────────────────────
+(function(){
+  if(!getAuth())return;
+  // Restore UI immediately
+  const ls=document.getElementById('login-screen');
+  if(ls)ls.classList.add('hidden');
+  resetTimer();
+  const u=getAuth()||'';
+  const role=getRole();
+  const badge=role==='admin'?' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>':'';
+  const lui=document.getElementById('logged-in-user');
+  if(lui)lui.innerHTML=u?'👤 '+u+badge:'';
+  const yb=document.getElementById('yr-badge');
+  if(yb)yb.textContent=new Date().getFullYear();
+  // Start loading - show immediate feedback
+  const sc=document.getElementById('stat-cards');
+  if(sc)sc.innerHTML='<div style="grid-column:1/-1;padding:24px;text-align:center;color:#6b7280;font-size:13px">⏳ Connecting to database...</div>';
+  // Small delay then call init to let DOM settle
+  setTimeout(()=>init(), 100);
+})();
 
 // ── MOBILE SIDEBAR & NAV ─────────────────────────────────────────────────────
 function toggleSidebar(){
