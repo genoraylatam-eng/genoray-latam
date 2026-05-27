@@ -198,15 +198,37 @@ tr:hover td{background:var(--g50)}
 .bc-bar{height:100%;border-radius:4px;display:flex;align-items:center;padding:0 8px;min-width:24px;transition:width .5s}
 .bc-bar span{font-size:10px;color:#fff;font-weight:700;white-space:nowrap}
 .bc-val{font-size:11px;color:var(--g500);font-weight:500;white-space:nowrap}
-.mc-bars{display:flex;align-items:flex-end;gap:6px;height:110px;margin-bottom:8px}
-.mc-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.mc-wrap{padding:4px 0 0}
+.mc-bars{display:flex;align-items:flex-end;gap:4px;height:140px;margin-bottom:4px;position:relative}
+.mc-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:0;cursor:default}
 .mc-bar-wrap{width:100%;flex:1;display:flex;flex-direction:column;justify-content:flex-end;position:relative}
-.mc-bar-goal{position:absolute;bottom:0;left:0;right:0;border-radius:4px 4px 0 0;opacity:.25}
-.mc-bar-rev{position:absolute;bottom:0;left:0;right:0;border-radius:4px 4px 0 0}
-.mc-lbl{font-size:9px;color:var(--g400);text-align:center}
-.mc-legend{display:flex;gap:16px;font-size:11px;color:var(--g500);margin-top:4px}
-.mc-legend span{display:flex;align-items:center;gap:4px}
-.mc-legend .dot{width:10px;height:10px;border-radius:2px}
+.mc-bar-goal{position:absolute;bottom:0;left:1px;right:1px;border-radius:3px 3px 0 0;background:rgba(59,130,246,.18)}
+.mc-bar-rev{position:absolute;bottom:0;left:1px;right:1px;border-radius:3px 3px 0 0;background:var(--blue)}
+.mc-val-top{font-size:9px;font-weight:700;color:var(--blue);text-align:center;white-space:nowrap;margin-bottom:2px;min-height:12px;line-height:12px}
+.mc-lbl{font-size:9px;color:var(--g400);text-align:center;margin-top:3px}
+.mc-legend{display:flex;gap:16px;font-size:11px;color:var(--g500);margin-top:6px;padding-top:6px;border-top:1px solid var(--g100)}
+.mc-legend span{display:flex;align-items:center;gap:5px}
+.mc-legend .dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+/* ACHIEVEMENT CARDS */
+.ach-country-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-top:4px}
+.ach-card{border:1px solid var(--g200);border-radius:var(--rsm);padding:12px 14px;background:var(--g50)}
+.ach-card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.ach-card-country{font-size:13px;font-weight:700;color:var(--g900)}
+.ach-card-annual{font-size:11px;color:var(--g400);margin-top:1px}
+.ach-badge{font-size:12px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap}
+.ach-rows{display:flex;flex-direction:column;gap:5px}
+.ach-row{display:flex;align-items:center;gap:6px}
+.ach-row-lbl{font-size:10px;font-weight:600;color:var(--g500);width:90px;flex-shrink:0;text-transform:uppercase;letter-spacing:.03em}
+.ach-prog-bg{flex:1;background:var(--g200);border-radius:3px;height:6px;overflow:hidden}
+.ach-prog-fill{height:100%;border-radius:3px;transition:width .5s}
+.ach-row-val{font-size:10px;font-weight:700;white-space:nowrap;width:36px;text-align:right}
+.ach-amounts{display:flex;justify-content:space-between;margin-top:8px;padding-top:6px;border-top:1px solid var(--g200)}
+.ach-amt-item{text-align:center}
+.ach-amt-val{font-size:11px;font-weight:700;color:var(--g700)}
+.ach-amt-lbl{font-size:9px;color:var(--g400);margin-top:1px}
+.ach-zero-box{background:var(--g50);border:1px solid var(--g200);border-radius:var(--rsm);padding:10px 14px;margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ach-zero-lbl{font-size:11px;color:var(--g400);font-weight:600;margin-right:4px}
+.ach-zero-pill{font-size:11px;color:var(--g500);background:var(--g100);padding:2px 8px;border-radius:10px}
 .ach-good{color:var(--green);font-weight:700}
 .ach-warn{color:var(--amber);font-weight:600}
 .ach-bad{color:var(--red);font-weight:600}
@@ -289,23 +311,35 @@ tr:hover td{background:var(--g50)}
       <div id="d-load" class="spin-wrap"><div class="spinner"></div>Loading...</div>
       <div id="d-data" style="display:none">
         <div class="stat-grid" id="stat-cards"></div>
-        <div class="dash-grid" style="margin-bottom:16px">
-          <div class="panel">
-            <div class="panel-head"><span class="panel-title">Monthly Revenue vs Goal (2026)</span></div>
-            <div style="padding:14px 20px" id="monthly-chart"></div>
+
+        <!-- Monthly Chart - Full width -->
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-head">
+            <span class="panel-title" id="dash-monthly-title">Monthly Revenue vs Goal (2026)</span>
+            <div style="display:flex;gap:6px">
+              <span style="font-size:11px;color:var(--g400);align-self:center">Shipment 기준 매출</span>
+            </div>
           </div>
+          <div style="padding:16px 20px 12px" id="monthly-chart"></div>
+        </div>
+
+        <!-- Goal Achievement Full Panel -->
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-head" style="flex-wrap:wrap;gap:10px">
+            <span class="panel-title">Goal Achievement by Country</span>
+            <div style="display:flex;gap:6px">
+              <button id="ach-tab-all" onclick="setAchTab('all')" class="btn btn-primary btn-sm" style="font-size:11px">All</button>
+              <button id="ach-tab-med" onclick="setAchTab('medical')" class="btn btn-secondary btn-sm" style="font-size:11px">Medical</button>
+              <button id="ach-tab-den" onclick="setAchTab('dental')" class="btn btn-secondary btn-sm" style="font-size:11px">Dental</button>
+            </div>
+          </div>
+          <div id="country-ach-wrap" style="padding:0 20px 20px"></div>
+        </div>
+
+        <div class="dash-grid" style="margin-bottom:16px">
           <div class="panel">
             <div class="panel-head"><span class="panel-title">Sales by Country</span></div>
             <div style="padding:14px 20px" id="country-chart"></div>
-          </div>
-        </div>
-        <div class="dash-grid" style="margin-bottom:16px">
-          <div class="panel">
-            <div class="panel-head"><span class="panel-title">Goal Achievement by Country</span></div>
-            <div class="tbl-wrap"><table>
-              <thead><tr><th>Country</th><th>Revenue</th><th>Goal</th><th>Ach%</th></tr></thead>
-              <tbody id="country-ach-tbody"></tbody>
-            </table></div>
           </div>
           <div class="panel">
             <div class="panel-head"><span class="panel-title">Sales by Division & Rep</span></div>
@@ -313,6 +347,7 @@ tr:hover td{background:var(--g50)}
             <div style="padding:0 20px 14px" id="rep-chart"></div>
           </div>
         </div>
+
         <div class="panel">
           <div class="panel-head"><span class="panel-title">Recent PI</span></div>
           <div class="tbl-wrap"><table>
@@ -853,80 +888,169 @@ async function loadDash(){
     <div class="stat-card amber"><div class="stat-label">Outstanding (A/R)</div><div class="stat-value">$${fmt(outstanding)}</div><div class="stat-sub">미수금</div><div class="stat-icon">⏳</div></div>
     <div class="stat-card purple"><div class="stat-label">Active PI</div><div class="stat-value">${piPending}</div><div class="stat-sub">미선적 PI</div><div class="stat-icon">📋</div></div>`;
 
-  // Monthly chart: Shipment date 기준
+  // ── Monthly chart: numbers above bars ──
   const mRev=Array(12).fill(0),mGoal=Array(12).fill(0);
   const mCols=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_usd','aug_usd','sep_usd','oct_usd','nov_usd','dec_usd'];
   shipsYr.forEach(r=>{const m=parseInt(r.date.split('-')[1])-1;if(m>=0&&m<12)mRev[m]+=(r.amount_usd||0);});
   goalsAll.forEach(g=>mCols.forEach((c,i)=>mGoal[i]+=(g[c]||0)));
   const maxMG=Math.max(...mRev,...mGoal,1);
-  document.getElementById('monthly-chart').innerHTML=`
-    <div class="mc-bars">${MONTHS.map((m,i)=>`
-      <div class="mc-col">
-        <div class="mc-bar-wrap" title="${m}: Rev $${fmt(mRev[i])} / Goal $${fmt(mGoal[i])}">
-          <div class="mc-bar-goal" style="height:${Math.round(mGoal[i]/maxMG*100)}%;background:var(--blue2)"></div>
-          <div class="mc-bar-rev" style="height:${Math.round(mRev[i]/maxMG*100)}%;background:var(--blue)"></div>
-        </div>
-        <div class="mc-lbl">${m}</div>
-      </div>`).join('')}</div>
-    <div class="mc-legend">
-      <span><div class="dot" style="background:var(--blue)"></div>Revenue (Shipped)</span>
-      <span><div class="dot" style="background:var(--blue2);opacity:.5"></div>Goal</span>
-    </div>`;
+  const curMo=new Date().getMonth();
+  document.getElementById('dash-monthly-title').textContent='Monthly Revenue vs Goal ('+yr+')';
+  const fmtK=v=>v>=1000000?(v/1000000).toFixed(1)+'M':v>=1000?Math.round(v/1000)+'K':Math.round(v).toString();
+  document.getElementById('monthly-chart').innerHTML='<div class="mc-bars">'+MONTHS.map((m,i)=>{
+    const rh=Math.round(mRev[i]/maxMG*100),gh=Math.round(mGoal[i]/maxMG*100);
+    const isCur=i===curMo,hasRev=mRev[i]>0;
+    const lbl=hasRev?'$'+fmtK(mRev[i]):(i<curMo&&mGoal[i]>0?'—':'');
+    return'<div class="mc-col">'
+      +'<div class="mc-val-top" style="'+(hasRev?'color:var(--blue)':'color:var(--g300)')+'">'+lbl+'</div>'
+      +'<div class="mc-bar-wrap" title="'+m+': Revenue $'+fmt(mRev[i])+' / Goal $'+fmt(mGoal[i])+'">'
+      +'<div class="mc-bar-goal" style="height:'+gh+'%"></div>'
+      +'<div class="mc-bar-rev" style="height:'+rh+'%"></div>'
+      +'</div>'
+      +'<div class="mc-lbl" style="'+(isCur?'color:var(--blue);font-weight:700':'')+'">'+(isCur?'▼':'')+m+'</div>'
+      +'</div>';
+  }).join('')+'</div>'
+  +'<div style="display:flex;justify-content:space-between;align-items:center">'
+  +'<div class="mc-legend"><span><div class="dot" style="background:var(--blue)"></div>Revenue (Shipped)</span><span><div class="dot" style="background:rgba(59,130,246,.25)"></div>Goal</span></div>'
+  +'<div style="font-size:11px;color:var(--g400)">YTD: <strong style="color:var(--g700)">$'+fmt(sales)+'</strong> / Goal: <strong style="color:var(--g700)">$'+fmt(totalGoal)+'</strong><span style="margin-left:8px;font-weight:700;color:'+(pct>=100?'var(--green)':pct>=70?'var(--amber)':'var(--red)')+'">'+pct+'%</span></div>'
+  +'</div>';
 
-  // Country chart: shipment 기준
+  // ── Country chart ──
   const byC={},goalByC={};
   shipsYr.forEach(r=>{byC[r.country||'N/A']=(byC[r.country||'N/A']||0)+(r.amount_usd||0);});
   goalsAll.forEach(g=>{goalByC[g.country||'N/A']=(goalByC[g.country||'N/A']||0)+(g.target_amount_usd||0);});
   const cSorted=Object.entries(byC).sort((a,b)=>b[1]-a[1]);
   const cMax=cSorted.length?cSorted[0][1]:1;
   document.getElementById('country-chart').innerHTML=cSorted.length
-    ?cSorted.map(([c,a])=>`<div class="bc-row"><div class="bc-label" style="width:90px">${c}</div><div class="bc-bar-bg"><div class="bc-bar" style="width:${Math.round(a/cMax*100)}%;background:linear-gradient(90deg,var(--blue),var(--blue2))"><span>${Math.round(a/cMax*100)}%</span></div></div><div class="bc-val">$${fmt(a)}</div></div>`).join('')
+    ?cSorted.map(([c,a])=>'<div class="bc-row"><div class="bc-label" style="width:90px">'+c+'</div><div class="bc-bar-bg"><div class="bc-bar" style="width:'+Math.round(a/cMax*100)+'%;background:linear-gradient(90deg,var(--blue),var(--blue2))"><span>'+Math.round(a/cMax*100)+'%</span></div></div><div class="bc-val">$'+fmt(a)+'</div></div>').join('')
     :'<p style="color:var(--g400);font-size:13px">No data</p>';
 
-  const allC=[...new Set([...Object.keys(byC),...Object.keys(goalByC)])].sort();
-  document.getElementById('country-ach-tbody').innerHTML=allC.map(c=>{
-    const rev=byC[c]||0,goal=goalByC[c]||0;
-    const ach=goal>0?Math.round(rev/goal*100):null;
-    const cls=ach===null?'':ach>=100?'ach-good':ach>=70?'ach-warn':'ach-bad';
-    return`<tr><td>${c}</td><td>$${fmt(rev)}</td><td>$${fmt(goal)}</td><td class="${cls}">${ach!==null?ach+'%':'—'}</td></tr>`;
-  }).join('');
+  // ── Goal Achievement: compute data then render ──
+  const curMonth=new Date().getMonth()+1;
+  const revByCountry={all:{},Medical:{},Dental:{}};
+  const piMap={};piAll.forEach(p=>{piMap[p.pi_number]=p;});
+  shipsYr.forEach(r=>{
+    const c=r.country||'N/A';
+    const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
+    const div=(dist&&dist.division)||'N/A';
+    revByCountry.all[c]=(revByCountry.all[c]||0)+(r.amount_usd||0);
+    if(div==='Medical')revByCountry.Medical[c]=(revByCountry.Medical[c]||0)+(r.amount_usd||0);
+    if(div==='Dental')revByCountry.Dental[c]=(revByCountry.Dental[c]||0)+(r.amount_usd||0);
+  });
+  const goalByCountry={all:{annual:{},ytd:{},curMo:{}},Medical:{annual:{},ytd:{},curMo:{}},Dental:{annual:{},ytd:{},curMo:{}}};
+  goalsAll.forEach(g=>{
+    const c=g.country||'N/A';
+    const div=g.division||'N/A';
+    const annAmt=g.target_amount_usd||0;
+    const moKeys=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_usd','aug_usd','sep_usd','oct_usd','nov_usd','dec_usd'];
+    let ytdGoal=0;for(let i=0;i<curMonth;i++)ytdGoal+=(g[moKeys[i]]||0);
+    const curGoal=g[moKeys[curMonth-1]]||0;
+    (['all',...(div!=='N/A'?[div]:[])] ).forEach(key=>{
+      goalByCountry[key].annual[c]=(goalByCountry[key].annual[c]||0)+annAmt;
+      goalByCountry[key].ytd[c]=(goalByCountry[key].ytd[c]||0)+ytdGoal;
+      goalByCountry[key].curMo[c]=(goalByCountry[key].curMo[c]||0)+curGoal;
+    });
+  });
+  window._achGoalData={revByCountry,goalByCountry,curMonth,yr};
+  renderAchTab('all');
 
-  // Division chart: PI의 distributor division으로 매핑
+  // ── Division chart ──
   const byDiv={};
   shipsYr.forEach(r=>{
     const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
-    const div=dist?.division||'N/A';
+    const div=(dist&&dist.division)||'N/A';
     byDiv[div]=(byDiv[div]||0)+(r.amount_usd||0);
   });
   const divColors={'Medical':'var(--blue)','Dental':'var(--green)','N/A':'var(--g400)'};
   const divS=Object.entries(byDiv).sort((a,b)=>b[1]-a[1]);
   const divMax=divS.length?divS[0][1]:1;
   document.getElementById('division-chart').innerHTML=divS.length
-    ?divS.map(([d,a])=>`<div class="bc-row"><div class="bc-label" style="width:70px">${d}</div><div class="bc-bar-bg"><div class="bc-bar" style="width:${Math.round(a/divMax*100)}%;background:${divColors[d]||'var(--purple)'}"><span>${Math.round(a/divMax*100)}%</span></div></div><div class="bc-val">$${fmt(a)}</div></div>`).join('')
+    ?divS.map(([d,a])=>'<div class="bc-row"><div class="bc-label" style="width:70px">'+d+'</div><div class="bc-bar-bg"><div class="bc-bar" style="width:'+Math.round(a/divMax*100)+'%;background:'+(divColors[d]||'var(--purple)')+'"><span>'+Math.round(a/divMax*100)+'%</span></div></div><div class="bc-val">$'+fmt(a)+'</div></div>').join('')
     :'<p style="color:var(--g400);font-size:13px">No data</p>';
 
-  // Sales rep chart: PI의 sales_rep을 shipment PI에 매핑
-  const piMap={};piAll.forEach(p=>{piMap[p.pi_number]=p;});
+  // ── Sales rep chart ──
   const byRep={};
   shipsYr.forEach(r=>{
     const pi=piMap[r.pi_number];
-    const rep=pi?.sales_rep||'Unassigned';
+    const rep=(pi&&pi.sales_rep)||'Unassigned';
     byRep[rep]=(byRep[rep]||0)+(r.amount_usd||0);
   });
   const repS=Object.entries(byRep).sort((a,b)=>b[1]-a[1]);
   const repMax=repS.length?repS[0][1]:1;
   document.getElementById('rep-chart').innerHTML=repS.length
-    ?repS.map(([r,a])=>`<div class="bc-row"><div class="bc-label" style="width:70px">${r}</div><div class="bc-bar-bg"><div class="bc-bar" style="width:${Math.round(a/repMax*100)}%;background:linear-gradient(90deg,var(--purple),#a855f7)"><span>${Math.round(a/repMax*100)}%</span></div></div><div class="bc-val">$${fmt(a)}</div></div>`).join('')
+    ?repS.map(([r,a])=>'<div class="bc-row"><div class="bc-label" style="width:70px">'+r+'</div><div class="bc-bar-bg"><div class="bc-bar" style="width:'+Math.round(a/repMax*100)+'%;background:linear-gradient(90deg,var(--purple),#a855f7)"><span>'+Math.round(a/repMax*100)+'%</span></div></div><div class="bc-val">$'+fmt(a)+'</div></div>').join('')
     :'<p style="color:var(--g400);font-size:13px">No data</p>';
 
-  // Recent PI
+  // ── Recent PI ──
   const recent=[...piAll].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,7);
   document.getElementById('recent-pi').innerHTML=recent.length
-    ?recent.map(r=>`<tr><td><span class="pi-link" onclick="showPIPrint('${r.pi_number}')">${r.pi_number}</span></td><td>${r.distributor||'-'}</td><td>$${fmt(r.amount_usd)}</td><td>${pill(r.status)}</td></tr>`).join('')
+    ?recent.map(r=>'<tr><td><span class="pi-link" onclick="showPIPrint(\''+r.pi_number+'\')">'+r.pi_number+'</span></td><td>'+(r.distributor||'-')+'</td><td>$'+fmt(r.amount_usd)+'</td><td>'+pill(r.status)+'</td></tr>').join('')
     :'<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--g400)">No records</td></tr>';
 
   document.getElementById('d-load').style.display='none';
   document.getElementById('d-data').style.display='block';
+}
+
+function setAchTab(tab){
+  const map={all:'all',medical:'Medical',dental:'Dental',med:'Medical',den:'Dental'};
+  const key=map[tab]||'all';
+  ['all','med','den'].forEach(t=>{
+    const btn=document.getElementById('ach-tab-'+t);
+    if(!btn)return;
+    const active=(t==='all'&&key==='all')||(t==='med'&&key==='Medical')||(t==='den'&&key==='Dental');
+    btn.className='btn btn-'+(active?'primary':'secondary')+' btn-sm';btn.style.fontSize='11px';
+  });
+  renderAchTab(key);
+}
+
+function renderAchTab(divKey){
+  const d=window._achGoalData;if(!d)return;
+  const {revByCountry,goalByCountry,curMonth}=d;
+  const revKey=divKey==='Medical'?'Medical':divKey==='Dental'?'Dental':'all';
+  const gKey=divKey==='Medical'?'Medical':divKey==='Dental'?'Dental':'all';
+  const rev=revByCountry[revKey]||{};
+  const goals=goalByCountry[gKey]||{annual:{},ytd:{},curMo:{}};
+  const MO_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const curMoName=MO_NAMES[curMonth-1];
+  const allCountries=[...new Set([...Object.keys(rev),...Object.keys(goals.annual)])].filter(c=>c!=='N/A').sort();
+  const hasData=allCountries.filter(c=>(rev[c]||0)>0||(goals.ytd[c]||0)>0);
+  const zeroCountries=allCountries.filter(c=>(rev[c]||0)===0&&(goals.annual[c]||0)>0);
+  const pctColor=p=>p===null?'var(--g400)':p>=100?'var(--green)':p>=70?'var(--amber)':'var(--red)';
+  const pctBg=p=>p===null?'var(--g200)':p>=100?'var(--green)':p>=70?'var(--amber)':'var(--red)';
+  const badge=p=>p===null?'background:var(--g100);color:var(--g400)':p>=100?'background:var(--green-pale);color:var(--green)':p>=70?'background:var(--amber-pale);color:var(--amber)':'background:var(--red-pale);color:var(--red)';
+  let html='<div class="ach-country-grid">';
+  hasData.forEach(c=>{
+    const revenue=rev[c]||0;
+    const annGoal=goals.annual[c]||0;
+    const ytdGoal=goals.ytd[c]||0;
+    const curGoal=goals.curMo[c]||0;
+    const pAnn=annGoal>0?Math.round(revenue/annGoal*100):null;
+    const pYtd=ytdGoal>0?Math.round(revenue/ytdGoal*100):null;
+    const pCur=curGoal>0?Math.round(revenue/curGoal*100):null;
+    html+='<div class="ach-card">'
+      +'<div class="ach-card-head">'
+      +'<div><div class="ach-card-country">'+c+'</div><div class="ach-card-annual">Annual Target: $'+fmt(annGoal)+'</div></div>'
+      +'<span class="ach-badge" style="'+badge(pAnn)+'">'+(pAnn!==null?pAnn+'%':'—')+'</span>'
+      +'</div>'
+      +'<div class="ach-rows">'
+      +'<div class="ach-row"><span class="ach-row-lbl">vs Annual</span><div class="ach-prog-bg"><div class="ach-prog-fill" style="width:'+Math.min(pAnn||0,100)+'%;background:'+pctBg(pAnn)+'"></div></div><span class="ach-row-val" style="color:'+pctColor(pAnn)+'">'+(pAnn!==null?pAnn+'%':'—')+'</span></div>'
+      +'<div class="ach-row"><span class="ach-row-lbl">vs YTD Goal</span><div class="ach-prog-bg"><div class="ach-prog-fill" style="width:'+Math.min(pYtd||0,100)+'%;background:'+pctBg(pYtd)+'"></div></div><span class="ach-row-val" style="color:'+pctColor(pYtd)+'">'+(pYtd!==null?pYtd+'%':'—')+'</span></div>'
+      +'<div class="ach-row"><span class="ach-row-lbl">'+curMoName+' Goal</span><div class="ach-prog-bg"><div class="ach-prog-fill" style="width:'+Math.min(pCur||0,100)+'%;background:'+pctBg(pCur)+'"></div></div><span class="ach-row-val" style="color:'+pctColor(pCur)+'">'+(pCur!==null?pCur+'%':'—')+'</span></div>'
+      +'</div>'
+      +'<div class="ach-amounts">'
+      +'<div class="ach-amt-item"><div class="ach-amt-val" style="color:var(--blue)">$'+fmt(revenue)+'</div><div class="ach-amt-lbl">YTD Revenue</div></div>'
+      +'<div class="ach-amt-item"><div class="ach-amt-val">$'+fmt(ytdGoal)+'</div><div class="ach-amt-lbl">YTD Target ('+curMoName+'까지)</div></div>'
+      +'<div class="ach-amt-item"><div class="ach-amt-val" style="color:'+(annGoal-revenue>0?'var(--red)':'var(--green)')+'">$'+fmt(Math.max(0,annGoal-revenue))+'</div><div class="ach-amt-lbl">Remaining</div></div>'
+      +'</div></div>';
+  });
+  html+='</div>';
+  if(zeroCountries.length>0){
+    html+='<div class="ach-zero-box"><span class="ach-zero-lbl">🔴 미진척 (0%) —</span>';
+    zeroCountries.forEach(c=>{html+='<span class="ach-zero-pill">'+c+' $'+fmt(goals.annual[c]||0)+'</span>';});
+    html+='</div>';
+  }
+  const wrap=document.getElementById('country-ach-wrap');
+  if(wrap)wrap.innerHTML=html;
 }
 
 // ── PIPELINE & BACKLOG ────────────────────────────────────────────────────────
