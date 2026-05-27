@@ -255,6 +255,14 @@ tr:hover td{background:var(--g50)}
 .plo-spinner{width:44px;height:44px;border:3.5px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
 .plo-msg{color:rgba(255,255,255,.9);font-size:14px;font-weight:500;letter-spacing:.02em}
 .plo-sub{color:rgba(255,255,255,.4);font-size:11px;margin-top:-8px}
+.plo-error{display:none;flex-direction:column;align-items:center;gap:14px;margin-top:4px}
+.plo-error-icon{font-size:36px}
+.plo-error-msg{color:rgba(255,255,255,.85);font-size:15px;font-weight:600;text-align:center}
+.plo-error-sub{color:rgba(255,255,255,.45);font-size:12px;text-align:center;line-height:1.5;max-width:300px}
+.plo-btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+.plo-btn{padding:10px 20px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+.plo-btn-retry{background:#3b82f6;color:#fff}.plo-btn-retry:hover{background:#2563eb}
+.plo-btn-logout{background:rgba(255,255,255,.12);color:rgba(255,255,255,.8)}.plo-btn-logout:hover{background:rgba(255,255,255,.2)}
 .dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 #toast{position:fixed;bottom:28px;right:28px;background:var(--g900);color:#fff;padding:12px 18px;border-radius:var(--r);font-size:13px;font-weight:500;box-shadow:var(--sh-lg);z-index:9999;opacity:0;transform:translateY(10px);transition:all .25s;pointer-events:none}
 #toast.show{opacity:1;transform:translateY(0)}
@@ -478,9 +486,22 @@ tr:hover td{background:var(--g50)}
 <!-- LOGIN -->
 <!-- Full-page loading overlay -->
 <div id="page-loading-overlay">
-  <div class="plo-spinner"></div>
-  <div class="plo-msg" id="plo-msg">Loading...</div>
-  <div class="plo-sub" id="plo-sub"></div>
+  <!-- Normal loading state -->
+  <div id="plo-normal" style="display:flex;flex-direction:column;align-items:center;gap:18px">
+    <div class="plo-spinner"></div>
+    <div class="plo-msg" id="plo-msg">Loading...</div>
+    <div class="plo-sub" id="plo-sub"></div>
+  </div>
+  <!-- Error / timeout state -->
+  <div class="plo-error" id="plo-error">
+    <div class="plo-error-icon">⚠️</div>
+    <div class="plo-error-msg" id="plo-error-msg">Something went wrong</div>
+    <div class="plo-error-sub" id="plo-error-sub">The page took too long to load. This may happen after a system update.</div>
+    <div class="plo-btns">
+      <button class="plo-btn plo-btn-retry" onclick="plo_retry()">🔄 Reload Page</button>
+      <button class="plo-btn plo-btn-logout" onclick="plo_logout()">Sign Out</button>
+    </div>
+  </div>
 </div>
 
 <div id="login-screen">
@@ -540,7 +561,10 @@ tr:hover td{background:var(--g50)}
     <div class="tb-right" style="display:flex;align-items:center;gap:10px">
       <span class="tb-connected" style="font-size:11px;color:var(--g400)">● Connected</span>
       <span style="font-size:11px;color:var(--g500);font-weight:500" id="logged-in-user"></span>
-      <button class="btn btn-secondary btn-sm" onclick="doLogout()" style="font-size:11px">🚪</button>
+      <button class="btn btn-secondary btn-sm" onclick="doLogout()" style="font-size:11px;display:flex;align-items:center;gap:5px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        Sign Out
+      </button>
     </div>
   </div>
   <div id="content">
@@ -3845,16 +3869,51 @@ function helpSearch(q){
 
 
 // ── PAGE LOADING OVERLAY ─────────────────────────────────────────────────────
+let _ploTimer=null;
+
 function showPageLoading(msg, sub){
   const ov=document.getElementById('page-loading-overlay');
   if(!ov)return;
+  // Reset to normal state
+  document.getElementById('plo-normal').style.display='flex';
+  document.getElementById('plo-error').style.display='none';
   document.getElementById('plo-msg').textContent=msg||'Loading...';
   document.getElementById('plo-sub').textContent=sub||'';
   ov.classList.add('show');
+  // Safety timeout: if loading takes >15s, show error/retry screen
+  clearTimeout(_ploTimer);
+  _ploTimer=setTimeout(()=>showPloError(), 15000);
 }
+
 function hidePageLoading(){
+  clearTimeout(_ploTimer);
   const ov=document.getElementById('page-loading-overlay');
   if(ov)ov.classList.remove('show');
+}
+
+function showPloError(msg, sub){
+  document.getElementById('plo-normal').style.display='none';
+  document.getElementById('plo-error').style.display='flex';
+  document.getElementById('plo-error-msg').textContent=msg||'Something went wrong';
+  document.getElementById('plo-error-sub').textContent=sub||'The page took too long to load. This often happens after a system update.';
+}
+
+function plo_retry(){
+  // Force hard reload — skips cache, picks up latest Vercel deployment
+  hidePageLoading();
+  window.location.reload(true);
+}
+
+function plo_logout(){
+  hidePageLoading();
+  sessionStorage.removeItem('gl_auth');
+  sessionStorage.removeItem('gl_role');
+  const ls=document.getElementById('login-screen');
+  if(ls){ls.classList.remove('hidden');ls.style.opacity='1';}
+  document.getElementById('lu').value='';
+  document.getElementById('lp').value='';
+  document.getElementById('logged-in-user').innerHTML='';
+  document.getElementById('lerr').textContent='You have been signed out.';
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -3921,6 +3980,20 @@ async function init(){
   masterCache.products=prods||[];
   loadDash();
 }
+
+// Global error handler — catches crashes during loading
+window.addEventListener('error', function(e){
+  if(document.getElementById('page-loading-overlay')?.classList.contains('show')){
+    showPloError('A system error occurred', 'This may be due to a recent update. Reload to get the latest version.');
+    console.error('Loading error caught:', e.message);
+  }
+});
+window.addEventListener('unhandledrejection', function(e){
+  if(document.getElementById('page-loading-overlay')?.classList.contains('show')){
+    showPloError('A system error occurred', 'This may be due to a recent update. Reload to get the latest version.');
+    console.error('Unhandled promise rejection during loading:', e.reason);
+  }
+});
 
 if(sessionStorage.getItem('gl_auth'))init();
 
