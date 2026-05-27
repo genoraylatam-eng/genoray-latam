@@ -757,6 +757,29 @@ tr:hover td{background:var(--g50)}
             <tbody id="rep-dist"></tbody>
           </table></div>
         </div>
+
+        <!-- Model Analysis Section -->
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-head">
+            <span class="panel-title" id="rep-model-title">Model Performance</span>
+            <div style="display:flex;gap:6px">
+              <button id="rmt-rev" onclick="setModelTab('rev')" style="padding:4px 10px;border:1px solid var(--blue);border-radius:var(--rsm);background:var(--blue);color:#fff;font-size:11px;font-weight:600;cursor:pointer">Revenue</button>
+              <button id="rmt-qty" onclick="setModelTab('qty')" style="padding:4px 10px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:11px;font-weight:600;cursor:pointer">Qty</button>
+              <button id="rmt-both" onclick="setModelTab('both')" style="padding:4px 10px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:11px;font-weight:600;cursor:pointer">Both</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:0;flex-wrap:wrap">
+            <div id="rep-model-chart" style="flex:1;min-width:300px;padding:16px 20px 8px"></div>
+            <div style="flex:0 0 360px;min-width:280px">
+              <div class="tbl-wrap" style="margin:12px 20px 12px 0">
+                <table>
+                  <thead><tr><th>Model</th><th id="rep-model-yr-lbl">2026</th><th>Qty</th><th>Share</th></tr></thead>
+                  <tbody id="rep-model-tbl"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2164,8 +2187,123 @@ async function loadReport(){
       return`<tr><td><strong>${g.distributor}</strong></td><td>${g.country||'-'}</td><td>${g.division||'-'}</td><td>$${fmt(rev)}</td><td>$${fmt(g.target_amount_usd)}</td><td class="${achCls(p)}">${p!==null?p+'%':'—'}</td></tr>`;
     }).join('');
 
+  // ── Model Analysis ────────────────────────────────────────
+  window._repModelData={shipsAll, years, yrA, yrB, yrC, divFilter, shipMatchesDivFilter};
+  renderModelSection(shipsAll, yrA, yrB, yrC, divFilter, shipMatchesDivFilter, window._modelTab||'rev');
+  document.getElementById('rep-model-title').textContent=
+    `Model Performance${divFilter?' ('+divFilter+')':''} — ${yrA}`+(yrB?` vs ${yrB}`:'')+(yrC?` vs ${yrC}`:'');
+  document.getElementById('rep-model-yr-lbl').textContent=String(yrA);
+
   hidePageLoading();
   document.getElementById('rep-data').style.display='block';
+}
+
+function setModelTab(tab){
+  window._modelTab=tab;
+  ['rev','qty','both'].forEach(t=>{
+    const btn=document.getElementById('rmt-'+t);
+    if(!btn)return;
+    const active=t===tab;
+    btn.style.background=active?'var(--blue)':'#fff';
+    btn.style.color=active?'#fff':'var(--g600)';
+    btn.style.borderColor=active?'var(--blue)':'var(--g200)';
+  });
+  const d=window._repModelData;
+  if(d)renderModelSection(d.shipsAll,d.yrA,d.yrB,d.yrC,d.divFilter,d.shipMatchesDivFilter,tab);
+}
+
+function parseModels(shipsAll, yr, filterFn){
+  // Returns {model: {qty, amount}} for a given year
+  const stats={};
+  shipsAll.filter(r=>r.date&&r.date.startsWith(String(yr))&&filterFn(r)).forEach(r=>{
+    const rawModels=r.models||'';
+    const amt=r.amount_usd||0;
+    const qty=r.quantity||0;
+    const models=rawModels.split(',').map(m=>m.trim()).filter(Boolean);
+    if(!models.length)return;
+    const n=models.length;
+    models.forEach(m=>{
+      if(!stats[m])stats[m]={qty:0,amount:0};
+      stats[m].qty+=Math.round(qty/n);
+      stats[m].amount+=amt/n;
+    });
+  });
+  return stats;
+}
+
+function renderModelSection(shipsAll, yrA, yrB, yrC, divFilter, filterFn, tab){
+  const years=[yrA,...(yrB?[yrB]:[]),...(yrC?[yrC]:[])];
+  const YCOLS={[yrA]:'var(--blue)',...(yrB?{[yrB]:'var(--green)'}:{}),...(yrC?{[yrC]:'var(--amber)'}:{})};
+
+  // Build model stats per year
+  const statsByYr={};
+  years.forEach(y=>{ statsByYr[y]=parseModels(shipsAll,y,filterFn); });
+
+  // Collect all models sorted by yrA revenue
+  const allModels=[...new Set(years.flatMap(y=>Object.keys(statsByYr[y])))];
+  allModels.sort((a,b)=>(statsByYr[yrA][b]?.amount||0)-(statsByYr[yrA][a]?.amount||0));
+
+  const totalA=Object.values(statsByYr[yrA]).reduce((s,v)=>s+v.amount,0)||1;
+  const maxAmt=Math.max(...allModels.map(m=>Math.max(...years.map(y=>statsByYr[y][m]?.amount||0))));
+  const maxQty=Math.max(...allModels.map(m=>Math.max(...years.map(y=>statsByYr[y][m]?.qty||0))));
+
+  // ── SVG Bar Chart ───────────────────────────────────────
+  const BAR_H=26, GAP=6, GROUP_GAP=14;
+  const n=years.length;
+  const barH=BAR_H, groupH=n*barH+(n-1)*GAP+GROUP_GAP;
+  const totalH=allModels.length*groupH+30;
+  const W=480, LABEL_W=160, BAR_MAX=W-LABEL_W-70;
+
+  let svg=`<svg viewBox="0 0 ${W} ${totalH}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${W}px;font-family:var(--font)">`;
+
+  allModels.forEach((model,mi)=>{
+    const gy=mi*groupH+20;
+    // Model label
+    const shortModel=model.length>22?model.slice(0,20)+'…':model;
+    svg+=`<text x="${LABEL_W-8}" y="${gy+barH*n/2+5}" text-anchor="end" font-size="12" fill="var(--g700)" font-weight="600">${shortModel}</text>`;
+
+    years.forEach((yr,yi)=>{
+      const d=statsByYr[yr][model]||{qty:0,amount:0};
+      const useAmt=(tab==='rev'||tab==='both');
+      const useQty=(tab==='qty'||tab==='both');
+      const val=useAmt?d.amount:d.qty;
+      const maxVal=useAmt?maxAmt:maxQty;
+      const bw=maxVal>0?Math.round(val/maxVal*BAR_MAX):0;
+      const by=gy+yi*(barH+GAP);
+      const col=YCOLS[yr];
+
+      if(tab==='both'&&yrB){
+        // Dual bar: revenue (full) + qty (overlay)
+        const bwAmt=maxAmt>0?Math.round(d.amount/maxAmt*BAR_MAX):0;
+        const bwQty=maxQty>0?Math.round(d.qty/maxQty*BAR_MAX):0;
+        svg+=`<rect x="${LABEL_W}" y="${by}" width="${bwAmt}" height="${barH}" rx="3" fill="${col}" opacity="0.85"/>`;
+        svg+=`<rect x="${LABEL_W}" y="${by+barH-8}" width="${bwQty}" height="8" rx="2" fill="${col}" opacity="0.4"/>`;
+        svg+=`<text x="${LABEL_W+bwAmt+4}" y="${by+barH-6}" font-size="11" fill="var(--g500)">$${fmt(d.amount)} | ${d.qty}u</text>`;
+      } else {
+        svg+=`<rect x="${LABEL_W}" y="${by}" width="${bw}" height="${barH}" rx="3" fill="${col}" opacity="0.85"/>`;
+        const label=useAmt?`$${fmt(val)}`:`${val}u`;
+        if(bw>0)svg+=`<text x="${LABEL_W+bw+4}" y="${by+barH-6}" font-size="11" fill="var(--g600)">${label}</text>`;
+      }
+      // Year tag
+      svg+=`<text x="${LABEL_W-4}" y="${by+barH-6}" text-anchor="end" font-size="10" fill="${col}" opacity="0.7">${yr}</text>`;
+    });
+  });
+  svg+='</svg>';
+
+  document.getElementById('rep-model-chart').innerHTML=svg;
+
+  // ── Table ─────────────────────────────────────────────
+  document.getElementById('rep-model-tbl').innerHTML=allModels.map(m=>{
+    const d=statsByYr[yrA][m]||{qty:0,amount:0};
+    const share=Math.round(d.amount/totalA*100);
+    const pctBar=`<div style="height:4px;border-radius:2px;background:var(--g100);margin-top:3px"><div style="height:4px;border-radius:2px;background:var(--blue);width:${share}%"></div></div>`;
+    return`<tr>
+      <td><strong>${m}</strong></td>
+      <td style="font-weight:700;color:var(--blue)">$${fmt(d.amount)}</td>
+      <td style="text-align:center">${d.qty}<span style="color:var(--g400);font-size:10px"> u</span></td>
+      <td style="min-width:70px">${share}%${pctBar}</td>
+    </tr>`;
+  }).join('');
 }
 
 
