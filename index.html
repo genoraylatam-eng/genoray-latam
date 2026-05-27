@@ -917,6 +917,27 @@ tr:hover td{background:var(--g50)}
 
     <!-- COLLECTIONS -->
     <div id="page-collections" class="page">
+      <!-- Overdue Summary Panel -->
+      <div id="col-overdue-panel" style="display:none;background:linear-gradient(135deg,#fff5f5 0%,#fff1f2 100%);border:1.5px solid #fca5a5;border-radius:var(--rlg);box-shadow:0 4px 16px rgba(239,68,68,.12);margin-bottom:14px;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 18px;background:linear-gradient(90deg,#dc2626,#ef4444)">
+          <span style="font-size:16px">🚨</span>
+          <span id="col-overdue-title" style="font-size:13px;font-weight:700;color:#fff">Overdue Payments</span>
+          <span id="col-overdue-total" style="margin-left:auto;font-size:13px;font-weight:800;color:#fff"></span>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+            <thead><tr style="background:rgba(220,38,38,.08)">
+              <th style="padding:8px 14px;text-align:left;font-weight:700;color:#991b1b;border-bottom:1px solid #fecaca">PI Number</th>
+              <th style="padding:8px 14px;text-align:left;font-weight:700;color:#991b1b;border-bottom:1px solid #fecaca">Distributor</th>
+              <th style="padding:8px 14px;text-align:left;font-weight:700;color:#991b1b;border-bottom:1px solid #fecaca">Country</th>
+              <th style="padding:8px 14px;text-align:right;font-weight:700;color:#991b1b;border-bottom:1px solid #fecaca">Outstanding</th>
+              <th style="padding:8px 14px;text-align:center;font-weight:700;color:#991b1b;border-bottom:1px solid #fecaca">Due Date</th>
+              <th style="padding:8px 14px;text-align:center;font-weight:700;color:#991b1b;border-bottom:1px solid #fecaca">Overdue</th>
+            </tr></thead>
+            <tbody id="col-overdue-body"></tbody>
+          </table>
+        </div>
+      </div>
       <div class="panel">
         <div class="panel-head">
           <span class="panel-title">Collections</span><button class="sh-btn" onclick="showStatusHelp('collections',this)" title="Show auto status rules">?</button>
@@ -934,7 +955,10 @@ tr:hover td{background:var(--g50)}
             <th class="sortable" onclick="sortTbl('collections','invoice_amount_usd')">Invoice</th>
             <th class="sortable" onclick="sortTbl('collections','collected_amount_usd')">Collected</th>
             <th>Outstanding</th>
-            <th class="sortable" onclick="sortTbl('collections','collection_date')">Date</th>
+            <th>Due Date</th>
+            <th>Days</th>
+            <th>Outstanding</th>
+            <th class="sortable" onclick="sortTbl('collections','collection_date')">Collection Date</th>
             <th>Status ⚙</th>
             <th>Actions</th>
           </tr></thead>
@@ -2761,15 +2785,32 @@ async function saveGoal(){
 // ── STATUS ENGINE (Rule-based Auto Status) ──────────────────────────────────
 // Cross-reference data is loaded once and stored in cache._xref
 async function loadXRef(){
-  if(cache._xref)return cache._xref; // use cached
+  if(cache._xref)return cache._xref;
   const[{data:pi=[]},{data:po=[]},{data:hq=[]},{data:sh=[]},{data:col=[]}]=await Promise.all([
-    sb.from('pi').select('pi_number,status'),
+    sb.from('pi').select('pi_number,status,payment_terms'),
     sb.from('po').select('pi_number,po_number,status'),
     sb.from('hq_po').select('hq_po_number,pi_number,po_number'),
     sb.from('shipments').select('pi_number,hq_po_number,date,etd,eta,status,amount_usd'),
     sb.from('collections').select('pi_number,invoice_amount_usd,collected_amount_usd,status')
   ]);
-  cache._xref={pi,po,hq,sh,col};
+  // Pre-compute due_date for each PI based on payment_terms + ship date
+  const piDueMap={};
+  pi.forEach(p=>{
+    const shipRec=sh.find(s=>s.pi_number===p.pi_number&&s.date);
+    if(!shipRec)return;
+    const terms=(p.payment_terms||'').toLowerCase();
+    let days=60; // default
+    if(terms.includes('before shipment')||terms.includes('tt before'))days=0;
+    else if(terms.includes('120d'))days=120;
+    else if(terms.includes('90d'))days=90;
+    else if(terms.includes('45d'))days=45;
+    else if(terms.includes('30d'))days=30;
+    else if(terms.includes('60d')||terms.includes('50/50'))days=60;
+    const shipDt=new Date(shipRec.date);
+    shipDt.setDate(shipDt.getDate()+days);
+    piDueMap[p.pi_number]=shipDt.toISOString().slice(0,10);
+  });
+  cache._xref={pi,po,hq,sh,col,piDueMap};
   return cache._xref;
 }
 
@@ -2863,6 +2904,50 @@ async function loadTable(page){
   ]);
   cache._xref=null; // force refresh
   if(error){hidePageLoading();toast('Error: '+error.message,'err');return;}
+  // Render overdue panel for collections
+  if(page==='collections'){
+    const xr=await loadXRef();
+    const today=new Date(); today.setHours(0,0,0,0);
+    const overdueRecs=data.filter(r=>{
+      const outstanding=Math.max(0,(r.invoice_amount_usd||0)-(r.collected_amount_usd||0));
+      if(outstanding<=0)return false;
+      const dueDate=xr.piDueMap&&xr.piDueMap[r.pi_number];
+      if(!dueDate)return false;
+      return new Date(dueDate)<today;
+    });
+    const panel=document.getElementById('col-overdue-panel');
+    const tbody=document.getElementById('col-overdue-body');
+    const titleEl=document.getElementById('col-overdue-title');
+    const totalEl=document.getElementById('col-overdue-total');
+    if(panel){
+      if(overdueRecs.length>0){
+        const totalOverdue=overdueRecs.reduce((s,r)=>s+Math.max(0,(r.invoice_amount_usd||0)-(r.collected_amount_usd||0)),0);
+        if(titleEl)titleEl.textContent=`🚨 Overdue Payments — ${overdueRecs.length} record${overdueRecs.length>1?'s':''}`;
+        if(totalEl)totalEl.textContent=`Total: $${fmt(totalOverdue)}`;
+        if(tbody){
+          tbody.innerHTML=overdueRecs.sort((a,b)=>{
+            const da=new Date(xr.piDueMap[a.pi_number]||0),db=new Date(xr.piDueMap[b.pi_number]||0);
+            return da-db;
+          }).map(r=>{
+            const outstanding=Math.max(0,(r.invoice_amount_usd||0)-(r.collected_amount_usd||0));
+            const dueDate=xr.piDueMap[r.pi_number];
+            const diff=Math.round((new Date(dueDate)-today)/(1000*86400));
+            return'<tr style="background:rgba(220,38,38,.04)">'
+              +'<td style="padding:8px 14px;font-weight:700;color:#dc2626">'+r.pi_number+'</td>'
+              +'<td style="padding:8px 14px">'+(r.distributor||'—')+'</td>'
+              +'<td style="padding:8px 14px">'+(r.country||'—')+'</td>'
+              +'<td style="padding:8px 14px;text-align:right;font-weight:800;color:#dc2626">$'+fmt(outstanding)+'</td>'
+              +'<td style="padding:8px 14px;text-align:center;color:#dc2626;font-weight:700">'+dueDate+'</td>'
+              +'<td style="padding:8px 14px;text-align:center"><span style="background:#dc2626;color:#fff;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:700">'+(-diff)+'d overdue</span></td>'
+              +'</tr>';
+          }).join('');
+        }
+        panel.style.display='block';
+      } else {
+        panel.style.display='none';
+      }
+    }
+  }
   cache[page]=data||[];
   await loadXRef(); // ensure fresh xref
   renderTbl(page,cache[page]);
@@ -2882,7 +2967,7 @@ function rowHTML(page,r){
   const piLink=(num,label)=>num?`<span class="pi-link" onclick="showPIPrint('${num}')">${label||num}</span>`:'-';
 
   // Auto-status computation
-  const xref=cache._xref||{pi:[],po:[],hq:[],sh:[],col:[]};
+  const xref=cache._xref||{pi:[],po:[],hq:[],sh:[],col:[],piDueMap:{}};
   const st=autoStatus(page,r,xref);
 
   if(page==='pi')return`<tr>
@@ -2943,19 +3028,52 @@ function rowHTML(page,r){
     <td>${pillAuto(st,'shipments')}</td>
     ${acts}</tr>`;
 
-  if(page==='collections')return`<tr>
-    <td>${r.collection_id}</td>
-    <td>${piLink(r.pi_number,r.pi_number)}</td>
-    <td>${r.distributor||'-'}</td>
-    <td>${r.country||'-'}</td>
-    <td>$${fmt(r.invoice_amount_usd)}</td>
-    <td><strong>$${fmt(r.collected_amount_usd)}</strong></td>
-    <td style="text-align:right;font-size:12px;color:${parseFloat(r.invoice_amount_usd||0)>0?parseFloat(r.collected_amount_usd||0)>=parseFloat(r.invoice_amount_usd||0)?'var(--green)':'var(--red)':'var(--g400)'}">
-      $${fmt(Math.max(0,parseFloat(r.invoice_amount_usd||0)-parseFloat(r.collected_amount_usd||0)))}
-    </td>
-    <td>${r.collection_date||'-'}</td>
-    <td>${pillAuto(st,'collections')}</td>
-    ${acts}</tr>`;
+  if(page==='collections'){
+    const invAmt=parseFloat(r.invoice_amount_usd||0);
+    const colAmt=parseFloat(r.collected_amount_usd||0);
+    const outstanding=Math.max(0,invAmt-colAmt);
+    const outCol=outstanding>0?'var(--red)':'var(--green)';
+    // Due date from cross-reference
+    const dueDate=(xref&&xref.piDueMap&&xref.piDueMap[r.pi_number])||null;
+    const today=new Date(); today.setHours(0,0,0,0);
+    let daysBadge='-', daysBadgeStyle='color:var(--g400)';
+    if(dueDate&&outstanding>0){
+      const due=new Date(dueDate); due.setHours(0,0,0,0);
+      const diff=Math.round((due-today)/(1000*86400));
+      if(diff<0){
+        daysBadge=`<span style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;padding:2px 7px;border-radius:10px;font-weight:700;font-size:11px">OD ${-diff}d</span>`;
+        daysBadgeStyle='';
+      } else if(diff<=14){
+        daysBadge=`<span style="background:#fff7ed;color:#ea580c;border:1px solid #fed7aa;padding:2px 7px;border-radius:10px;font-weight:700;font-size:11px">${diff}d left</span>`;
+        daysBadgeStyle='';
+      } else {
+        daysBadge=`<span style="color:var(--g500);font-size:12px">${diff}d</span>`;
+      }
+    } else if(outstanding===0&&dueDate) {
+      daysBadge='<span style="color:var(--green);font-size:11px">✓ Paid</span>';
+    }
+    return '<tr>'
+      +'<td>'+r.collection_id+'</td>'
+      +'<td>'+piLink(r.pi_number,r.pi_number)+'</td>'
+      +'<td>'+(r.distributor||'-')+'</td>'
+      +'<td>'+(r.country||'-')+'</td>'
+      +'<td>$'+fmt(invAmt)+'</td>'
+      +'<td><strong>$'+fmt(colAmt)+'</strong></td>'
+      +'<td style="text-align:right;font-size:12px;color:'+outCol+';font-weight:'+(outstanding>0?'700':'400')+'">$'+fmt(outstanding)+'</td>'
+      +(function(){
+        if(!dueDate)return'<td style="text-align:center;color:var(--g400)">—</td>';
+        const dueDtObj=new Date(dueDate); dueDtObj.setHours(0,0,0,0);
+        const isOver=outstanding>0&&dueDtObj<today;
+        const isClose=outstanding>0&&!isOver&&(dueDtObj-today)/(1000*86400)<=14;
+        const col=isOver?'#dc2626':isClose?'#ea580c':'var(--g700)';
+        const fw=isOver||isClose?'700':'400';
+        return'<td style="text-align:center;font-size:12px;color:'+col+';font-weight:'+fw+'">'+dueDate+'</td>';
+      })()
+      +'<td style="text-align:center">'+daysBadge+'</td>'
+      +'<td>'+(r.collection_date||'-')+'</td>'
+      +'<td>'+pillAuto(st,'collections')+'</td>'
+      +acts+'</tr>';
+  }
 
   if(page==='distributors'){
     const divPill=r.division==='Medical'?'<span class="pill p-blue">Medical</span>':r.division==='Dental'?'<span class="pill p-green">Dental</span>':'<span class="pill p-gray">—</span>';
