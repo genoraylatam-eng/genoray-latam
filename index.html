@@ -361,6 +361,39 @@ tr:hover td{background:var(--g50)}
   .stat-value{font-size:20px}
 }
 
+
+/* ── MOBILE BOTTOM NAV ── */
+#bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--white);
+  border-top:1px solid var(--g200);
+  padding:4px 0 max(4px, env(safe-area-inset-bottom));
+  z-index:190;
+  box-shadow:0 -2px 12px rgba(0,0,0,.08);
+  justify-content:space-around;
+  align-items:stretch;
+}
+.bn-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;background:none;border:none;cursor:pointer;
+  padding:6px 2px;border-radius:8px;transition:background .15s;
+  -webkit-tap-highlight-color:transparent;
+}
+.bn-item:active{background:var(--blue-pale)}
+.bn-item.active .bn-icon,.bn-item.active .bn-label{color:var(--blue)}
+.bn-icon{font-size:20px;line-height:1}
+.bn-label{font-size:9.5px;font-weight:600;color:var(--g500);letter-spacing:.01em}
+.bn-item.active .bn-label{color:var(--blue)}
+
+@media(max-width:768px){
+  #bottom-nav{display:flex}
+  /* Push content above bottom nav */
+  #content{padding-bottom:calc(70px + max(4px, env(safe-area-inset-bottom)))}
+  /* Hide sidebar's logo section on very small screens (save space) */
+  .logo p{display:none}
+}
+
 @media print{
   body>*:not(.pi-print-overlay){display:none!important}
   .pi-print-overlay{position:static!important;background:none!important;padding:0!important;display:block!important}
@@ -1052,16 +1085,31 @@ const tbl=p=>TBL[p]||p;
 const PAGE_TITLES={dashboard:'Dashboard',pipeline:'Pipeline & Backlog',report:'Report',pi:'PI Management',po:'PO Management',hqpo:'HQ PO',shipments:'Shipments',collections:'Collections',distributors:'Distributors',products:'Products',goals:'Annual Goals'};
 
 // ── NAV ──────────────────────────────────────────────────────────────────────
+function navigateTo(p){
+  if(!p)return;
+  activePage=p;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const navEl=document.querySelector(`.nav-item[data-page="${p}"]`);
+  if(navEl)navEl.classList.add('active');
+  document.querySelectorAll('.page').forEach(pg=>pg.classList.remove('active'));
+  const pageEl=document.getElementById('page-'+p);
+  if(pageEl)pageEl.classList.add('active');
+  const titleEl=document.getElementById('page-title');
+  if(titleEl)titleEl.textContent=PAGE_TITLES[p]||p;
+  // Mobile: close sidebar and update bottom nav
+  if(window.innerWidth<=768){ closeSidebar(); updateBottomNav(p); }
+  loadPage(p);
+}
+
 document.querySelectorAll('.nav-item').forEach(el=>{
-  el.addEventListener('click',()=>{
-    const p=el.dataset.page; activePage=p;
-    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-    el.classList.add('active');
-    document.querySelectorAll('.page').forEach(pg=>pg.classList.remove('active'));
-    document.getElementById('page-'+p).classList.add('active');
-    document.getElementById('page-title').textContent=PAGE_TITLES[p];
-    loadPage(p);
-  });
+  // Use both click and touchend for max compatibility on Android/iOS
+  const handler=(e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    navigateTo(el.dataset.page);
+  };
+  el.addEventListener('click', handler);
+  el.addEventListener('touchend', handler, {passive:false});
 });
 function loadPage(p){
   if(p==='dashboard')return loadDash();
@@ -3336,6 +3384,30 @@ async function init(){
 
 if(sessionStorage.getItem('gl_auth'))init();
 
+// ── MOBILE SIDEBAR & NAV ─────────────────────────────────────────────────────
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('mob-overlay');
+  const isOpen=sb.classList.contains('mob-open');
+  if(isOpen){ closeSidebar(); }
+  else {
+    sb.classList.add('mob-open');
+    ov.classList.add('show');
+    document.body.style.overflow='hidden';
+  }
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('mob-open');
+  document.getElementById('mob-overlay').classList.remove('show');
+  document.body.style.overflow='';
+}
+function updateBottomNav(page){
+  document.querySelectorAll('#bottom-nav .bn-item[data-page]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.page===page);
+  });
+}
+
+
 // ── MOBILE SIDEBAR ──────────────────────────────────────────────────────────
 function toggleSidebar(){
   const sb=document.getElementById('sidebar');
@@ -3356,5 +3428,25 @@ document.querySelectorAll('.nav-item').forEach(el=>{
 // Add PWA meta + viewport if not present
 
 </script>
+
+<!-- Mobile Bottom Navigation -->
+<div id="bottom-nav">
+  <button class="bn-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
+    <span class="bn-icon">📊</span><span class="bn-label">Dashboard</span>
+  </button>
+  <button class="bn-item" data-page="pipeline" onclick="navigateTo('pipeline')">
+    <span class="bn-icon">🔄</span><span class="bn-label">Pipeline</span>
+  </button>
+  <button class="bn-item" data-page="pi" onclick="navigateTo('pi')">
+    <span class="bn-icon">📋</span><span class="bn-label">PI</span>
+  </button>
+  <button class="bn-item" data-page="shipments" onclick="navigateTo('shipments')">
+    <span class="bn-icon">🚢</span><span class="bn-label">Shipments</span>
+  </button>
+  <button class="bn-item" onclick="toggleSidebar()">
+    <span class="bn-icon">☰</span><span class="bn-label">More</span>
+  </button>
+</div>
+
 </body>
 </html>
