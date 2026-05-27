@@ -731,14 +731,14 @@ tr:hover td{background:var(--g50)}
           <div class="panel">
             <div class="panel-head"><span class="panel-title">Quarterly Comparison</span></div>
             <div class="tbl-wrap"><table>
-              <thead><tr><th>Quarter</th><th id="rep-qa-lbl">Year A</th><th>Goal A</th><th>Ach%</th><th id="rep-qb-lbl">Year B</th><th>Goal B</th><th>Ach%</th><th>YoY A/B</th><th id="rep-qc-lbl" class="rep-c-col" style="display:none">Year C</th><th class="rep-c-col" style="display:none">Goal C</th><th class="rep-c-col" style="display:none">Ach%</th><th class="rep-c-col" style="display:none">YoY A/C</th></tr></thead>
+              <thead><tr><th>Quarter</th><th id="rep-qa-lbl">2026</th><th id="rep-qga-lbl">Goal 2026</th><th>Ach%</th><th id="rep-qb-lbl">2025</th><th id="rep-qgb-lbl">Goal 2025</th><th>Ach%</th><th id="rep-qyoy-lbl">YoY</th><th id="rep-qc-lbl" class="rep-c-col" style="display:none">2024</th><th id="rep-qgc-lbl" class="rep-c-col" style="display:none">Goal 2024</th><th class="rep-c-col" style="display:none">Ach%</th><th id="rep-qcyoy-lbl" class="rep-c-col" style="display:none">YoY</th></tr></thead>
               <tbody id="rep-quarterly"></tbody>
             </table></div>
           </div>
           <div class="panel">
             <div class="panel-head"><span class="panel-title">Country Comparison</span></div>
             <div class="tbl-wrap"><table>
-              <thead><tr><th>Country</th><th id="rep-ca-lbl">Year A</th><th id="rep-cb-lbl">Year B</th><th>YoY A/B</th><th id="rep-cc-lbl" class="rep-c-col" style="display:none">Year C</th><th class="rep-c-col" style="display:none">YoY A/C</th></tr></thead>
+              <thead><tr><th>Country</th><th id="rep-ca-lbl">2026</th><th id="rep-cb-lbl">2025</th><th id="rep-cyoy-lbl">YoY</th><th id="rep-cc-lbl" class="rep-c-col" style="display:none">2024</th><th id="rep-ccyoy-lbl" class="rep-c-col" style="display:none">YoY</th></tr></thead>
               <tbody id="rep-country"></tbody>
             </table></div>
           </div>
@@ -746,12 +746,12 @@ tr:hover td{background:var(--g50)}
         <div class="panel" style="margin-bottom:16px">
           <div class="panel-head"><span class="panel-title" id="rep-monthly-title">Monthly Revenue vs Goal</span></div>
           <div class="tbl-wrap"><table>
-            <thead><tr><th>Month</th><th>Revenue A</th><th>Goal A</th><th>Ach% A</th><th>Revenue B</th><th>Goal B</th><th>Ach% B</th><th>YoY A/B</th><th class="rep-c-col" style="display:none">Revenue C</th><th class="rep-c-col" style="display:none">Goal C</th><th class="rep-c-col" style="display:none">Ach% C</th><th class="rep-c-col" style="display:none">YoY A/C</th></tr></thead>
+            <thead><tr><th>Month</th><th id="rep-mra-lbl">Rev 2026</th><th id="rep-mga-lbl">Goal 2026</th><th>Ach%</th><th id="rep-mrb-lbl">Rev 2025</th><th id="rep-mgb-lbl">Goal 2025</th><th>Ach%</th><th id="rep-myoy-lbl">YoY</th><th id="rep-mrc-lbl" class="rep-c-col" style="display:none">Rev 2024</th><th id="rep-mgc-lbl" class="rep-c-col" style="display:none">Goal 2024</th><th class="rep-c-col" style="display:none">Ach%</th><th id="rep-mcyoy-lbl" class="rep-c-col" style="display:none">YoY</th></tr></thead>
             <tbody id="rep-monthly"></tbody>
           </table></div>
         </div>
         <div class="panel">
-          <div class="panel-head"><span class="panel-title">Distributor Performance (Year A)</span></div>
+          <div class="panel-head"><span class="panel-title" id="rep-dist-title">Distributor Performance (2026)</span></div>
           <div class="tbl-wrap"><table>
             <thead><tr><th>Distributor</th><th>Country</th><th>Division</th><th>Revenue</th><th>Goal</th><th>Achievement</th></tr></thead>
             <tbody id="rep-dist"></tbody>
@@ -2007,18 +2007,46 @@ async function loadReport(){
   const hasC=!!yrC;
   const divFilter=document.getElementById('rep-div').value; // '' | 'Medical' | 'Dental'
 
-  // Update column headers
-  document.getElementById('rep-qa-lbl').textContent=yrA;
-  document.getElementById('rep-qb-lbl').textContent=yrB;
-  document.getElementById('rep-ca-lbl').textContent=yrA;
-  document.getElementById('rep-cb-lbl').textContent=yrB;
-  const qcEl=document.getElementById('rep-qc-lbl');
-  const ccEl=document.getElementById('rep-cc-lbl');
-  if(qcEl)qcEl.textContent=yrC||'C';
-  if(ccEl)ccEl.textContent=yrC||'C';
+  // Update ALL year labels dynamically
+  const setLbl=(id,txt)=>{const el=document.getElementById(id);if(el)el.textContent=txt;};
+  const divSuffix=divFilter?` (${divFilter})`:'';
+
+  // Quarterly headers
+  setLbl('rep-qa-lbl', String(yrA));
+  setLbl('rep-qb-lbl', String(yrB));
+  setLbl('rep-qga-lbl', `Goal ${yrA}`);
+  setLbl('rep-qgb-lbl', `Goal ${yrB}`);
+  setLbl('rep-qyoy-lbl', `YoY ${yrB}→${yrA}`);
+  setLbl('rep-qc-lbl', yrC?String(yrC):'');
+  setLbl('rep-qgc-lbl', yrC?`Goal ${yrC}`:'');
+  setLbl('rep-qcyoy-lbl', yrC?`YoY ${yrC}→${yrA}`:'');
+
+  // Country headers
+  setLbl('rep-ca-lbl', String(yrA));
+  setLbl('rep-cb-lbl', String(yrB));
+  setLbl('rep-cyoy-lbl', `YoY ${yrB}→${yrA}`);
+  setLbl('rep-cc-lbl', yrC?String(yrC):'');
+  setLbl('rep-ccyoy-lbl', yrC?`YoY ${yrC}→${yrA}`:'');
+
+  // Monthly headers
+  setLbl('rep-mra-lbl', `Rev ${yrA}`);
+  setLbl('rep-mga-lbl', `Goal ${yrA}`);
+  setLbl('rep-mrb-lbl', `Rev ${yrB}`);
+  setLbl('rep-mgb-lbl', `Goal ${yrB}`);
+  setLbl('rep-myoy-lbl', `YoY ${yrB}→${yrA}`);
+  setLbl('rep-mrc-lbl', yrC?`Rev ${yrC}`:'');
+  setLbl('rep-mgc-lbl', yrC?`Goal ${yrC}`:'');
+  setLbl('rep-mcyoy-lbl', yrC?`YoY ${yrC}→${yrA}`:'');
+
+  // Distributor panel title
+  setLbl('rep-dist-title', `Distributor Performance (${yrA}${divSuffix})`);
+
+  // Show/hide Year C columns
   document.querySelectorAll('.rep-c-col').forEach(el=>el.style.display=hasC?'':'none');
+
+  // Monthly chart title
   document.getElementById('rep-monthly-title').textContent=
-    `Monthly Revenue — ${yrA} vs ${yrB}`+(hasC?` vs ${yrC}`:'')+(divFilter?` (${divFilter})`:'');
+    `Monthly Revenue — ${yrA} vs ${yrB}`+(hasC?` vs ${yrC}`:'')+(divSuffix);
 
   // Fetch ALL data including fresh distributors (don't rely on masterCache)
   const years=[yrA,yrB,...(yrC?[yrC]:[])];
