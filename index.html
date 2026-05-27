@@ -419,6 +419,48 @@ tr:hover td{background:var(--g50)}
 .sh-section{font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.06em;padding:8px 0 4px;margin-top:4px}
 .sh-note{font-size:10.5px;color:var(--g400);background:var(--g50);border-radius:6px;padding:8px 10px;margin-top:8px;line-height:1.5}
 
+
+/* ── HELP / MANUAL ── */
+.help-toc-link{display:block;padding:5px 8px;border-radius:5px;font-size:12px;color:var(--g600,var(--g500));cursor:pointer;text-decoration:none;border-left:2px solid transparent;transition:all .15s;line-height:1.3}
+.help-toc-link:hover{background:var(--blue-pale);color:var(--blue);border-left-color:var(--blue)}
+.help-toc-link.active{background:var(--blue-pale);color:var(--blue);border-left-color:var(--blue);font-weight:600}
+.help-toc-link.level2{padding-left:16px;font-size:11px;color:var(--g400)}
+.help-toc-link.level2.active{color:var(--blue)}
+.help-section{margin-bottom:20px}
+.help-section .panel{margin-bottom:0}
+.hs-head{padding:18px 22px 14px;border-bottom:1px solid var(--g100)}
+.hs-title{font-size:17px;font-weight:800;color:var(--navy);margin-bottom:4px;display:flex;align-items:center;gap:10px}
+.hs-sub{font-size:12px;color:var(--g400)}
+.hs-body{padding:18px 22px}
+.hs-h3{font-size:13px;font-weight:700;color:var(--g900);margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--g100)}
+.hs-h3:first-child{margin-top:0}
+.hs-p{font-size:13px;color:var(--g700);line-height:1.65;margin-bottom:10px}
+.hs-p:last-child{margin-bottom:0}
+.hs-ul{margin:6px 0 10px 18px;display:flex;flex-direction:column;gap:5px}
+.hs-ul li{font-size:13px;color:var(--g700);line-height:1.5;list-style:disc}
+.hs-ol{margin:6px 0 10px 18px;display:flex;flex-direction:column;gap:5px}
+.hs-ol li{font-size:13px;color:var(--g700);line-height:1.5;list-style:decimal}
+.hs-tip{background:var(--blue-pale);border-left:3px solid var(--blue);border-radius:0 6px 6px 0;padding:10px 14px;margin:10px 0;font-size:12.5px;color:var(--g700);line-height:1.5}
+.hs-warn{background:var(--amber-pale);border-left:3px solid var(--amber);border-radius:0 6px 6px 0;padding:10px 14px;margin:10px 0;font-size:12.5px;color:var(--g700);line-height:1.5}
+.hs-info{background:var(--green-pale);border-left:3px solid var(--green);border-radius:0 6px 6px 0;padding:10px 14px;margin:10px 0;font-size:12.5px;color:var(--g700);line-height:1.5}
+.hs-table{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0 14px}
+.hs-table th{background:var(--navy);color:#fff;padding:8px 12px;text-align:left;font-weight:600;font-size:11px}
+.hs-table td{padding:8px 12px;border-bottom:1px solid var(--g100);color:var(--g700);vertical-align:top}
+.hs-table tr:last-child td{border-bottom:none}
+.hs-table tr:hover td{background:var(--g50)}
+.hs-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600;margin:0 2px}
+.hs-step{display:flex;gap:12px;margin-bottom:10px;align-items:flex-start}
+.hs-step-num{width:24px;height:24px;background:var(--blue);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px}
+.hs-step-text{flex:1;font-size:13px;color:var(--g700);line-height:1.5}
+.help-search-highlight{background:#fef08a;border-radius:2px;padding:0 1px}
+.no-results{text-align:center;padding:40px;color:var(--g400);font-size:13px}
+@media(max-width:768px){
+  #help-toc{display:none}
+  .hs-body{padding:14px 16px}
+  .hs-head{padding:14px 16px 10px}
+  .hs-title{font-size:15px}
+}
+
 </style>
 </head>
 <body>
@@ -458,6 +500,9 @@ tr:hover td{background:var(--g50)}
     <div class="nav-item" data-page="distributors"><span class="nav-icon">🏢</span>Distributors</div>
     <div class="nav-item" data-page="products"><span class="nav-icon">🔬</span>Products</div>
     <div class="nav-item" data-page="goals"><span class="nav-icon">🎯</span>Annual Goals</div>
+  </div>
+  <div class="nav-sec" style="margin-top:auto;border-top:1px solid rgba(255,255,255,.08);padding-top:10px">
+    <div class="nav-item" data-page="help"><span class="nav-icon">📖</span>User Manual</div>
   </div>
 </div>
 
@@ -980,6 +1025,29 @@ tr:hover td{background:var(--g50)}
 </div>
 
 
+    <!-- HELP / USER MANUAL -->
+    <div id="page-help" class="page">
+      <div class="panel" style="margin-bottom:14px">
+        <div class="panel-head" style="gap:12px;flex-wrap:wrap">
+          <span class="panel-title" style="font-size:15px">📖 Genoray LATAM — User Manual <span style="font-size:12px;font-weight:400;color:var(--g400)">v1.0</span></span>
+          <div class="search-box" style="flex:1;max-width:340px">
+            <span>🔍</span>
+            <input id="help-search" placeholder="Search manual..." oninput="helpSearch(this.value)" style="width:100%">
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:14px;align-items:flex-start">
+        <div id="help-toc" class="panel" style="width:200px;flex-shrink:0;position:sticky;top:0">
+          <div style="padding:12px 14px">
+            <div style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Contents</div>
+            <nav id="help-toc-nav" style="display:flex;flex-direction:column;gap:2px"></nav>
+          </div>
+        </div>
+        <div id="help-content" style="flex:1;min-width:0"></div>
+      </div>
+    </div>
+
+
 <!-- Status Help Popover -->
 <div id="sh-popover" class="sh-popover" style="display:none" onclick="event.stopPropagation()">
   <div class="sh-popover-head">
@@ -1082,7 +1150,7 @@ let activePage='dashboard',formState={table:'',id:null,page:''},cache={},masterC
 let piFS={id:null,items:[],ed:{},seller:'korea'};
 const TBL={hqpo:'hq_po'};
 const tbl=p=>TBL[p]||p;
-const PAGE_TITLES={dashboard:'Dashboard',pipeline:'Pipeline & Backlog',report:'Report',pi:'PI Management',po:'PO Management',hqpo:'HQ PO',shipments:'Shipments',collections:'Collections',distributors:'Distributors',products:'Products',goals:'Annual Goals'};
+const PAGE_TITLES={dashboard:'Dashboard',pipeline:'Pipeline & Backlog',report:'Report',pi:'PI Management',po:'PO Management',hqpo:'HQ PO',shipments:'Shipments',collections:'Collections',distributors:'Distributors',products:'Products',goals:'Annual Goals',help:'User Manual'};
 
 // ── NAV ──────────────────────────────────────────────────────────────────────
 function navigateTo(p){
@@ -1116,6 +1184,7 @@ function loadPage(p){
   if(p==='pipeline')return loadPipeline();
   if(p==='report')return loadReport();
   if(p==='goals')return loadGoals();
+  if(p==='help')return loadHelp();
   loadTable(p);
 }
 
@@ -3328,6 +3397,428 @@ function closeStatusHelp(){
   if(pop) pop.style.display = 'none';
 }
 
+
+// ── USER MANUAL ──────────────────────────────────────────────────────────────
+const MANUAL_SECTIONS = [
+  {
+    id:'gs', icon:'🚀', title:'Getting Started',
+    sub:'Login, accounts, and first steps',
+    content:`
+      <div class="hs-h3">System Overview</div>
+      <p class="hs-p">Genoray LATAM Sales Management is a web-based system for managing the full sales lifecycle — from Proforma Invoice (PI) issuance through PO, HQ PO, shipment, and payment collection.</p>
+      <p class="hs-p">All data is stored in the cloud (Supabase database) and accessible from any device with internet access.</p>
+      <div class="hs-info">✅ <strong>Revenue basis:</strong> All revenue figures are based on <strong>Shipment Date</strong> (J column in the original Shipment sheet), not PI issue date.</div>
+
+      <div class="hs-h3">Accessing the System</div>
+      <p class="hs-p">Open a browser and go to: <strong style="color:var(--blue)">genoray-latam.vercel.app</strong></p>
+      <p class="hs-p">Works on all devices: PC, Mac, iPhone, Galaxy, and any modern browser.</p>
+
+      <div class="hs-h3">Login Accounts</div>
+      <table class="hs-table">
+        <tr><th>Username</th><th>Role</th><th>Access Level</th></tr>
+        <tr><td><strong>mitchel</strong></td><td>Admin</td><td>Full access — can delete records, see all data</td></tr>
+        <tr><td><strong>admin</strong></td><td>Admin</td><td>Full access</td></tr>
+        <tr><td><strong>chris</strong></td><td>User</td><td>View and create/edit — no delete</td></tr>
+        <tr><td><strong>weverson</strong></td><td>User</td><td>View and create/edit — no delete</td></tr>
+      </table>
+      <div class="hs-warn">⚠️ <strong>Security:</strong> Do not share your password. The session automatically logs out after 60 minutes of inactivity.</div>
+
+      <div class="hs-h3">Navigation</div>
+      <ul class="hs-ul">
+        <li><strong>Overview:</strong> Dashboard, Pipeline & Backlog, Report</li>
+        <li><strong>Sales:</strong> PI, PO, HQ PO, Shipments, Collections</li>
+        <li><strong>Master Data:</strong> Distributors, Products, Annual Goals</li>
+        <li><strong>Help:</strong> This user manual (bottom of sidebar)</li>
+      </ul>
+      <div class="hs-tip">💡 On mobile, use the <strong>bottom navigation bar</strong> for quick access to Dashboard, Pipeline, PI, Shipments, and Manual. Tap ☰ for the full menu.</div>
+    `
+  },
+  {
+    id:'dash', icon:'📊', title:'Dashboard',
+    sub:'KPIs, monthly chart, goal achievement',
+    content:`
+      <div class="hs-h3">Overview</div>
+      <p class="hs-p">The Dashboard gives a real-time snapshot of the current year's sales performance. All figures are based on <strong>shipment date</strong> — a PI is only counted as revenue after it is shipped.</p>
+
+      <div class="hs-h3">KPI Cards (Top Row)</div>
+      <table class="hs-table">
+        <tr><th>Card</th><th>What It Shows</th></tr>
+        <tr><td><strong>Revenue (Shipped)</strong></td><td>Total value of all completed shipments this year</td></tr>
+        <tr><td><strong>Goal Achievement</strong></td><td>YTD revenue ÷ annual goal × 100</td></tr>
+        <tr><td><strong>Collected</strong></td><td>Total cash actually received (from Collections)</td></tr>
+        <tr><td><strong>Outstanding (A/R)</strong></td><td>Invoice total minus collected — unpaid balance</td></tr>
+        <tr><td><strong>Active PI</strong></td><td>PIs issued but not yet shipped</td></tr>
+      </table>
+
+      <div class="hs-h3">Monthly Revenue vs Goal Chart</div>
+      <ul class="hs-ul">
+        <li><strong>Light blue bar (left):</strong> Monthly goal target — all 12 months shown</li>
+        <li><strong>Dark blue bar (right):</strong> Actual revenue (shipped) — past months only</li>
+        <li><strong>Solid line:</strong> Cumulative revenue (right axis scale)</li>
+        <li><strong>Dashed line:</strong> Cumulative goal projection (right axis scale)</li>
+        <li><strong>% below month name:</strong> That month's achievement rate (🟢≥100% 🟡≥70% 🔴below 70%)</li>
+      </ul>
+      <div class="hs-tip">💡 Use the <strong>All / Medical / Dental</strong> tabs to filter by division. Use <strong>Single Year / Compare Years</strong> to compare up to 3 years of revenue.</div>
+
+      <div class="hs-h3">Goal Achievement by Country</div>
+      <p class="hs-p">Each country with revenue activity is shown as a card with three progress bars:</p>
+      <ul class="hs-ul">
+        <li><strong>vs Annual:</strong> YTD revenue against the full-year target</li>
+        <li><strong>vs YTD Goal:</strong> Revenue against the cumulative monthly targets up to the selected month</li>
+        <li><strong>vs Monthly Goal:</strong> Revenue in the selected month against that month's target</li>
+      </ul>
+      <p class="hs-p">Countries with <strong>zero revenue</strong> are grouped at the bottom in the "No Progress" section — not shown as individual cards to keep the view clean.</p>
+      <p class="hs-p">Use the <strong>All / Medical / Dental</strong> tabs and the <strong>month selector</strong> to drill into specific segments.</p>
+
+      <div class="hs-h3">Monthly Shipment Detail</div>
+      <p class="hs-p">Below the country cards, a table shows all shipments completed in the selected month, grouped by country — including Distributor, PI number, Models, Quantity, Amount, and Ship Date.</p>
+
+      <div class="hs-h3">Sales by Country & Division / Rep</div>
+      <p class="hs-p">Horizontal bar charts showing revenue breakdown. Bar width = relative size compared to the top performer. Each bar shows the actual dollar amount and percentage of total revenue.</p>
+    `
+  },
+  {
+    id:'pipeline', icon:'🔄', title:'Pipeline & Backlog',
+    sub:'Track PI progress from issue to shipment',
+    content:`
+      <div class="hs-h3">Overview</div>
+      <p class="hs-p">The Pipeline & Backlog page shows every PI and its current progress through the sales process — helping you spot deals that are stalling.</p>
+
+      <div class="hs-h3">Status Categories</div>
+      <table class="hs-table">
+        <tr><th>Status</th><th>Meaning</th><th>Alert</th></tr>
+        <tr><td><span class="hs-badge" style="background:var(--red-pale);color:var(--red)">🔴 Backlog</span></td><td>No PO or HQ PO linked yet</td><td>Orange warning at 30+ days, red at 60+ days</td></tr>
+        <tr><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">🔵 In Progress</span></td><td>PO or HQ PO linked, not yet shipped</td><td>—</td></tr>
+        <tr><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">✅ Shipped</span></td><td>Shipment with a date exists</td><td>—</td></tr>
+      </table>
+
+      <div class="hs-h3">Summary Stats Bar</div>
+      <p class="hs-p">At the top you'll see the count and total value for each status category at a glance.</p>
+
+      <div class="hs-h3">Filtering & Sorting</div>
+      <ul class="hs-ul">
+        <li>Use the <strong>status dropdown</strong> to filter to a specific stage</li>
+        <li>Use the <strong>search box</strong> to find a specific distributor, country, or PI number</li>
+        <li>Click any <strong>column header</strong> to sort ascending/descending</li>
+        <li>Click a <strong>PI number</strong> to open its printable Proforma Invoice</li>
+      </ul>
+      <div class="hs-tip">💡 The "Days Since PI" column helps prioritize follow-up. Sort by this column (descending) to see the oldest unshipped deals first.</div>
+    `
+  },
+  {
+    id:'report', icon:'📈', title:'Report',
+    sub:'Year-over-year comparison and analysis',
+    content:`
+      <div class="hs-h3">Overview</div>
+      <p class="hs-p">The Report page provides structured comparison between years and divisions to analyze sales performance from multiple angles.</p>
+
+      <div class="hs-h3">Filters</div>
+      <ul class="hs-ul">
+        <li><strong>Year A / Year B:</strong> Select two years to compare</li>
+        <li><strong>Division:</strong> All, Medical, or Dental</li>
+      </ul>
+
+      <div class="hs-h3">Summary Cards</div>
+      <p class="hs-p">Shows Year A and Year B total revenue, their respective goal achievement rates, and the YoY (Year over Year) growth rate.</p>
+
+      <div class="hs-h3">Quarterly Comparison</div>
+      <p class="hs-p">Q1–Q4 revenue vs goal for both years, with achievement % and YoY change for each quarter.</p>
+
+      <div class="hs-h3">Monthly Comparison</div>
+      <p class="hs-p">Month-by-month table showing Revenue, Goal, Ach%, and YoY for both years. Color coding: 🟢 ≥100% 🟡 ≥70% 🔴 below target.</p>
+
+      <div class="hs-h3">Country Comparison</div>
+      <p class="hs-p">Revenue by country for Year A vs Year B with YoY growth.</p>
+
+      <div class="hs-h3">Distributor Performance (Year A)</div>
+      <p class="hs-p">Each distributor with a goal target shows their revenue, goal, and achievement %. Sorted by annual target (largest first).</p>
+    `
+  },
+  {
+    id:'pi', icon:'📋', title:'PI Management',
+    sub:'Create, edit, and print Proforma Invoices',
+    content:`
+      <div class="hs-h3">Overview</div>
+      <p class="hs-p">The PI (Proforma Invoice) is the starting point of every sale. All other documents (PO, HQ PO, Shipment) reference the PI number.</p>
+
+      <div class="hs-h3">Creating a New PI</div>
+      <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Click <strong>+ New PI</strong> in the top right of the PI Management page</div></div>
+      <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Select <strong>Seller</strong>: Genoray Korea or Genoray America — this determines the company info and banking details on the printed PI</div></div>
+      <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Type the <strong>Distributor</strong> name — a dropdown will appear. Select the correct distributor to auto-fill Country, Address, Contact, and Email</div></div>
+      <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Select <strong>Payment Terms</strong> using the quick-select buttons, or type freely in the text box</div></div>
+      <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">Add <strong>Line Items</strong>: type a model name (auto-completes from Products list), enter quantity — unit price fills automatically. Add discount % per line if needed.</div></div>
+      <div class="hs-step"><div class="hs-step-num">6</div><div class="hs-step-text">Enter <strong>Freight</strong> and <strong>Additional Discount</strong> if applicable — Grand Total updates automatically</div></div>
+      <div class="hs-step"><div class="hs-step-num">7</div><div class="hs-step-text">Enter the <strong>Sales Rep</strong> name (internal only — not printed on PI)</div></div>
+      <div class="hs-step"><div class="hs-step-num">8</div><div class="hs-step-text">Click <strong>Save PI</strong></div></div>
+
+      <div class="hs-h3">Printing / PDF Export</div>
+      <p class="hs-p">Click the <strong>🖨️ button</strong> next to any PI, or click the PI number anywhere in the system. A professional print preview opens. Click <strong>"Print / PDF"</strong> and select "Save as PDF" in your browser's print dialog.</p>
+      <div class="hs-tip">💡 The PI print view includes all buyer info, line items, banking details (IBK for Korea / BOA for America), and signature lines — ready to send to the distributor.</div>
+
+      <div class="hs-h3">PI Number Format</div>
+      <p class="hs-p">Leave blank to auto-generate, or enter manually using the convention: <strong>PI-[DIST CODE]-[YYMMDD]-[SEQ]</strong> (e.g., PI-LM-0443-01)</p>
+
+      <div class="hs-h3">Status ⚙ (Auto-calculated)</div>
+      <table class="hs-table">
+        <tr><th>Condition</th><th>Auto Status</th></tr>
+        <tr><td>Shipment with ship date exists</td><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">Completed</span></td></tr>
+        <tr><td>HQ PO linked</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">In Progress</span></td></tr>
+        <tr><td>PO linked (no HQ PO yet)</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">In Progress</span></td></tr>
+        <tr><td>No linked documents</td><td><span class="hs-badge" style="background:var(--amber-pale);color:var(--amber)">Pending</span></td></tr>
+        <tr><td>Manually cancelled</td><td><span class="hs-badge" style="background:var(--g100);color:var(--g500)">Cancelled</span></td></tr>
+      </table>
+    `
+  },
+  {
+    id:'po', icon:'📦', title:'PO Management',
+    sub:'Record distributor purchase orders',
+    content:`
+      <div class="hs-h3">Overview</div>
+      <p class="hs-p">Record the distributor's Purchase Order (PO) that they send in response to the PI.</p>
+
+      <div class="hs-h3">Creating a New PO</div>
+      <p class="hs-p">Click <strong>+ New PO</strong>. At the top of the form, select the linked PI from the dropdown — all open (unshipped) PIs are listed. Selecting a PI automatically fills:</p>
+      <ul class="hs-ul">
+        <li>PI Number, Distributor, Country, Amount</li>
+        <li>Suggested PO Number (editable)</li>
+      </ul>
+      <div class="hs-tip">💡 The PI selector only shows PIs that have not yet been shipped, so you won't accidentally link to a completed deal.</div>
+
+      <div class="hs-h3">Status ⚙ (Auto-calculated)</div>
+      <table class="hs-table">
+        <tr><th>Condition</th><th>Auto Status</th></tr>
+        <tr><td>Linked PI has a completed shipment</td><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">Completed</span></td></tr>
+        <tr><td>HQ PO exists for this PI</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">In Progress</span></td></tr>
+        <tr><td>Default</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">In Progress</span></td></tr>
+      </table>
+    `
+  },
+  {
+    id:'hqpo', icon:'🏭', title:'HQ PO',
+    sub:'Genoray Korea / America purchase orders',
+    content:`
+      <div class="hs-h3">Overview</div>
+      <p class="hs-p">The HQ PO is the purchase order issued by Genoray's headquarters (Korea or America) to the factory, once a distributor's PO is confirmed. This triggers production and shipment.</p>
+
+      <div class="hs-h3">Creating a New HQ PO</div>
+      <p class="hs-p">Click <strong>+ New HQ PO</strong>. Select the linked PI from the dropdown — the form auto-fills:</p>
+      <ul class="hs-ul">
+        <li>PI Number, linked PO Number, Distributor, Country</li>
+        <li>Models and Quantity from the PI</li>
+        <li>PI Total amount</li>
+        <li>Owner (from Sales Rep field on the PI)</li>
+        <li>Suggested HQ PO Number (editable)</li>
+      </ul>
+
+      <div class="hs-h3">HQ PO Number Format</div>
+      <p class="hs-p">Example: <strong>LM-0441</strong>, <strong>LM-0443-01</strong>, <strong>GAI-260101</strong>. These are assigned by HQ and should match the number received from Genoray Korea/America exactly.</p>
+
+      <div class="hs-h3">Status ⚙ (Auto-calculated — two fields)</div>
+      <table class="hs-table">
+        <tr><th>Field</th><th>Condition</th><th>Auto Value</th></tr>
+        <tr><td rowspan="3"><strong>Delivery</strong></td><td>Today is past ETA of linked shipment</td><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">Delivered</span></td></tr>
+        <tr><td>Shipment has a ship date set</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">In Transit</span></td></tr>
+        <tr><td>No shipment date yet</td><td><span class="hs-badge" style="background:var(--amber-pale);color:var(--amber)">Preparing</span></td></tr>
+        <tr><td rowspan="2"><strong>Ship</strong></td><td>Linked shipment has a date</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">Shipped</span></td></tr>
+        <tr><td>No shipment date</td><td><span class="hs-badge" style="background:var(--amber-pale);color:var(--amber)">Pending</span></td></tr>
+      </table>
+    `
+  },
+  {
+    id:'shipments', icon:'🚢', title:'Shipments',
+    sub:'Record shipments and track delivery',
+    content:`
+      <div class="hs-h3">Overview</div>
+      <p class="hs-p">The Shipments page records the physical movement of goods. The <strong>Shipment Date</strong> is the most important field — it is the official revenue recognition date used across all reports and dashboards.</p>
+
+      <div class="hs-h3">Creating a New Shipment</div>
+      <p class="hs-p">Click <strong>+ New Shipment</strong>. Select the linked PI from the dropdown — the form auto-fills:</p>
+      <ul class="hs-ul">
+        <li>PI Number, Distributor, Country, Amount, Models</li>
+        <li>Linked HQ PO Number</li>
+        <li>Auto-generated Shipment Number (editable)</li>
+      </ul>
+      <p class="hs-p">Then enter: <strong>Shipment Date, ETD</strong> (Estimated Time of Departure), <strong>ETA</strong> (Estimated Time of Arrival), <strong>BL Number</strong> (Bill of Lading).</p>
+
+      <div class="hs-info">📌 <strong>Revenue Rule:</strong> A PI only counts as revenue once a Shipment record has a Shipment Date entered. Until then, the PI stays as "unshipped" in all reports.</div>
+
+      <div class="hs-h3">Status ⚙ (Auto-calculated)</div>
+      <table class="hs-table">
+        <tr><th>Condition (checked in order)</th><th>Auto Status</th></tr>
+        <tr><td>Payment fully collected</td><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">Completed</span></td></tr>
+        <tr><td>Today is past ETA</td><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">Arrived</span></td></tr>
+        <tr><td>Today is between ETD and ETA</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">In Transit</span></td></tr>
+        <tr><td>Ship date entered, ETA not reached</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">Shipped</span></td></tr>
+        <tr><td>No ship date entered</td><td><span class="hs-badge" style="background:var(--amber-pale);color:var(--amber)">Preparing</span></td></tr>
+      </table>
+    `
+  },
+  {
+    id:'collections', icon:'💰', title:'Collections',
+    sub:'Track payments and outstanding balances',
+    content:`
+      <div class="hs-h3">Overview</div>
+      <p class="hs-p">Collections tracks payment receipts against each PI. One collection record per PI — update the "Collected Amount" as payments come in.</p>
+
+      <div class="hs-h3">Key Fields</div>
+      <table class="hs-table">
+        <tr><th>Field</th><th>Description</th></tr>
+        <tr><td><strong>Invoice Amount</strong></td><td>Total amount billed to the distributor (= PI grand total)</td></tr>
+        <tr><td><strong>Collected Amount</strong></td><td>Cash actually received to date</td></tr>
+        <tr><td><strong>Outstanding</strong></td><td>Auto-calculated: Invoice − Collected</td></tr>
+        <tr><td><strong>Collection Date</strong></td><td>Date of most recent payment received</td></tr>
+      </table>
+
+      <div class="hs-h3">Status ⚙ (Auto-calculated)</div>
+      <table class="hs-table">
+        <tr><th>Condition</th><th>Auto Status</th></tr>
+        <tr><td>Collected ≥ Invoice Amount</td><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">Collected</span></td></tr>
+        <tr><td>0 &lt; Collected &lt; Invoice</td><td><span class="hs-badge" style="background:var(--amber-pale);color:var(--amber)">Partial</span></td></tr>
+        <tr><td>Collected = 0</td><td><span class="hs-badge" style="background:var(--amber-pale);color:var(--amber)">Pending</span></td></tr>
+      </table>
+      <div class="hs-tip">💡 The Dashboard "Collected" and "Outstanding" KPI cards pull directly from this table. Keep collected amounts updated for accurate cash flow visibility.</div>
+    `
+  },
+  {
+    id:'master', icon:'🗂️', title:'Master Data',
+    sub:'Distributors, Products, and Annual Goals',
+    content:`
+      <div class="hs-h3">Distributors</div>
+      <p class="hs-p">The master list of all distributors. Used for auto-complete when creating PIs, POs, and Shipments.</p>
+      <ul class="hs-ul">
+        <li><strong>Division:</strong> Medical or Dental — used for division-level charts and goal tracking</li>
+        <li><strong>Address / Contact / Email:</strong> Auto-fills into PI forms and print views</li>
+        <li>Filter by Division using the dropdown at the top</li>
+      </ul>
+
+      <div class="hs-h3">Products</div>
+      <p class="hs-p">The product catalog used for auto-complete in PI line items. When you type a model name in the PI form, matching products appear. Selecting one auto-fills the unit price.</p>
+
+      <div class="hs-h3">Annual Goals</div>
+      <p class="hs-p">Sales targets per distributor per year, with monthly breakdowns. These feed into all goal achievement calculations across Dashboard, Pipeline, and Report.</p>
+      <ul class="hs-ul">
+        <li><strong>M+D Combined view:</strong> Shows Medical and Dental targets side by side for distributors with both divisions, plus a combined total</li>
+        <li><strong>Split by Division view:</strong> Shows each entry individually</li>
+        <li><strong>New Goal form:</strong> Enter monthly targets (Jan–Dec) and optionally add model-level quantity/price targets. The Annual Total auto-calculates from monthly entries.</li>
+      </ul>
+      <div class="hs-tip">💡 Small distributors with no model-level breakdown: just enter the monthly amount targets — no model detail required.</div>
+    `
+  },
+  {
+    id:'mobile', icon:'📱', title:'Mobile App Installation',
+    sub:'Add to home screen on iPhone and Galaxy',
+    content:`
+      <div class="hs-h3">iPhone (iOS — Safari)</div>
+      <div class="hs-warn">⚠️ Must use <strong>Safari</strong> — Chrome on iPhone does not support home screen installation.</div>
+      <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Open <strong>Safari</strong> and go to <strong>genoray-latam.vercel.app</strong></div></div>
+      <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Log in with your account</div></div>
+      <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Tap the <strong>Share button ⬆️</strong> at the bottom of the screen</div></div>
+      <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Scroll down and tap <strong>"Add to Home Screen"</strong></div></div>
+      <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">Confirm the name <strong>"Genoray LATAM"</strong> and tap <strong>"Add"</strong> (top right)</div></div>
+      <div class="hs-step"><div class="hs-step-num">6</div><div class="hs-step-text">The icon appears on your home screen. Tap it to launch <strong>full screen</strong> — no browser address bar</div></div>
+
+      <div class="hs-h3">Galaxy / Android (Chrome)</div>
+      <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Open <strong>Chrome</strong> and go to <strong>genoray-latam.vercel.app</strong></div></div>
+      <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Log in with your account</div></div>
+      <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Tap the <strong>three-dot menu ⋮</strong> (top right)</div></div>
+      <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Tap <strong>"Add to Home screen"</strong></div></div>
+      <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">Confirm name and tap <strong>"Add"</strong></div></div>
+      <div class="hs-step"><div class="hs-step-num">6</div><div class="hs-step-text">The icon appears on your home screen — tap to launch like a native app</div></div>
+
+      <div class="hs-h3">After Installation</div>
+      <table class="hs-table">
+        <tr><th>Feature</th><th>Details</th></tr>
+        <tr><td>Full screen</td><td>No browser bar — feels like a real app</td></tr>
+        <tr><td>Bottom nav bar</td><td>Quick access: Dashboard · Pipeline · PI · Shipments · Manual</td></tr>
+        <tr><td>Auto logout</td><td>Session expires after 60 minutes of inactivity</td></tr>
+        <tr><td>Offline use</td><td>❌ Requires internet — data is in the cloud</td></tr>
+      </table>
+
+      <div class="hs-h3">Troubleshooting</div>
+      <ul class="hs-ul">
+        <li><strong>"Add to Home Screen" missing on iPhone?</strong> → Make sure you are using Safari, not Chrome or other browser</li>
+        <li><strong>App not loading?</strong> → Check internet connection (Wi-Fi or mobile data required)</li>
+        <li><strong>Forgot password?</strong> → Contact the system administrator (Mitchel)</li>
+      </ul>
+    `
+  }
+];
+
+function loadHelp(){
+  const tocNav=document.getElementById('help-toc-nav');
+  const helpContent=document.getElementById('help-content');
+  if(!tocNav||!helpContent)return;
+
+  // Build TOC
+  tocNav.innerHTML=MANUAL_SECTIONS.map(s=>
+    `<a class="help-toc-link" href="#hs-${s.id}" onclick="scrollToSection('${s.id}');return false;">
+      ${s.icon} ${s.title}
+    </a>`
+  ).join('');
+
+  // Build content
+  helpContent.innerHTML=MANUAL_SECTIONS.map(s=>`
+    <div class="help-section panel" id="hs-${s.id}" style="margin-bottom:14px">
+      <div class="hs-head">
+        <div class="hs-title">${s.icon} ${s.title}</div>
+        <div class="hs-sub">${s.sub}</div>
+      </div>
+      <div class="hs-body">${s.content}</div>
+    </div>
+  `).join('');
+
+  // Scroll spy
+  const observer=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        const id=e.target.id.replace('hs-','');
+        document.querySelectorAll('.help-toc-link').forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#hs-'+id));
+      }
+    });
+  },{threshold:0.3,rootMargin:'-10% 0px -60% 0px'});
+  document.querySelectorAll('.help-section').forEach(el=>observer.observe(el));
+}
+
+function scrollToSection(id){
+  const el=document.getElementById('hs-'+id);
+  if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function helpSearch(q){
+  const content=document.getElementById('help-content');
+  if(!content)return;
+  if(!q.trim()){loadHelp();return;}
+  const ql=q.toLowerCase();
+  // Show only sections that match, highlight terms
+  let found=0;
+  document.querySelectorAll('.help-section').forEach(sec=>{
+    const text=sec.textContent.toLowerCase();
+    const matches=text.includes(ql);
+    sec.style.display=matches?'':'none';
+    if(matches){
+      found++;
+      // Highlight in innerHTML
+      const body=sec.querySelector('.hs-body');
+      if(body){
+        const re=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+        body.querySelectorAll('p,li,td,th').forEach(el=>{
+          el.innerHTML=el.innerHTML.replace(/<mark[^>]*>(.*?)<\/mark>/gi,'$1');
+          el.innerHTML=el.innerHTML.replace(re,'<mark class="help-search-highlight">$1</mark>');
+        });
+      }
+    }
+  });
+  const toc=document.getElementById('help-toc-nav');
+  if(toc)toc.querySelectorAll('.help-toc-link').forEach(a=>{
+    const secId=a.getAttribute('href').replace('#hs-','');
+    const sec=document.getElementById('hs-'+secId);
+    a.style.opacity=sec&&sec.style.display!=='none'?'1':'0.3';
+  });
+  if(!found){
+    content.innerHTML=`<div class="no-results">🔍 No results found for "<strong>${q}</strong>"<br><br><button class="btn btn-secondary" onclick="document.getElementById('help-search').value='';loadHelp()">Clear search</button></div>`;
+  }
+}
+
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function autoId(p){return`${p}-${new Date().getFullYear()}-${String(Math.floor(Math.random()*900)+100)}`;}
 function tod(){return new Date().toISOString().split('T')[0];}
@@ -3442,6 +3933,9 @@ document.querySelectorAll('.nav-item').forEach(el=>{
   </button>
   <button class="bn-item" data-page="shipments" onclick="navigateTo('shipments')">
     <span class="bn-icon">🚢</span><span class="bn-label">Shipments</span>
+  </button>
+  <button class="bn-item" data-page="help" onclick="navigateTo('help')">
+    <span class="bn-icon">📖</span><span class="bn-label">Manual</span>
   </button>
   <button class="bn-item" onclick="toggleSidebar()">
     <span class="bn-icon">☰</span><span class="bn-label">More</span>
