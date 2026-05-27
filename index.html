@@ -1153,82 +1153,89 @@ async function loadCompareChart(){
 }
 
 function renderCompareChart(years,yearData,colors,colorsLight){
-  const W=820,H=150;
-  const pL=40,pR=40,pT=30,pB=36;
+  const W=820,H=155,pL=44,pR=52,pT=24,pB=38;
   const cW=W-pL-pR,cH=H-pT-pB;
-  const maxVal=Math.max(...years.flatMap(y=>yearData[y]||[]),1)*1.15;
-  const colW=cW/12;
-  const n=years.length;
-  const bw=Math.min(colW*0.22, 12); // thin bars per year
-  const gap=2;
+  const nowYr=new Date().getFullYear();
+  // Bar max = monthly max; Cum max = cumulative max
+  const barMax=Math.max(...years.flatMap(y=>yearData[y]||[]),1);
+  const cumMaxArr=years.map(y=>{
+    const d=yearData[y]||[]; let c=0;
+    const maxMo=parseInt(y)<nowYr?12:new Date().getMonth()+1;
+    for(let i=0;i<maxMo;i++)c+=d[i];
+    return c;
+  });
+  const cumMax=Math.max(...cumMaxArr,1);
+  const barY=v=>pT+cH-(v/barMax)*cH;
+  const cumY=v=>pT+cH-(v/cumMax)*cH;
+  const colW=cW/12,n=years.length;
+  const bw=Math.min(colW*0.20,10);
 
-  let grids='',gLabels='';
+  let svg='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">';
+  svg+='<defs><clipPath id="cc-cp"><rect x="'+pL+'" y="'+pT+'" width="'+cW+'" height="'+cH+'"/></clipPath></defs>';
+
   for(let g=0;g<=4;g++){
     const gy=pT+cH*(1-g/4);
-    grids+='<line x1="'+pL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+gy.toFixed(1)+'" stroke="#f0f0f0" stroke-width="0.8"/>';
-    gLabels+='<text x="'+(pL-4)+'" y="'+(gy+3.5).toFixed(1)+'" text-anchor="end" font-size="8" fill="#c0c0c0">$'+fmtK(maxVal*g/4)+'</text>';
+    svg+='<line x1="'+pL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+gy.toFixed(1)+'" stroke="#f0f0f0" stroke-width="0.8"/>';
+    svg+='<text x="'+(pL-4)+'" y="'+(gy+3.5).toFixed(1)+'" text-anchor="end" font-size="8" fill="#b0b8c4">$'+fmtK(barMax*g/4)+'</text>';
+    svg+='<text x="'+(W-pR+5)+'" y="'+(gy+3.5).toFixed(1)+'" text-anchor="start" font-size="8" fill="#a0a8b4">$'+fmtK(cumMax*g/4)+'</text>';
   }
+  svg+='<text x="12" y="'+(pT+cH/2)+'" text-anchor="middle" font-size="7.5" fill="#b0b8c4" transform="rotate(-90,12,'+(pT+cH/2)+')">Monthly</text>';
+  svg+='<text x="'+(W-8)+'" y="'+(pT+cH/2)+'" text-anchor="middle" font-size="7.5" fill="#a0a8b4" transform="rotate(90,'+(W-8)+','+(pT+cH/2)+')">Cumulative</text>';
 
   let bars='',lines='',moLabels='';
-  const nowYr=new Date().getFullYear();
   years.forEach((yr,yi)=>{
     const mRev=yearData[yr]||Array(12).fill(0);
     const maxMo=parseInt(yr)<nowYr?12:new Date().getMonth()+1;
-    let cum=0; const pts=[];
-    const totalBw=bw*n+gap*(n-1);
-    for(let i=0;i<12;i++){
+    const totalBw=bw*n+1.5*(n-1);
+    // Bars
+    for(let i=0;i<Math.min(maxMo,12);i++){
+      const a=mRev[i]; if(a<=0)continue;
       const cx=pL+colW*i+colW/2;
-      const bx=cx-totalBw/2+yi*(bw+gap);
-      const a=mRev[i];
-      const isFut=parseInt(yr)===nowYr&&i>=maxMo;
-      if(a>0&&!isFut){
-        const h=a/maxVal*cH, ry=pT+cH-h;
-        bars+='<rect x="'+bx.toFixed(1)+'" y="'+ry.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'" fill="'+colors[yi]+'" rx="1.5" opacity="0.85"/>';
-        if(h>16){bars+='<text x="'+(bx+bw/2).toFixed(1)+'" y="'+(ry-2).toFixed(1)+'" text-anchor="middle" font-size="7" fill="'+colors[yi]+'" font-weight="600">$'+fmtK(a)+'</text>';}
-      }
+      const bx=cx-totalBw/2+yi*(bw+1.5);
+      const h=cH*(a/barMax),ry=pT+cH-h;
+      bars+='<rect x="'+bx.toFixed(1)+'" y="'+ry.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'" fill="'+colors[yi]+'" rx="1.5" opacity="0.82"/>';
+      if(h>16)bars+='<text x="'+(bx+bw/2).toFixed(1)+'" y="'+(ry-2).toFixed(1)+'" text-anchor="middle" font-size="6.5" fill="'+colors[yi]+'" font-weight="600">$'+fmtK(a)+'</text>';
     }
+    // Cumulative line — uses cumY scale
+    let cum=0; const pts=[];
     for(let i=0;i<maxMo;i++){
       cum+=mRev[i];
-      const x=pL+colW*i+colW/2;
-      pts.push([x, pT+cH-(cum/maxVal)*cH]);
+      pts.push([(pL+colW*i+colW/2), cumY(cum)]);
     }
     if(pts.length>=2){
       const path=pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
       lines+='<path d="'+path+'" fill="none" stroke="'+colors[yi]+'" stroke-width="1"/>';
       pts.forEach(([x,y],idx)=>{
-        lines+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+(idx===pts.length-1?2.5:1.8)+'" fill="'+colors[yi]+'" stroke="#fff" stroke-width="0.8"/>';
+        const isLast=idx===pts.length-1;
+        lines+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+(isLast?2.5:1.5)+'" fill="'+colors[yi]+'" stroke="#fff" stroke-width="0.8"/>';
       });
       const [lx,ly]=pts[pts.length-1];
-      const tot=mRev.slice(0,maxMo).reduce((a,b)=>a+b,0);
-      lines+='<text x="'+(lx+5)+'" y="'+(Math.max(ly,pT+8)).toFixed(1)+'" font-size="8" fill="'+colors[yi]+'" font-weight="700">'+yr+' $'+fmtK(tot)+'</text>';
+      lines+='<text x="'+(lx+5)+'" y="'+(Math.max(ly,pT+8)).toFixed(1)+'" font-size="8" fill="'+colors[yi]+'" font-weight="700">'+yr+' $'+fmtK(cum)+'</text>';
     }
   });
 
   for(let i=0;i<12;i++){
-    moLabels+='<text x="'+(pL+colW*i+colW/2).toFixed(1)+'" y="'+(pT+cH+11)+'" text-anchor="middle" font-size="8.5" fill="#aaa" font-family="system-ui">'+MONTHS[i]+'</text>';
+    moLabels+='<text x="'+(pL+colW*i+colW/2).toFixed(1)+'" y="'+(pT+cH+10)+'" text-anchor="middle" font-size="8" fill="#aaa">'+MONTHS[i]+'</text>';
   }
 
-  const svg='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">'
-    +'<defs><clipPath id="cc-cp"><rect x="'+pL+'" y="'+pT+'" width="'+cW+'" height="'+cH+'"/></clipPath></defs>'
-    +grids+gLabels+'<g clip-path="url(#cc-cp)">'+bars+lines+'</g>'+moLabels
-    +'</svg>';
+  svg+='<g clip-path="url(#cc-cp)">'+bars+lines+'</g>'+moLabels+'</svg>';
 
-  const legend='<div style="display:flex;gap:12px;font-size:10px;color:#888;padding:2px 0 6px;align-items:center;flex-wrap:wrap">'
-    +years.map((y,i)=>'<span style="display:flex;align-items:center;gap:4px"><svg width="22" height="7"><rect x="0" width="10" height="7" rx="1.5" fill="'+colors[i]+'"/><line x1="12" y1="3.5" x2="22" y2="3.5" stroke="'+colors[i]+'" stroke-width="1.8"/><circle cx="17" cy="3.5" r="2" fill="'+colors[i]+'"/></svg><strong>'+y+'</strong></span>').join('')
-    +'<span style="margin-left:auto;font-size:8.5px;color:#bbb">Bars = monthly | Lines = cumulative YTD</span>'
+  const legend='<div style="display:flex;gap:12px;font-size:9.5px;color:#888;padding:2px 0 5px;align-items:center;flex-wrap:wrap">'
+    +years.map((y,i)=>'<span style="display:flex;align-items:center;gap:4px"><svg width="22" height="6"><rect x="0" width="10" height="6" rx="1.5" fill="'+colors[i]+'" opacity="0.82"/><line x1="12" y1="3" x2="22" y2="3" stroke="'+colors[i]+'" stroke-width="1"/><circle cx="17" cy="3" r="2" fill="'+colors[i]+'"/></svg><strong>'+y+'</strong></span>').join('')
+    +'<span style="font-size:8px;color:#bbb">&nbsp;Bars=monthly (left) &nbsp;Lines=cumulative (right)</span>'
     +'</div>';
 
-  const summary='<div style="display:flex;gap:8px;margin-top:6px">'
+  const summary='<div style="display:flex;gap:8px;margin-top:5px">'
     +years.map((yr,yi)=>{
       const mRev=yearData[yr]||Array(12).fill(0);
-      const maxMo=parseInt(yr)<new Date().getFullYear()?12:new Date().getMonth()+1;
+      const maxMo=parseInt(yr)<nowYr?12:new Date().getMonth()+1;
       const ytd=mRev.slice(0,maxMo).reduce((a,b)=>a+b,0);
       const ann=mRev.reduce((a,b)=>a+b,0);
-      return '<div style="flex:1;background:#f8fafc;border-radius:6px;border:1px solid #e5e7eb;border-top:3px solid '+colors[yi]+';padding:8px 10px;text-align:center">'
-        +'<div style="font-size:10px;font-weight:700;color:'+colors[yi]+';margin-bottom:3px">'+yr+'</div>'
-        +'<div style="font-size:14px;font-weight:800;color:#1e293b">$'+fmt(ytd)+'</div>'
-        +'<div style="font-size:9px;color:#9ca3af;margin-top:1px">YTD ('+maxMo+' months)</div>'
-        +(parseInt(yr)<new Date().getFullYear()?'<div style="font-size:10px;color:#6b7280;margin-top:3px">Annual: $'+fmt(ann)+'</div>':'')
+      return '<div style="flex:1;background:#f8fafc;border-radius:6px;border:1px solid #e5e7eb;border-top:2.5px solid '+colors[yi]+';padding:7px 8px;text-align:center">'
+        +'<div style="font-size:9.5px;font-weight:700;color:'+colors[yi]+'">'+yr+'</div>'
+        +'<div style="font-size:13px;font-weight:800;color:#1e293b;margin-top:1px">$'+fmt(ytd)+'</div>'
+        +'<div style="font-size:8.5px;color:#9ca3af">YTD ('+maxMo+' mo.)</div>'
+        +(parseInt(yr)<nowYr?'<div style="font-size:9px;color:#64748b">Annual: $'+fmt(ann)+'</div>':'')
         +'</div>';
     }).join('')
     +'</div>';
@@ -1241,138 +1248,133 @@ function renderMonthlyChart(){
   const D=window._mcData; if(!D)return;
   const div=window._mcTab||'all';
   const yr=window._mcYr||2026;
-  const curMo=window._curMo||new Date().getMonth(); // 0-indexed
+  const curMo=window._curMo||new Date().getMonth();
   const mRev=D[div]?[...D[div].rev]:Array(12).fill(0);
   const mGoal=D[div]?[...D[div].goal]:Array(12).fill(0);
   const divLabel={'all':'All','Medical':'Medical','Dental':'Dental'}[div]||div;
-  document.getElementById('dash-monthly-title').textContent='Monthly Revenue vs Goal — '+yr+' ('+divLabel+')';
+  document.getElementById('dash-monthly-title').textContent=
+    'Monthly Revenue vs Goal \u2014 '+yr+' ('+divLabel+')';
 
-  // Chart dimensions
-  const W=820, H=155;
-  const pL=40, pR=45, pT=28, pB=36;
-  const cW=W-pL-pR, cH=H-pT-pB;
-  const maxVal=Math.max(...mRev,...mGoal,1)*1.15;
-  const colW=cW/12;
-  const bw=colW*0.26; // thin bars
-
-  // Cumulative arrays — revenue up to curMo, goal all 12 months
-  let cumRev=0, cumGoal=0;
-  const revPts=[], goalPts=[];
+  // Dual-axis: bars use barMax, cumulative lines use cumMax
+  const barMax=Math.max(...mRev,...mGoal,1);
+  let cumR=0,cumG=0;
+  const cumRevArr=[],cumGoalArr=[];
   for(let i=0;i<12;i++){
-    cumGoal+=mGoal[i];
-    goalPts.push([pL+colW*i+colW/2, pT+cH-(cumGoal/maxVal)*cH]);
-    if(i<=curMo){ cumRev+=mRev[i]; revPts.push([pL+colW*i+colW/2, pT+cH-(cumRev/maxVal)*cH]); }
+    cumG+=mGoal[i]; cumGoalArr.push(cumG);
+    if(i<=curMo){cumR+=mRev[i]; cumRevArr.push(cumR);}
   }
-  const toP=pts=>pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  const cumMax=Math.max(...cumGoalArr,...cumRevArr,1);
 
-  // Gridlines
-  let grids='', gLabels='';
+  const W=820,H=155,pL=44,pR=52,pT=24,pB=38;
+  const cW=W-pL-pR,cH=H-pT-pB;
+  const colW=cW/12, bw=colW*0.25;
+
+  // Y helpers
+  const barY =v=>pT+cH-(v/barMax)*cH;
+  const cumY =v=>pT+cH-(v/cumMax)*cH;
+
+  // Gridlines (4 levels, based on barMax)
+  let svg='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">';
+  svg+='<defs><clipPath id="mc-cp"><rect x="'+pL+'" y="'+pT+'" width="'+cW+'" height="'+cH+'"/></clipPath></defs>';
+
   for(let g=0;g<=4;g++){
     const gy=pT+cH*(1-g/4);
-    const gv=maxVal*g/4;
-    grids+='<line x1="'+pL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+gy.toFixed(1)+'" stroke="#f0f0f0" stroke-width="'+(g===0?'1':'0.8')+'"/>';
-    gLabels+='<text x="'+(pL-4)+'" y="'+(gy+3.5).toFixed(1)+'" text-anchor="end" font-size="8" fill="#c0c0c0" font-family="system-ui">$'+fmtK(gv)+'</text>';
+    svg+='<line x1="'+pL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+gy.toFixed(1)+'" stroke="#f0f0f0" stroke-width="0.8"/>';
+    // Left axis labels (bar scale)
+    svg+='<text x="'+(pL-4)+'" y="'+(gy+3.5).toFixed(1)+'" text-anchor="end" font-size="8" fill="#b0b8c4">$'+fmtK(barMax*g/4)+'</text>';
+    // Right axis labels (cumulative scale)
+    svg+='<text x="'+(W-pR+5)+'" y="'+(gy+3.5).toFixed(1)+'" text-anchor="start" font-size="8" fill="#93c5fd">$'+fmtK(cumMax*g/4)+'</text>';
   }
+  // Axis labels
+  svg+='<text x="12" y="'+(pT+cH/2)+'" text-anchor="middle" font-size="7.5" fill="#b0b8c4" transform="rotate(-90,12,'+(pT+cH/2)+')">Monthly</text>';
+  svg+='<text x="'+(W-8)+'" y="'+(pT+cH/2)+'" text-anchor="middle" font-size="7.5" fill="#93c5fd" transform="rotate(90,'+(W-8)+','+(pT+cH/2)+')">Cumulative</text>';
 
-  // Bars
-  let bars='', barLabels='', moLabels='', achLabels='';
+  // ── Bars (clipped) ──
+  let bars='';
   for(let i=0;i<12;i++){
     const cx=pL+colW*i+colW/2;
     const isCur=i===curMo, isFut=i>curMo;
-
-    // Goal bar — ALL 12 months, left side, very light
-    const gv=mGoal[i]; const gh=gv/maxVal*cH;
-    const gy=pT+cH-gh;
-    if(gv>0){
-      bars+='<rect x="'+(cx-bw-0.8).toFixed(1)+'" y="'+gy.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+gh.toFixed(1)+'"'
+    // Goal bar — all 12 months
+    if(mGoal[i]>0){
+      const gh=cH*(mGoal[i]/barMax), gy=pT+cH-gh;
+      bars+='<rect x="'+(cx-bw-0.5).toFixed(1)+'" y="'+gy.toFixed(1)+'"'
+        +' width="'+bw.toFixed(1)+'" height="'+gh.toFixed(1)+'"'
         +' fill="'+(isFut?'#e8eef5':'#bfdbfe')+'" rx="1.5"/>';
-      // Goal label only if bar is tall enough
-      if(gh>20){
-        barLabels+='<text x="'+(cx-bw/2-0.8).toFixed(1)+'" y="'+(gy-2).toFixed(1)+'" text-anchor="middle" font-size="7" fill="#93c5fd">$'+fmtK(gv)+'</text>';
-      }
     }
-
-    // Revenue bar — only past + current months, right side
-    if(!isFut){
-      const rv=mRev[i]; const rh=rv/maxVal*cH;
-      const ry=pT+cH-rh;
-      if(rv>0){
-        bars+='<rect x="'+(cx+0.8).toFixed(1)+'" y="'+ry.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+rh.toFixed(1)+'"'
-          +' fill="'+(isCur?'#1d4ed8':'#3b82f6')+'" rx="1.5"/>';
-        if(rh>18){
-          barLabels+='<text x="'+(cx+bw/2+0.8).toFixed(1)+'" y="'+(ry-2).toFixed(1)+'" text-anchor="middle" font-size="7" fill="'+(isCur?'#1e40af':'#3b82f6')+'" font-weight="600">$'+fmtK(rv)+'</text>';
-        }
-      } else if(gv>0){
-        barLabels+='<text x="'+(cx+bw/2+0.8).toFixed(1)+'" y="'+(pT+cH-3).toFixed(1)+'" text-anchor="middle" font-size="7" fill="#d1d5db">—</text>';
-      }
+    // Revenue bar — up to current month
+    if(!isFut&&mRev[i]>0){
+      const rh=cH*(mRev[i]/barMax), ry=pT+cH-rh;
+      bars+='<rect x="'+(cx+0.5).toFixed(1)+'" y="'+ry.toFixed(1)+'"'
+        +' width="'+bw.toFixed(1)+'" height="'+rh.toFixed(1)+'"'
+        +' fill="'+(isCur?'#1d4ed8':'#3b82f6')+'" rx="1.5"/>';
+      if(rh>16)bars+='<text x="'+(cx+bw/2+0.5).toFixed(1)+'" y="'+(ry-2).toFixed(1)+'"'
+        +' text-anchor="middle" font-size="6.5" fill="'+(isCur?'#1e40af':'#3b82f6')+'" font-weight="600">$'+fmtK(mRev[i])+'</text>';
     }
+    if(isCur)bars='<rect x="'+(pL+colW*i+1).toFixed(1)+'" y="'+pT+'" width="'+(colW-2).toFixed(1)+'" height="'+cH+'" fill="rgba(59,130,246,0.05)" rx="2"/>'+bars;
+  }
+  svg+='<g clip-path="url(#mc-cp)">'+bars+'</g>';
 
-    // Current month vertical highlight
-    if(isCur){
-      bars='<rect x="'+(pL+colW*i+1.5).toFixed(1)+'" y="'+pT+'" width="'+(colW-3).toFixed(1)+'" height="'+cH+'" fill="rgba(59,130,246,0.06)" rx="2"/>'+bars;
-    }
+  // ── Cumulative Lines (clipped, uses cumY) ──
+  // Goal line — full 12 months
+  const gPath=cumGoalArr.map((v,i)=>(i===0?'M':'L')+(pL+colW*i+colW/2).toFixed(1)+','+cumY(v).toFixed(1)).join(' ');
+  // Revenue line — up to curMo
+  const rPath=cumRevArr.map((v,i)=>(i===0?'M':'L')+(pL+colW*i+colW/2).toFixed(1)+','+cumY(v).toFixed(1)).join(' ');
 
-    // Month name
-    moLabels+='<text x="'+cx.toFixed(1)+'" y="'+(pT+cH+11)+'" text-anchor="middle" font-size="8.5" fill="'+(isCur?'#2563eb':'#aaa')+'" font-weight="'+(isCur?'700':'400')+'" font-family="system-ui">'+MONTHS[i]+'</text>';
+  svg+='<g clip-path="url(#mc-cp)">';
+  if(cumGoalArr.length>=2)svg+='<path d="'+gPath+'" fill="none" stroke="#93c5fd" stroke-width="1" stroke-dasharray="3,2.5"/>';
+  if(cumRevArr.length>=2)svg+='<path d="'+rPath+'" fill="none" stroke="#1d4ed8" stroke-width="1.1"/>';
+  // Dots on revenue line
+  cumRevArr.forEach((v,i)=>{
+    const isLast=i===cumRevArr.length-1;
+    svg+='<circle cx="'+(pL+colW*i+colW/2).toFixed(1)+'" cy="'+cumY(v).toFixed(1)+'"'
+      +' r="'+(isLast?2.5:1.5)+'" fill="'+(isLast?'#1d4ed8':'#60a5fa')+'" stroke="#fff" stroke-width="0.8"/>';
+  });
+  // YTD label at last revenue point
+  if(cumRevArr.length>0){
+    const ly=cumY(cumRevArr[cumRevArr.length-1]);
+    const lx=pL+colW*(cumRevArr.length-1)+colW/2;
+    svg+='<text x="'+(lx+5)+'" y="'+(Math.max(ly,pT+8)).toFixed(1)+'"'
+      +' font-size="8" fill="#1d4ed8" font-weight="700">$'+fmtK(cumRevArr[cumRevArr.length-1])+'</text>';
+  }
+  svg+='</g>';
 
-    // Achievement % below month name
+  // Month + Ach% labels
+  for(let i=0;i<12;i++){
+    const cx=(pL+colW*i+colW/2).toFixed(1);
+    const isCur=i===curMo, isFut=i>curMo;
+    svg+='<text x="'+cx+'" y="'+(pT+cH+10)+'" text-anchor="middle" font-size="8" fill="'+(isCur?'#2563eb':'#aaa')+'" font-weight="'+(isCur?'700':'400')+'">'+MONTHS[i]+'</text>';
     if(!isFut&&mGoal[i]>0&&mRev[i]>0){
       const pM=Math.round(mRev[i]/mGoal[i]*100);
-      const col=pM>=100?'#16a34a':pM>=70?'#f59e0b':'#ef4444';
-      achLabels+='<text x="'+cx.toFixed(1)+'" y="'+(pT+cH+21)+'" text-anchor="middle" font-size="7.5" fill="'+col+'" font-weight="700">'+pM+'%</text>';
+      svg+='<text x="'+cx+'" y="'+(pT+cH+20)+'" text-anchor="middle" font-size="7.5" fill="'+(pM>=100?'#16a34a':pM>=70?'#f59e0b':'#ef4444')+'" font-weight="700">'+pM+'%</text>';
     }
   }
-
-  // Cumulative lines
-  let lines='';
-  if(goalPts.length>=2){
-    lines+='<path d="'+toP(goalPts)+'" fill="none" stroke="#93c5fd" stroke-width="0.9" stroke-dasharray="3,3"/>';
-  }
-  if(revPts.length>=2){
-    lines+='<path d="'+toP(revPts)+'" fill="none" stroke="#1d4ed8" stroke-width="1"/>';
-    revPts.forEach(([x,y],idx)=>{
-      const isLast=idx===revPts.length-1;
-      lines+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+(isLast?2.5:1.5)+'" fill="'+(isLast?'#1d4ed8':'#6baaf7')+'" stroke="#fff" stroke-width="0.8"/>';
-    });
-    // YTD label at last point
-    const [lx,ly]=revPts[revPts.length-1];
-    const ytdR=mRev.slice(0,curMo+1).reduce((a,b)=>a+b,0);
-    lines+='<text x="'+(lx+5)+'" y="'+(Math.max(ly,pT+8)).toFixed(1)+'" font-size="8" fill="#1d4ed8" font-weight="700" font-family="system-ui">$'+fmtK(ytdR)+'</text>';
-  }
-
-  const svg='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">'
-    +'<defs><clipPath id="mc-cp"><rect x="'+pL+'" y="'+pT+'" width="'+cW+'" height="'+cH+'"/></clipPath></defs>'
-    +grids+gLabels
-    +'<g clip-path="url(#mc-cp)">'+bars+lines+'</g>'
-    +barLabels+moLabels+achLabels
-    +'</svg>';
+  svg+='</svg>';
 
   // Compact legend
-  const legend='<div style="display:flex;gap:12px;font-size:10px;color:#888;padding:2px 0 6px;align-items:center;flex-wrap:wrap">'
-    +'<span style="display:flex;align-items:center;gap:3px"><svg width="12" height="7"><rect width="12" height="7" rx="1.5" fill="#3b82f6"/></svg>Revenue (actual)</span>'
-    +'<span style="display:flex;align-items:center;gap:3px"><svg width="12" height="7"><rect width="12" height="7" rx="1.5" fill="#bfdbfe"/></svg>Goal (target)</span>'
-    +'<span style="display:flex;align-items:center;gap:3px"><svg width="16" height="7"><line x1="0" y1="3.5" x2="16" y2="3.5" stroke="#1d4ed8" stroke-width="1.8"/><circle cx="8" cy="3.5" r="2" fill="#1d4ed8"/></svg>Cumulative Revenue</span>'
-    +'<span style="display:flex;align-items:center;gap:3px"><svg width="16" height="7"><line x1="0" y1="3.5" x2="16" y2="3.5" stroke="#93c5fd" stroke-width="1.3" stroke-dasharray="3,3"/></svg>Cumulative Goal</span>'
-    +'<span style="margin-left:auto;font-size:8.5px;color:#bbb">% below = monthly achievement rate</span>'
+  const legend='<div style="display:flex;gap:12px;font-size:9.5px;color:#888;padding:2px 0 5px;align-items:center;flex-wrap:wrap">'
+    +'<span style="display:flex;align-items:center;gap:3px"><svg width="10" height="6"><rect width="10" height="6" rx="1.5" fill="#3b82f6"/></svg>Revenue (bar, left axis)</span>'
+    +'<span style="display:flex;align-items:center;gap:3px"><svg width="10" height="6"><rect width="10" height="6" rx="1.5" fill="#bfdbfe"/></svg>Goal (bar, left axis)</span>'
+    +'<span style="display:flex;align-items:center;gap:3px"><svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke="#1d4ed8" stroke-width="1.1"/><circle cx="9" cy="3" r="2" fill="#1d4ed8"/></svg>Cumul. Revenue (right axis)</span>'
+    +'<span style="display:flex;align-items:center;gap:3px"><svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke="#93c5fd" stroke-width="1" stroke-dasharray="3,2.5"/></svg>Cumul. Goal (right axis)</span>'
+    +'<span style="margin-left:auto;font-size:8px;color:#ccc">% = monthly achievement</span>'
     +'</div>';
 
   // Summary strip
-  const ytdRev=mRev.slice(0,curMo+1).reduce((a,b)=>a+b,0);
-  const ytdGoal=mGoal.slice(0,curMo+1).reduce((a,b)=>a+b,0);
-  const annGoal=mGoal.reduce((a,b)=>a+b,0);
+  const ytdRev=cumRevArr[cumRevArr.length-1]||0;
+  const ytdGoal=cumGoalArr[curMo]||0;
+  const annGoal=cumGoalArr[11]||0;
   const pYtd=ytdGoal>0?Math.round(ytdRev/ytdGoal*100):0;
   const pAnn=annGoal>0?Math.round(ytdRev/annGoal*100):0;
   const cc=p=>p>=100?'#16a34a':p>=70?'#f59e0b':'#ef4444';
-  const summary='<div style="display:flex;background:#f8fafc;border-radius:6px;border:1px solid #e5e7eb;overflow:hidden">'
+  const summary='<div style="display:flex;background:#f8fafc;border-radius:6px;border:1px solid #e5e7eb;overflow:hidden;margin-top:5px">'
     +[['YTD Revenue','$'+fmt(ytdRev),'#2563eb'],
-      ['YTD Goal (thru '+MONTHS[curMo]+')','$'+fmt(ytdGoal),'#64748b'],
-      ['YTD Achievement',pYtd+'%',cc(pYtd)],
+      ['YTD Goal ('+MONTHS[curMo]+')','$'+fmt(ytdGoal),'#64748b'],
+      ['YTD Ach.',pYtd+'%',cc(pYtd)],
       ['Annual Goal','$'+fmt(annGoal),'#64748b'],
-      ['Annual Achievement',pAnn+'%',cc(pAnn)]]
-    .map(([l,v,c],i,arr)=>'<div style="flex:1;text-align:center;padding:7px 4px'+(i<arr.length-1?';border-right:1px solid #e5e7eb':'')+'">'
-      +'<div style="font-size:8px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">'+l+'</div>'
-      +'<div style="font-size:13px;font-weight:800;color:'+c+'">'+v+'</div>'
-      +'</div>').join('')
+      ['Annual Ach.',pAnn+'%',cc(pAnn)]]
+    .map(([l,v,c],i,a)=>'<div style="flex:1;text-align:center;padding:6px 4px'+(i<a.length-1?';border-right:1px solid #e5e7eb':'')+'">'
+      +'<div style="font-size:7.5px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">'+l+'</div>'
+      +'<div style="font-size:12px;font-weight:800;color:'+c+'">'+v+'</div></div>').join('')
     +'</div>';
 
   document.getElementById('monthly-chart').innerHTML=legend+svg+summary;
