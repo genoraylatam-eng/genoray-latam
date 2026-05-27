@@ -1358,7 +1358,9 @@ async function loadDash(){
       if(!shipsByMonth[m])shipsByMonth[m]=[];
       shipsByMonth[m].push(r);
     });
-    window._dashData={revByCountry,goalsMap,shipsByMonth,shipsYr,yr,nowMo,piMap,_goalsRaw:goalsAll};
+    // Store with names that renderAchPanel() expects
+    const revAll=revByCountry.all, revMed=revByCountry.Medical, revDen=revByCountry.Dental;
+    window._dashData={revAll,revMed,revDen,goalsMap,shipsByMonth,shipsYr,yr,nowMo,piMap,_goalsRaw:goalsAll};
     setAchTab(window._achTab||'all');
 
     // Recent PI
@@ -1679,11 +1681,19 @@ function setAchTab(div){
 }
 
 function renderAchPanel(){
+  try {
   const D=window._dashData;
-  if(!D)return;
-  const {revAll,revMed,revDen,goalsMap,shipsByMonth,yr,piMap}=D;
-  const div=window._achTab||'all';
-  const curM=parseInt(document.getElementById('ach-month')?.value||D.nowMo);
+  if(!D){hidePageLoading();return;}
+  // Defensive extraction — never undefined regardless of _dashData format
+  const revAll  = D.revAll  || D.revByCountry?.all  || {};
+  const revMed  = D.revMed  || D.revByCountry?.Medical || {};
+  const revDen  = D.revDen  || D.revByCountry?.Dental  || {};
+  const goalsMap = D.goalsMap || {all:{},Medical:{},Dental:{}};
+  const shipsByMonth = D.shipsByMonth || {};
+  const yr = D.yr || new Date().getFullYear();
+  const piMap = D.piMap || {};
+  const div = window._achTab||'all';
+  const curM = parseInt(document.getElementById('ach-month')?.value||D.nowMo||new Date().getMonth()+1);
   const moName=MONTHS[curM-1];
 
   // Recalculate ytd and curMo goals with the selected month
@@ -1699,17 +1709,18 @@ function renderAchPanel(){
     reCalcGoals[c].curMo+=(g[MO_COLS[curM-1]]||0);
   });
 
-  const gMap=goalsMap[div]||{};
-  const rev=div==='all'?revAll:div==='Medical'?revMed:revDen;
+  const gMap=(goalsMap&&goalsMap[div])||{};
+  const rev=(div==='all'?revAll:div==='Medical'?revMed:revDen)||{};
 
   // Recalc with current month selection
   const countries={};
   Object.keys(gMap).filter(c=>c!=='N/A').forEach(c=>{
     const g=gMap[c];
     // Recalc ytd/curMo with selected month
+    if(!g||!g.months)return;  // safety check
     let ytd=0, curMoGoal=0;
-    for(let i=0;i<curM;i++)ytd+=g.months[i];
-    curMoGoal=g.months[curM-1]||0;
+    for(let i=0;i<curM;i++)ytd+=(g.months[i]||0);
+    curMoGoal=(g.months[curM-1])||0;
     countries[c]={annual:g.annual, ytd, curMoGoal, rev:rev[c]||0};
   });
   // Also add countries with revenue but no goal
@@ -1881,6 +1892,14 @@ function renderAchPanel(){
     +'<td></td></tr>';
   detailHtml+='</tbody></table></div>';
   document.getElementById('month-detail-wrap').innerHTML=detailHtml;
+  } catch(err){
+    console.error('renderAchPanel error:', err.stack||err.message);
+    try{
+      const w=document.getElementById('country-ach-wrap');
+      if(w)w.innerHTML='<div style="padding:20px;color:var(--red);font-size:13px">⚠️ Display error: '+err.message+'</div>';
+    }catch(e){}
+    hidePageLoading();
+  }
 }
 
 // ── PIPELINE & BACKLOG ────────────────────────────────────────────────────────
@@ -3863,25 +3882,24 @@ function showPloError(msg, sub){
   document.getElementById('plo-normal').style.display='none';
   document.getElementById('plo-error').style.display='flex';
   document.getElementById('plo-error-msg').textContent=msg||'Something went wrong';
-  document.getElementById('plo-error-sub').textContent=sub||'The page took too long to load. This often happens after a system update.';
+  document.getElementById('plo-error-sub').textContent=sub||'Please sign in again. If problems persist, try clearing your browser cache.';
 }
 
 function plo_retry(){
-  // Clear session flags then hard reload — forces latest Vercel deployment
-  try { caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))); } catch(e){}
-  window.location.href=window.location.href.split('?')[0]+'?v='+Date.now();
+  // Clear all state and reload fresh — forces browser to fetch new code
+  sessionStorage.removeItem('gl_auth');
+  sessionStorage.removeItem('gl_role');
+  window._dashData=null; window._mcData=null; window._achTab=null;
+  const base=window.location.pathname;
+  window.location.replace(base+'?reload='+Date.now());
 }
 
 function plo_logout(){
-  hidePageLoading();
   sessionStorage.removeItem('gl_auth');
   sessionStorage.removeItem('gl_role');
-  const ls=document.getElementById('login-screen');
-  if(ls){ls.classList.remove('hidden');ls.style.opacity='1';}
-  document.getElementById('lu').value='';
-  document.getElementById('lp').value='';
-  document.getElementById('logged-in-user').innerHTML='';
-  document.getElementById('lerr').textContent='You have been signed out.';
+  window._dashData=null; window._mcData=null;
+  const base=window.location.pathname;
+  window.location.replace(base);  // Clean reload → shows login
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
