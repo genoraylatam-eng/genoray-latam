@@ -2608,43 +2608,146 @@ const selOpts=(opts,cur)=>opts.map(v=>`<option${cur===v?' selected':''}>${v}</op
 const acDistFg=(id,val='')=>`<div class="fg ac-wrap"><label>Distributor</label><input name="distributor" id="${id}" value="${esc(val)}" placeholder="Type to search..."></div>`;
 const cntryFg=(id,val='')=>`<div class="fg"><label>Country</label><input name="country" id="${id}" value="${esc(val)}"></div>`;
 
+// PI selector for PO / HQ PO / Shipments
+function makePISelector(selId, curVal, onChangeFn){
+  // Filter: PIs that are not yet completed (no shipment with date, or status not Completed)
+  const shippedPIs=new Set(
+    (cache.shipments||[]).filter(s=>s.date&&s.status!=='Preparing').map(s=>s.pi_number)
+  );
+  const poPIs=new Set((cache.po||[]).map(p=>p.pi_number));
+  const hqPIs=new Set((cache.hqpo||[]).map(h=>h.pi_number));
+
+  const openPIs=(cache.pi||[]).filter(r=>
+    r.status!=='Cancelled'&&r.status!=='Completed'&&!shippedPIs.has(r.pi_number)
+  ).sort((a,b)=>new Date(b.date||0)-new Date(a.date||0));
+
+  const opts=openPIs.map(p=>{
+    const hasPO=poPIs.has(p.pi_number)?'✓PO':'';
+    const hasHQ=hqPIs.has(p.pi_number)?'✓HQ':'';
+    const badges=[hasPO,hasHQ].filter(Boolean).join(' ');
+    return `<option value="${esc(p.pi_number)}" ${curVal===p.pi_number?'selected':''}
+      data-dist="${esc(p.distributor||'')}" data-country="${esc(p.country||'')}"
+      data-amount="${p.amount_usd||0}" data-product="${esc(p.product_name||'')}"
+      data-qty="${p.quantity||1}" data-terms="${esc(p.payment_terms||'')}"
+      data-sales_rep="${esc(p.sales_rep||'')}">
+      ${p.pi_number} — ${p.distributor||'?'} | $${fmt(p.amount_usd)} ${badges}</option>`;
+  }).join('');
+
+  return `<div class="fg full" style="grid-column:1/-1">
+    <label style="color:var(--blue);font-weight:700">⚡ Select PI — Auto-fill fields below</label>
+    <select id="${selId}" onchange="${onChangeFn}(this)" style="border-color:var(--blue);background:var(--blue-pale);font-size:13px;font-weight:500;padding:9px 12px">
+      <option value="">— Select an open PI —</option>
+      ${opts}
+    </select>
+    <div style="font-size:11px;color:var(--g400);margin-top:4px">Only showing unshipped PIs (${openPIs.length} open)</div>
+  </div>`;
+}
+
+// Auto-fill PO form from PI selection
+function piAutofillPO(sel){
+  const opt=sel.options[sel.selectedIndex];
+  if(!opt.value)return;
+  setVal('pi-num-po',opt.value);
+  setVal('dist-po',opt.dataset.dist);
+  setVal('cnt-po',opt.dataset.country);
+  setVal('amt-po',opt.dataset.amount);
+  // Auto-suggest PO number
+  if(!document.getElementById('po-num-po').value){
+    document.getElementById('po-num-po').value='PO-'+opt.value.replace(/^PI-/,'').replace(/^GEN-M-/,'').replace(/^EQUIMEDIC-/,'EQ-');
+  }
+}
+
+// Auto-fill HQ PO form from PI selection
+function piAutofillHQ(sel){
+  const opt=sel.options[sel.selectedIndex];
+  if(!opt.value)return;
+  setVal('pi-num-hq',opt.value);
+  setVal('dist-hq',opt.dataset.dist);
+  setVal('cnt-hq',opt.dataset.country);
+  setVal('models-hq',opt.dataset.product);
+  setVal('qty-hq',opt.dataset.qty);
+  setVal('total-hq',opt.dataset.amount);
+  // Find linked PO number
+  const po=(cache.po||[]).find(p=>p.pi_number===opt.value);
+  if(po)setVal('po-num-hq',po.po_number);
+  // Auto-suggest HQ PO number
+  if(!document.getElementById('hqno-hq').value){
+    const base=opt.value.replace(/^PI-/,'').replace(/^GEN-M-GAI-/,'GAI-');
+    document.getElementById('hqno-hq').value='HQ-'+base;
+  }
+  // Owner from sales rep
+  if(opt.dataset.sales_rep)setVal('owner-hq',opt.dataset.sales_rep);
+}
+
+// Auto-fill Shipment form from PI selection
+function piAutofillShip(sel){
+  const opt=sel.options[sel.selectedIndex];
+  if(!opt.value)return;
+  setVal('pi-num-sh',opt.value);
+  setVal('dist-sh',opt.dataset.dist);
+  setVal('cnt-sh',opt.dataset.country);
+  setVal('amt-sh',opt.dataset.amount);
+  setVal('models-sh',opt.dataset.product);
+  // Find linked HQ PO number
+  const hq=(cache.hqpo||[]).find(h=>h.pi_number===opt.value);
+  if(hq){setVal('hqno-sh',hq.hq_po_number);}
+  // Auto shipment number
+  if(!document.getElementById('shno-sh').value){
+    const yr=new Date().getFullYear();
+    const n=(cache.shipments||[]).length+1;
+    document.getElementById('shno-sh').value=`SH-${yr}-${String(n).padStart(3,'0')}`;
+  }
+}
+
+function setVal(id,val){const el=document.getElementById(id);if(el&&val!==undefined&&val!==null&&val!=='')el.value=val;}
+
 const FORMS={
   po:d=>`<div class="form-grid">
-    <div class="fg"><label>PO Number</label><input name="po_number" value="${esc(d.po_number||'')}" placeholder="PO-2026-001"></div>
+    ${!d.id?makePISelector('pi-sel-po','piAutofillPO'):''}
+    <div class="fg"><label>PO Number</label><input id="po-num-po" name="po_number" value="${esc(d.po_number||'')}" placeholder="PO-2026-001"></div>
     <div class="fg"><label>Date</label><input type="date" name="date" value="${d.date||tod()}"></div>
-    ${acDistFg('ac-po',d.distributor||'')}${cntryFg('cnt-po',d.country||'')}
-    <div class="fg"><label>PI Number</label><input name="pi_number" value="${esc(d.pi_number||'')}"></div>
-    <div class="fg"><label>Amount (USD)</label><input type="number" name="amount_usd" value="${d.amount_usd||''}"></div>
-    <div class="fg"><label>Status</label><select name="status">${selOpts(STAT,d.status)}</select></div>
+    <div class="fg"><label>PI Number</label><input id="pi-num-po" name="pi_number" value="${esc(d.pi_number||'')}"></div>
+    <div class="fg ac-wrap"><label>Distributor</label><input name="distributor" id="dist-po" value="${esc(d.distributor||'')}" placeholder="Type to search..."></div>
+    <div class="fg"><label>Country</label><input name="country" id="cnt-po" value="${esc(d.country||'')}"></div>
+    <div class="fg"><label>Amount (USD)</label><input type="number" id="amt-po" name="amount_usd" value="${d.amount_usd||''}"></div>
+    <div class="fg"><label>Status</label><select name="status">${selOpts(STAT,d.status||'In Progress')}</select></div>
     <div class="fg full"><label>Notes</label><textarea name="notes">${esc(d.notes||'')}</textarea></div>
   </div>`,
+
   hqpo:d=>`<div class="form-grid">
-    <div class="fg"><label>HQ PO Number</label><input name="hq_po_number" value="${esc(d.hq_po_number||'')}" placeholder="LM-0001"></div>
+    ${!d.id?makePISelector('pi-sel-hq','piAutofillHQ'):''}
+    <div class="fg"><label>HQ PO Number</label><input id="hqno-hq" name="hq_po_number" value="${esc(d.hq_po_number||'')}" placeholder="LM-0001"></div>
     <div class="fg"><label>Issue Date</label><input type="date" name="issue_date" value="${d.issue_date||tod()}"></div>
-    <div class="fg"><label>PI Number</label><input name="pi_number" value="${esc(d.pi_number||'')}"></div>
-    <div class="fg"><label>PO Number</label><input name="po_number" value="${esc(d.po_number||'')}"></div>
-    ${acDistFg('ac-hq',d.distributor||'')}${cntryFg('cnt-hq',d.country||'')}
-    <div class="fg"><label>Models</label><input name="models" value="${esc(d.models||'')}"></div>
-    <div class="fg"><label>Quantity</label><input type="number" name="quantity" value="${d.quantity||''}"></div>
-    <div class="fg"><label>PI Total (USD)</label><input type="number" name="pi_total_usd" value="${d.pi_total_usd||''}"></div>
-    <div class="fg"><label>Delivery Status</label><select name="delivery_status">${selOpts(['Pending','In Transit','Delivered'],d.delivery_status)}</select></div>
-    <div class="fg"><label>Ship Status</label><select name="ship_status">${selOpts(['Pending','Shipped','Completed'],d.ship_status)}</select></div>
-    <div class="fg"><label>Owner</label><input name="owner" value="${esc(d.owner||'')}"></div>
+    <div class="fg"><label>PI Number</label><input id="pi-num-hq" name="pi_number" value="${esc(d.pi_number||'')}"></div>
+    <div class="fg"><label>PO Number</label><input id="po-num-hq" name="po_number" value="${esc(d.po_number||'')}"></div>
+    <div class="fg ac-wrap"><label>Distributor</label><input name="distributor" id="dist-hq" value="${esc(d.distributor||'')}" placeholder="Type to search..."></div>
+    <div class="fg"><label>Country</label><input name="country" id="cnt-hq" value="${esc(d.country||'')}"></div>
+    <div class="fg"><label>Models</label><input id="models-hq" name="models" value="${esc(d.models||'')}"></div>
+    <div class="fg"><label>Quantity</label><input type="number" id="qty-hq" name="quantity" value="${d.quantity||''}"></div>
+    <div class="fg"><label>PI Total (USD)</label><input type="number" id="total-hq" name="pi_total_usd" value="${d.pi_total_usd||''}"></div>
+    <div class="fg"><label>Delivery Status</label><select name="delivery_status">${selOpts(['Pending','In Transit','Delivered'],d.delivery_status||'Pending')}</select></div>
+    <div class="fg"><label>Ship Status</label><select name="ship_status">${selOpts(['Pending','Shipped','Completed'],d.ship_status||'Pending')}</select></div>
+    <div class="fg"><label>Owner</label><input id="owner-hq" name="owner" value="${esc(d.owner||'')}"></div>
     <div class="fg"><label>Actual Arrival</label><input type="date" name="actual_arrival" value="${d.actual_arrival||''}"></div>
     <div class="fg full"><label>Notes</label><textarea name="notes">${esc(d.notes||'')}</textarea></div>
   </div>`,
+
   shipments:d=>`<div class="form-grid">
-    <div class="fg"><label>Shipment No.</label><input name="shipment_number" value="${esc(d.shipment_number||'')}"></div>
-    <div class="fg"><label>Date</label><input type="date" name="date" value="${d.date||tod()}"></div>
-    <div class="fg"><label>PI Number</label><input name="pi_number" value="${esc(d.pi_number||'')}"></div>
-    ${acDistFg('ac-sh',d.distributor||'')}${cntryFg('cnt-sh',d.country||'')}
+    ${!d.id?makePISelector('pi-sel-sh','piAutofillShip'):''}
+    <div class="fg"><label>Shipment No.</label><input id="shno-sh" name="shipment_number" value="${esc(d.shipment_number||'')}"></div>
+    <div class="fg"><label>Shipment Date</label><input type="date" name="date" value="${d.date||tod()}"></div>
+    <div class="fg"><label>PI Number</label><input id="pi-num-sh" name="pi_number" value="${esc(d.pi_number||'')}"></div>
+    <div class="fg ac-wrap"><label>Distributor</label><input name="distributor" id="dist-sh" value="${esc(d.distributor||'')}" placeholder="Type to search..."></div>
+    <div class="fg"><label>Country</label><input name="country" id="cnt-sh" value="${esc(d.country||'')}"></div>
+    <div class="fg"><label>Models</label><input id="models-sh" name="models" value="${esc(d.product_name||d.models||'')}"></div>
     <div class="fg"><label>ETD</label><input type="date" name="etd" value="${d.etd||''}"></div>
     <div class="fg"><label>ETA</label><input type="date" name="eta" value="${d.eta||''}"></div>
     <div class="fg"><label>BL Number</label><input name="bl_number" value="${esc(d.bl_number||'')}"></div>
-    <div class="fg"><label>Amount (USD)</label><input type="number" name="amount_usd" value="${d.amount_usd||''}"></div>
-    <div class="fg"><label>Status</label><select name="status">${selOpts(['Preparing','Shipped','In Transit','Arrived','Completed'],d.status)}</select></div>
+    <div class="fg"><label>Amount (USD)</label><input type="number" id="amt-sh" name="amount_usd" value="${d.amount_usd||''}"></div>
+    <div class="fg"><label>Status</label><select name="status">${selOpts(['Preparing','Shipped','In Transit','Arrived','Completed'],d.status||'Shipped')}</select></div>
     <div class="fg full"><label>Notes</label><textarea name="notes">${esc(d.notes||'')}</textarea></div>
   </div>`,
+
   collections:d=>`<div class="form-grid">
     <div class="fg"><label>Collection ID</label><input name="collection_id" value="${esc(d.collection_id||'')}"></div>
     <div class="fg"><label>PI Number</label><input name="pi_number" value="${esc(d.pi_number||'')}"></div>
@@ -2652,24 +2755,27 @@ const FORMS={
     <div class="fg"><label>Invoice Amount (USD)</label><input type="number" name="invoice_amount_usd" value="${d.invoice_amount_usd||''}"></div>
     <div class="fg"><label>Collected Amount (USD)</label><input type="number" name="collected_amount_usd" value="${d.collected_amount_usd||''}"></div>
     <div class="fg"><label>Collection Date</label><input type="date" name="collection_date" value="${d.collection_date||tod()}"></div>
-    <div class="fg"><label>Status</label><select name="status">${selOpts(['Pending','Collected','Partial','Overdue'],d.status)}</select></div>
+    <div class="fg"><label>Status</label><select name="status">${selOpts(['Pending','Collected','Partial','Overdue'],d.status||'Pending')}</select></div>
     <div class="fg full"><label>Notes</label><textarea name="notes">${esc(d.notes||'')}</textarea></div>
   </div>`,
+
   distributors:d=>`<div class="form-grid">
     <div class="fg"><label>Code</label><input name="code" value="${esc(d.code||'')}"></div>
     <div class="fg"><label>Company Name</label><input name="company_name" value="${esc(d.company_name||'')}"></div>
     <div class="fg"><label>Country</label><input name="country" value="${esc(d.country||'')}"></div>
-    <div class="fg"><label>Division</label><input name="division" value="${esc(d.division||'')}"></div>
+    <div class="fg"><label>Division</label><select name="division">${selOpts(['Medical','Dental',''],d.division)}</select></div>
     <div class="fg"><label>Contact Person</label><input name="contact_person" value="${esc(d.contact_person||'')}"></div>
     <div class="fg"><label>Email</label><input type="email" name="email" value="${esc(d.email||'')}"></div>
     <div class="fg"><label>Phone</label><input name="phone" value="${esc(d.phone||'')}"></div>
     <div class="fg full"><label>Address</label><textarea name="address">${esc(d.address||'')}</textarea></div>
   </div>`,
+
   products:d=>`<div class="form-grid">
     <div class="fg"><label>Code</label><input name="code" value="${esc(d.code||'')}"></div>
     <div class="fg"><label>Product Name</label><input name="product_name" value="${esc(d.product_name||'')}"></div>
     <div class="fg full"><label>Unit Price (USD)</label><input type="number" name="unit_price_usd" value="${d.unit_price_usd||''}"></div>
   </div>`,
+
   goals:d=>'' // Goals use separate openGoalForm() modal
 };
 
@@ -2679,20 +2785,37 @@ async function openForm(page,id=null){
   formState={table:tbl(page),page,id};
   let d={};
   if(id)d=(cache[page]||[]).find(r=>r.id===id)||{};
+  // For PO/HQ/Shipment new forms, ensure latest cache
+  if(!id&&['po','hqpo','shipments'].includes(page)){
+    await Promise.all([
+      loadTableSilent('pi'),
+      loadTableSilent('po'),
+      loadTableSilent('hqpo'),
+      loadTableSilent('shipments'),
+    ]);
+  }
   document.getElementById('modal-title').textContent=(id?'Edit ':'New ')+MTITLES[page];
-  document.getElementById('modal-body').innerHTML=FORMS[page](d);
+  document.getElementById('modal-body').innerHTML=FORMS[page]({...d,id});
   document.getElementById('overlay').classList.add('show');
   setTimeout(()=>{
-    [['ac-po','cnt-po'],['ac-hq','cnt-hq'],['ac-sh','cnt-sh'],['ac-col','cnt-col'],['ac-gl','cnt-gl']].forEach(([aid,cid])=>{
+    // Distributor autocomplete for relevant fields
+    [['dist-po','cnt-po'],['dist-hq','cnt-hq'],['dist-sh','cnt-sh'],['ac-col','cnt-col']].forEach(([aid,cid])=>{
       const inp=document.getElementById(aid);
       const cnt=document.getElementById(cid);
       if(inp)makeAC(inp,masterCache.distributors,
         d=>d.company_name+(d.country?' ('+d.country+')':''),
         d=>{inp.value=d.company_name;if(cnt)cnt.value=d.country||'';});
     });
-  },100);
+  },50);
 }
+
+async function loadTableSilent(page){
+  const {data}=await sb.from(tbl(page)).select('*').order('created_at',{ascending:false});
+  if(data)cache[page]=data;
+}
+
 function closeForm(){document.getElementById('overlay').classList.remove('show');}
+
 
 async function saveForm(){
   const btn=document.getElementById('save-btn');
