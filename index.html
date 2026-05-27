@@ -1198,15 +1198,16 @@ function navigateTo(p){
   if(!p)return;
   activePage=p;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  const navEl=document.querySelector(`.nav-item[data-page="${p}"]`);
+  const navEl=document.querySelector('.nav-item[data-page="'+p+'"]');
   if(navEl)navEl.classList.add('active');
   document.querySelectorAll('.page').forEach(pg=>pg.classList.remove('active'));
   const pageEl=document.getElementById('page-'+p);
   if(pageEl)pageEl.classList.add('active');
   const titleEl=document.getElementById('page-title');
   if(titleEl)titleEl.textContent=PAGE_TITLES[p]||p;
-  // Mobile: close sidebar and update bottom nav
   if(window.innerWidth<=768){ closeSidebar(); updateBottomNav(p); }
+  // Always hide any stuck loading overlay before switching pages
+  hidePageLoading();
   loadPage(p);
 }
 
@@ -1236,188 +1237,149 @@ const fmtK=v=>v>=1000000?(v/1000000).toFixed(1)+'M':v>=1000?Math.round(v/1000)+'
 
 async function loadDash(){
   showPageLoading('Loading Dashboard...','Fetching sales data');
-  
   document.getElementById('d-data').style.display='none';
+
   const yr=parseInt(document.getElementById('dash-yr')?.value||new Date().getFullYear());
   document.getElementById('dash-monthly-title').textContent='Monthly Revenue vs Goal ('+yr+')';
-
-  // Init month select to current month
   const nowMo=new Date().getMonth()+1;
   const moSel=document.getElementById('ach-month');
   if(moSel&&!moSel._inited){moSel.value=String(nowMo);moSel._inited=true;}
 
   try {
-  const [sd, pd, cd, gd] = await Promise.all([
-    sb.from('shipments').select('*'),
-    sb.from('pi').select('*'),
-    sb.from('collections').select('*'),
-    sb.from('goals').select('*').eq('year',yr)
-  ]);
-  const ships=sd.data||[], piAll=pd.data||[], cols=cd.data||[], goalsAll=gd.data||[];
-  const shipsYr=ships.filter(r=>r.date&&r.date.startsWith(String(yr)));
-  const sales=shipsYr.reduce((s,r)=>s+(r.amount_usd||0),0);
-  const coll=cols.reduce((s,r)=>s+(r.collected_amount_usd||0),0);
-  const totalGoal=goalsAll.reduce((s,r)=>s+(r.target_amount_usd||0),0);
-  const pct=totalGoal>0?Math.round(sales/totalGoal*100):0;
-  const shippedPIs=new Set(ships.filter(r=>r.date).map(r=>r.pi_number));
-  const piPending=piAll.filter(r=>!shippedPIs.has(r.pi_number)&&r.status!=='Cancelled').length;
-  const totalInvoiced=cols.reduce((s,r)=>s+(r.invoice_amount_usd||0),0);
-  const outstanding=Math.max(0,totalInvoiced-coll);
+    const [sd, pd, cd, gd] = await Promise.all([
+      sb.from('shipments').select('*'),
+      sb.from('pi').select('*'),
+      sb.from('collections').select('*'),
+      sb.from('goals').select('*').eq('year',yr)
+    ]);
+    const ships=sd.data||[], piAll=pd.data||[], cols=cd.data||[], goalsAll=gd.data||[];
+    if(sd.error||pd.error||cd.error||gd.error)
+      throw new Error('Database query failed. Please check your connection.');
 
-  // Stat cards
-  document.getElementById('stat-cards').innerHTML=[
-    ['blue','📈','Revenue ('+yr+', Shipped)','$'+fmt(sales),shipsYr.length+' shipments (shipped)'],
-    [pct>=100?'green':pct>=70?'amber':'red','🎯','Goal Achievement',pct+'%','Target $'+fmt(totalGoal)],
-    ['green','✅','Collected','$'+fmt(coll),'Cash received'],
-    ['amber','⏳','Outstanding (A/R)','$'+fmt(outstanding),'Unpaid balance'],
-    ['purple','📋','Active PI',piPending,'Unshipped PIs']
-  ].map(([c,ic,lbl,val,sub])=>`<div class="stat-card ${c}"><div class="stat-label">${lbl}</div><div class="stat-value">${val}</div><div class="stat-sub">${sub}</div><div class="stat-icon">${ic}</div></div>`).join('');
+    const shipsYr=ships.filter(r=>r.date&&r.date.startsWith(String(yr)));
+    const sales=shipsYr.reduce((s,r)=>s+(r.amount_usd||0),0);
+    const coll=cols.reduce((s,r)=>s+(r.collected_amount_usd||0),0);
+    const totalGoal=goalsAll.reduce((s,r)=>s+(r.target_amount_usd||0),0);
+    const pct=totalGoal>0?Math.round(sales/totalGoal*100):0;
+    const shippedPIs=new Set(ships.filter(r=>r.date).map(r=>r.pi_number));
+    const piPending=piAll.filter(r=>!shippedPIs.has(r.pi_number)&&r.status!=='Cancelled').length;
+    const totalInvoiced=cols.reduce((s,r)=>s+(r.invoice_amount_usd||0),0);
+    const outstanding=Math.max(0,totalInvoiced-coll);
 
-  // Monthly chart — build per-division data for tab switching
-  const mcData={all:{rev:Array(12).fill(0),goal:Array(12).fill(0)},Medical:{rev:Array(12).fill(0),goal:Array(12).fill(0)},Dental:{rev:Array(12).fill(0),goal:Array(12).fill(0)}};
-  shipsYr.forEach(r=>{
-    const m=parseInt(r.date.split('-')[1])-1;if(m<0||m>11)return;
-    const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
-    const div=(dist&&dist.division)||'N/A';
-    const a=r.amount_usd||0;
-    mcData.all.rev[m]+=a;
-    if(div==='Medical')mcData.Medical.rev[m]+=a;
-    if(div==='Dental')mcData.Dental.rev[m]+=a;
-  });
-  goalsAll.forEach(g=>{
-    const div=g.division||'N/A';
-    MO_COLS.forEach((c,i)=>{
-      mcData.all.goal[i]+=(g[c]||0);
-      if(div==='Medical')mcData.Medical.goal[i]+=(g[c]||0);
-      if(div==='Dental')mcData.Dental.goal[i]+=(g[c]||0);
+    document.getElementById('stat-cards').innerHTML=[
+      ['blue','📈','Revenue ('+yr+', Shipped)','$'+fmt(sales),shipsYr.length+' shipments'],
+      [pct>=100?'green':pct>=70?'amber':'red','🎯','Goal Achievement',pct+'%','Target $'+fmt(totalGoal)],
+      ['green','✅','Collected','$'+fmt(coll),'Cash received'],
+      ['amber','⏳','Outstanding (A/R)','$'+fmt(outstanding),'Unpaid balance'],
+      ['purple','📋','Active PI',piPending,'Unshipped PIs']
+    ].map(([c,ic,lbl,val,sub])=>`<div class="stat-card ${c}"><div class="stat-label">${lbl}</div><div class="stat-value">${val}</div><div class="stat-sub">${sub}</div><div class="stat-icon">${ic}</div></div>`).join('');
+
+    // Monthly chart data
+    const mcData={all:{rev:Array(12).fill(0),goal:Array(12).fill(0)},Medical:{rev:Array(12).fill(0),goal:Array(12).fill(0)},Dental:{rev:Array(12).fill(0),goal:Array(12).fill(0)}};
+    shipsYr.forEach(r=>{
+      const m=parseInt(r.date.split('-')[1])-1; if(m<0||m>11)return;
+      const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
+      const div=(dist&&dist.division)||'N/A'; const a=r.amount_usd||0;
+      mcData.all.rev[m]+=a;
+      if(div==='Medical')mcData.Medical.rev[m]+=a;
+      if(div==='Dental')mcData.Dental.rev[m]+=a;
     });
-  });
-  window._mcData=mcData;
-  window._mcYr=yr;
-  const curMo=new Date().getMonth();
-  window._curMo=curMo;
-  setMcTab('all');
+    goalsAll.forEach(g=>{
+      const div=g.division||'N/A';
+      MO_COLS.forEach((c,i)=>{
+        mcData.all.goal[i]+=(g[c]||0);
+        if(div==='Medical')mcData.Medical.goal[i]+=(g[c]||0);
+        if(div==='Dental')mcData.Dental.goal[i]+=(g[c]||0);
+      });
+    });
+    window._mcData=mcData; window._mcYr=yr;
+    window._curMo=new Date().getMonth();
+    setMcTab(window._mcTab||'all');
 
-  // Country chart — bar width = share of total, label shows $ amount + % of total
-  const byC={};
-  shipsYr.forEach(r=>{const c=r.country||'N/A';byC[c]=(byC[c]||0)+(r.amount_usd||0);});
-  const cSorted=Object.entries(byC).sort((a,b)=>b[1]-a[1]);
-  const cTotal=cSorted.reduce((s,[,a])=>s+a,0);
-  const cMax=cSorted[0]?cSorted[0][1]:1;
-  document.getElementById('country-chart').innerHTML=cSorted.length
-    ?'<div style="font-size:10px;color:var(--g400);margin-bottom:8px">Bar width = relative to top country | Amount = actual revenue (% of total)</div>'
-    +cSorted.map(([c,a])=>{
-      const sharePct=cTotal>0?Math.round(a/cTotal*100):0;
-      const barW=Math.round(a/cMax*100);
-      return '<div class="bc-row">'
-        +'<div class="bc-label" style="width:95px;font-weight:600">'+c+'</div>'
-        +'<div class="bc-bar-bg"><div class="bc-bar" style="width:'+barW+'%;background:linear-gradient(90deg,var(--blue),var(--blue2))"></div></div>'
-        +'<div style="display:flex;flex-direction:column;align-items:flex-end;min-width:80px">'
-        +'<span style="font-size:12px;font-weight:700;color:var(--g900)">$'+fmt(a)+'</span>'
-        +'<span style="font-size:10px;color:var(--g400)">'+sharePct+'%</span>'
-        +'</div></div>';
-    }).join('')
-    :'<p style="color:var(--g400);font-size:13px">No data</p>';
+    // Country chart
+    const byC={};
+    shipsYr.forEach(r=>{const c=r.country||'N/A';byC[c]=(byC[c]||0)+(r.amount_usd||0);});
+    const cSorted=Object.entries(byC).sort((a,b)=>b[1]-a[1]);
+    const cMax=cSorted[0]?cSorted[0][1]:1;
+    document.getElementById('country-chart').innerHTML=cSorted.length
+      ?cSorted.map(([c,a])=>{const sp=Math.round(a/Object.values(byC).reduce((x,y)=>x+y,0)*100);return'<div class="bc-row"><div class="bc-label" style="width:90px;font-weight:600">'+c+'</div><div class="bc-bar-bg"><div class="bc-bar" style="width:'+Math.round(a/cMax*100)+'%;background:linear-gradient(90deg,var(--blue),var(--blue2))"></div></div><div style="display:flex;flex-direction:column;align-items:flex-end;min-width:80px"><span style="font-size:12px;font-weight:700;color:var(--g900)">$'+fmt(a)+'</span><span style="font-size:10px;color:var(--g400)">'+sp+'% of total</span></div></div>';}).join('')
+      :'<p style="color:var(--g400);font-size:13px">No data</p>';
 
-  // Division chart — show actual $ amount and % of total revenue
-  const byDiv={};
-  shipsYr.forEach(r=>{
-    const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
-    const div=(dist&&dist.division)||'N/A';
-    byDiv[div]=(byDiv[div]||0)+(r.amount_usd||0);
-  });
-  const divColors={'Medical':'var(--blue)','Dental':'var(--green)','N/A':'var(--g400)'};
-  const divS=Object.entries(byDiv).sort((a,b)=>b[1]-a[1]);
-  const divTotal=divS.reduce((s,[,a])=>s+a,0);
-  const divMax=divS[0]?divS[0][1]:1;
-  document.getElementById('division-chart').innerHTML=divS.length
-    ?divS.map(([d,a])=>{
-      const sp=divTotal>0?Math.round(a/divTotal*100):0;
-      return '<div class="bc-row">'
-        +'<div class="bc-label" style="width:65px;font-weight:600">'+d+'</div>'
-        +'<div class="bc-bar-bg"><div class="bc-bar" style="width:'+Math.round(a/divMax*100)+'%;background:'+(divColors[d]||'var(--g400)')+'"></div></div>'
-        +'<div style="display:flex;flex-direction:column;align-items:flex-end;min-width:75px">'
-        +'<span style="font-size:12px;font-weight:700;color:var(--g900)">$'+fmt(a)+'</span>'
-        +'<span style="font-size:10px;color:var(--g400)">'+sp+'%</span>'
-        +'</div></div>';
-    }).join('')
-    :'<p style="color:var(--g400);font-size:13px">No data</p>';
+    // Division & Rep charts
+    const byDiv={};
+    shipsYr.forEach(r=>{const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);const div=(dist&&dist.division)||'N/A';byDiv[div]=(byDiv[div]||0)+(r.amount_usd||0);});
+    const divColors={'Medical':'var(--blue)','Dental':'var(--green)','N/A':'var(--g400)'};
+    const divS=Object.entries(byDiv).sort((a,b)=>b[1]-a[1]);
+    const divTotal=divS.reduce((s,[,a])=>s+a,0); const divMax=divS[0]?divS[0][1]:1;
+    document.getElementById('division-chart').innerHTML=divS.length
+      ?divS.map(([d,a])=>{const sp=divTotal>0?Math.round(a/divTotal*100):0;return'<div class="bc-row"><div class="bc-label" style="width:70px;font-weight:600">'+d+'</div><div class="bc-bar-bg"><div class="bc-bar" style="width:'+Math.round(a/divMax*100)+'%;background:'+(divColors[d]||'var(--g400)')+'"></div></div><div style="display:flex;flex-direction:column;align-items:flex-end;min-width:75px"><span style="font-size:12px;font-weight:700;color:var(--g900)">$'+fmt(a)+'</span><span style="font-size:10px;color:var(--g400)">'+sp+'% of total</span></div></div>';}).join('')
+      :'<p style="color:var(--g400);font-size:13px">No data</p>';
 
-  // Rep chart — show actual $ amount and % of total, fix Unassigned label
-  const piMap={};piAll.forEach(p=>{piMap[p.pi_number]=p;});
-  const byRep={};
-  shipsYr.forEach(r=>{const pi=piMap[r.pi_number];const rep=(pi&&pi.sales_rep)||'Unassigned';byRep[rep]=(byRep[rep]||0)+(r.amount_usd||0);});
-  const repS=Object.entries(byRep).sort((a,b)=>b[1]-a[1]);
-  const repTotal=repS.reduce((s,[,a])=>s+a,0);
-  const repMax=repS[0]?repS[0][1]:1;
-  document.getElementById('rep-chart').innerHTML=repS.length
-    ?repS.map(([r,a])=>{
-      const sp=repTotal>0?Math.round(a/repTotal*100):0;
-      return '<div class="bc-row">'
-        +'<div class="bc-label" style="width:65px;font-weight:600">'+r+'</div>'
-        +'<div class="bc-bar-bg"><div class="bc-bar" style="width:'+Math.round(a/repMax*100)+'%;background:linear-gradient(90deg,var(--purple),#a855f7)"></div></div>'
-        +'<div style="display:flex;flex-direction:column;align-items:flex-end;min-width:75px">'
-        +'<span style="font-size:12px;font-weight:700;color:var(--g900)">$'+fmt(a)+'</span>'
-        +'<span style="font-size:10px;color:var(--g400)">'+sp+'%</span>'
-        +'</div></div>';
-    }).join('')
-    :'<p style="color:var(--g400);font-size:13px">No data</p>';
+    const piMap={};piAll.forEach(p=>{piMap[p.pi_number]=p;});
+    const byRep={};
+    shipsYr.forEach(r=>{const pi=piMap[r.pi_number];const rep=(pi&&pi.sales_rep)||'Unassigned';byRep[rep]=(byRep[rep]||0)+(r.amount_usd||0);});
+    const repS=Object.entries(byRep).sort((a,b)=>b[1]-a[1]);
+    const repTotal=repS.reduce((s,[,a])=>s+a,0); const repMax=repS[0]?repS[0][1]:1;
+    document.getElementById('rep-chart').innerHTML=repS.length
+      ?repS.map(([r,a])=>{const sp=repTotal>0?Math.round(a/repTotal*100):0;return'<div class="bc-row"><div class="bc-label" style="width:70px;font-weight:600">'+r+'</div><div class="bc-bar-bg"><div class="bc-bar" style="width:'+Math.round(a/repMax*100)+'%;background:linear-gradient(90deg,var(--purple),#a855f7)"></div></div><div style="display:flex;flex-direction:column;align-items:flex-end;min-width:75px"><span style="font-size:12px;font-weight:700;color:var(--g900)">$'+fmt(a)+'</span><span style="font-size:10px;color:var(--g400)">'+sp+'% of total</span></div></div>';}).join('')
+      :'<p style="color:var(--g400);font-size:13px">No data</p>';
 
-  // Recent PI
-  const recent=[...piAll].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,7);
-  document.getElementById('recent-pi').innerHTML=recent.length
-    ?recent.map(r=>'<tr><td><span class="pi-link" onclick="showPIPrint(\''+r.pi_number+'\')">'+r.pi_number+'</span></td><td>'+(r.distributor||'-')+'</td><td>$'+fmt(r.amount_usd)+'</td><td>'+pill(r.status)+'</td></tr>').join('')
-    :'<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--g400)">No records</td></tr>';
+    // Goal achievement data
+    const curMonth=parseInt(document.getElementById('ach-month')?.value||nowMo);
+    const revByCountry={all:{},Medical:{},Dental:{}};
+    shipsYr.forEach(r=>{
+      const c=r.country||'N/A';
+      const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
+      const div=(dist&&dist.division)||'N/A'; const a=r.amount_usd||0;
+      revByCountry.all[c]=(revByCountry.all[c]||0)+a;
+      if(div==='Medical')revByCountry.Medical[c]=(revByCountry.Medical[c]||0)+a;
+      if(div==='Dental')revByCountry.Dental[c]=(revByCountry.Dental[c]||0)+a;
+    });
+    const buildGE=()=>({annual:0,ytd:0,curMo:0,months:Array(12).fill(0)});
+    const addGoal=(map,key,country,g,curM)=>{
+      if(!map[key][country])map[key][country]=buildGE();
+      const e=map[key][country];
+      e.annual+=(g.target_amount_usd||0);
+      MO_COLS.forEach((c,i)=>{e.months[i]+=(g[c]||0);});
+      for(let i=0;i<curM;i++)e.ytd+=(g[MO_COLS[i]]||0);
+      e.curMo+=(g[MO_COLS[curM-1]]||0);
+    };
+    const goalsMap={all:{},Medical:{},Dental:{}};
+    goalsAll.forEach(g=>{
+      const c=g.country||'N/A'; const div=g.division||'N/A';
+      addGoal(goalsMap,'all',c,g,curMonth);
+      if(div==='Medical')addGoal(goalsMap,'Medical',c,g,curMonth);
+      if(div==='Dental')addGoal(goalsMap,'Dental',c,g,curMonth);
+    });
+    const shipsByMonth={};
+    shipsYr.forEach(r=>{
+      if(!r.date)return;
+      const m=parseInt(r.date.split('-')[1]);
+      if(!shipsByMonth[m])shipsByMonth[m]=[];
+      shipsByMonth[m].push(r);
+    });
+    window._dashData={revByCountry,goalsMap,shipsByMonth,shipsYr,yr,nowMo,piMap,_goalsRaw:goalsAll};
+    setAchTab(window._achTab||'all');
 
-  // ── Build Achievement Data (all at once, clean) ──
-  // Revenue by country + division from shipments
-  const revAll={}, revMed={}, revDen={};
-  shipsYr.forEach(r=>{
-    const c=r.country||'N/A';
-    const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
-    const div=(dist&&dist.division)||'N/A';
-    const a=r.amount_usd||0;
-    revAll[c]=(revAll[c]||0)+a;
-    if(div==='Medical')revMed[c]=(revMed[c]||0)+a;
-    if(div==='Dental')revDen[c]=(revDen[c]||0)+a;
-  });
-  // Goal totals by country + division, including monthly breakdown
-  const goalsMap={all:{},Medical:{},Dental:{}};
-  // goalsMap[div][country] = {annual, ytd_jan..ytd_curMo, months:[0..11]}
-  const buildGoalEntry=()=>({annual:0, ytd:0, curMo:0, months:Array(12).fill(0)});
-  const addGoal=(map,key,country,g,curM)=>{
-    if(!map[key][country])map[key][country]=buildGoalEntry();
-    const e=map[key][country];
-    e.annual+=(g.target_amount_usd||0);
-    MO_COLS.forEach((c,i)=>{e.months[i]+=(g[c]||0);});
-    for(let i=0;i<curM;i++)e.ytd+=(g[MO_COLS[i]]||0);
-    e.curMo+=(g[MO_COLS[curM-1]]||0);
-  };
-  goalsAll.forEach(g=>{
-    const c=g.country||'N/A';
-    const div=g.division||'N/A';
-    const curM=parseInt(document.getElementById('ach-month')?.value||nowMo);
-    addGoal(goalsMap,'all',c,g,curM);
-    if(div==='Medical')addGoal(goalsMap,'Medical',c,g,curM);
-    if(div==='Dental')addGoal(goalsMap,'Dental',c,g,curM);
-  });
-  // Build monthly shipment detail lookup: month -> [{pi_number,distributor,country,amount_usd}]
-  const shipsByMonth={};
-  shipsYr.forEach(r=>{
-    if(!r.date)return;
-    const m=parseInt(r.date.split('-')[1]);
-    if(!shipsByMonth[m])shipsByMonth[m]=[];
-    shipsByMonth[m].push(r);
-  });
-  window._dashData={revAll,revMed,revDen,goalsMap,shipsByMonth,shipsYr,yr,nowMo,piMap,_goalsRaw:goalsAll};
-  setAchTab('all');
+    // Recent PI
+    const recent=[...piAll].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,7);
+    document.getElementById('recent-pi').innerHTML=recent.length
+      ?recent.map(r=>'<tr><td><span class="pi-link" onclick="showPIPrint(\''+r.pi_number+'\')">'+r.pi_number+'</span></td><td>'+(r.distributor||'-')+'</td><td>$'+fmt(r.amount_usd)+'</td><td>'+pill(r.status)+'</td></tr>').join('')
+      :'<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--g400)">No records</td></tr>';
 
-  hidePageLoading();
-  document.getElementById('d-data').style.display='block';
+    // Success — show content
+    hidePageLoading();
+    document.getElementById('d-data').style.display='block';
+
   } catch(err) {
-    showPloError('Dashboard failed to load', 'Check your connection and reload.\nError: '+err.message);
+    console.error('loadDash error:', err);
+    showPloError(
+      'Dashboard failed to load',
+      'Error: '+err.message+'\n\nTry reloading the page.'
+    );
   }
 }
+
 
 function setMcMode(mode){
   window._mcMode=mode;
@@ -3796,6 +3758,7 @@ const MANUAL_SECTIONS = [
 
 function loadHelp(){
   showPageLoading('Loading Manual...');
+  try {
   const tocNav=document.getElementById('help-toc-nav');
   const helpContent=document.getElementById('help-content');
   if(!tocNav||!helpContent)return;
@@ -3819,6 +3782,7 @@ function loadHelp(){
   `).join('');
 
   hidePageLoading();
+  } catch(err){ hidePageLoading(); console.error('Help error:', err); }
   // Scroll spy
   const observer=new IntersectionObserver(entries=>{
     entries.forEach(e=>{
@@ -3903,9 +3867,9 @@ function showPloError(msg, sub){
 }
 
 function plo_retry(){
-  // Force hard reload — skips cache, picks up latest Vercel deployment
-  hidePageLoading();
-  window.location.reload(true);
+  // Clear session flags then hard reload — forces latest Vercel deployment
+  try { caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))); } catch(e){}
+  window.location.href=window.location.href.split('?')[0]+'?v='+Date.now();
 }
 
 function plo_logout(){
