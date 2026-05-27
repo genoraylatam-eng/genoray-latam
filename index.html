@@ -508,6 +508,7 @@ tr[data-paid="true"] td{opacity:.55}
     <div class="nav-item" data-page="distributors" onclick="navigateTo('distributors')"><span class="nav-icon">🏢</span>Distributors</div>
     <div class="nav-item" data-page="products" onclick="navigateTo('products')"><span class="nav-icon">🔬</span>Products</div>
     <div class="nav-item" data-page="goals" onclick="navigateTo('goals')"><span class="nav-icon">🎯</span>Annual Goals</div>
+    <div class="nav-item" data-page="pricing" onclick="navigateTo('pricing')"><span class="nav-icon">💲</span>Pricing</div>
   </div>
   <div class="nav-sec" style="margin-top:auto;border-top:1px solid rgba(255,255,255,.08);padding-top:10px">
     <div class="nav-item" data-page="help" onclick="navigateTo('help')"><span class="nav-icon">📖</span>User Manual</div>
@@ -1130,6 +1131,115 @@ tr[data-paid="true"] td{opacity:.55}
   </div>
 </div>
 
+
+    <!-- PRICING -->
+    <div id="page-pricing" class="page">
+
+      <!-- Tab Bar -->
+      <div style="display:flex;gap:0;background:#fff;border-radius:var(--rlg);box-shadow:var(--sh);margin-bottom:14px;overflow:hidden">
+        <button id="ptab-tp" onclick="setPricingTab('tp')" style="flex:1;padding:11px 0;border:none;background:var(--blue);color:#fff;font-size:13px;font-weight:700;cursor:pointer;border-right:1px solid rgba(255,255,255,.2)">📋 TP Reference</button>
+        <button id="ptab-dist" onclick="setPricingTab('dist')" style="flex:1;padding:11px 0;border:none;background:var(--g100);color:var(--g600);font-size:13px;font-weight:700;cursor:pointer;border-right:1px solid var(--g200)">🏢 Distributor Prices</button>
+        <button id="ptab-hist" onclick="setPricingTab('hist')" style="flex:1;padding:11px 0;border:none;background:var(--g100);color:var(--g600);font-size:13px;font-weight:700;cursor:pointer">🕐 Price History</button>
+      </div>
+
+      <!-- TAB 1: TP Reference -->
+      <div id="pricing-tp" style="display:block">
+        <div class="panel" style="margin-bottom:12px">
+          <div class="panel-head">
+            <span class="panel-title">HQ Transfer Price Reference — GAI 2026 (Ex-Factory, USD)</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div style="display:flex;border:1px solid var(--g200);border-radius:var(--rsm);overflow:hidden">
+                <button id="tp-div-all" onclick="filterTP('all')" style="padding:5px 12px;border:none;background:var(--blue);color:#fff;font-size:11px;font-weight:700;cursor:pointer">All</button>
+                <button id="tp-div-med" onclick="filterTP('Medical')" style="padding:5px 12px;border:none;background:var(--g100);color:var(--g600);font-size:11px;font-weight:700;cursor:pointer">Medical</button>
+                <button id="tp-div-den" onclick="filterTP('Dental')" style="padding:5px 12px;border:none;background:var(--g100);color:var(--g600);font-size:11px;font-weight:700;cursor:pointer">Dental</button>
+              </div>
+              <div class="search-box" style="width:180px"><span>🔍</span><input id="tp-search" placeholder="Search model..." oninput="filterTP()"></div>
+            </div>
+          </div>
+          <div style="background:#eff6ff;border-left:3px solid var(--blue);padding:8px 16px;font-size:11px;color:#1e40af;margin-bottom:0">
+            ⓘ Read-only reference · Source: GAI 2026 Price List · Prices in USD (Ex-Factory) · SA = Standard Agency Price · Min = Minimum Allowed Price
+          </div>
+          <div class="tbl-wrap">
+            <table id="tp-table">
+              <thead><tr>
+                <th>Category</th><th>Division</th><th>Model</th>
+                <th style="text-align:right;color:var(--blue)">TP (Ex-Factory)</th>
+                <th style="text-align:right">SA Price</th>
+                <th style="text-align:right;color:#059669">Brazil</th>
+                <th style="text-align:right;color:#7c3aed">Mexico</th>
+                <th style="text-align:right;color:#d97706">LATAM</th>
+                <th style="text-align:right;color:var(--red)">Min Price</th>
+              </tr></thead>
+              <tbody id="tp-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: Distributor Prices -->
+      <div id="pricing-dist" style="display:none">
+        <div class="panel" style="margin-bottom:12px">
+          <div class="panel-head">
+            <span class="panel-title" id="dist-price-title">Distributor Pricing</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="dist-price-sel" onchange="loadDistributorPrices()" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);font-size:13px;background:#fff">
+                <option value="">— Select Distributor —</option>
+              </select>
+              <button class="btn btn-primary" onclick="openDistPriceForm()" id="dist-price-add-btn" style="display:none">+ Set Prices</button>
+            </div>
+          </div>
+          <div id="dist-price-info" style="background:#f0fdf4;border-left:3px solid var(--green);padding:10px 16px;font-size:11px;color:#065f46">
+            Select a distributor to view or set their offer prices. Prices are compared against TP reference and min price.
+          </div>
+          <div class="tbl-wrap" id="dist-price-tbl-wrap" style="display:none">
+            <table>
+              <thead><tr>
+                <th>Category</th><th>Model</th>
+                <th style="text-align:right">TP Ref (Ex-Fty)</th>
+                <th style="text-align:right">Min Price</th>
+                <th style="text-align:right;color:var(--blue)">Offer Price</th>
+                <th style="text-align:center">Margin over TP</th>
+                <th style="text-align:center">vs Min</th>
+                <th>Valid Until</th>
+                <th>Notes</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="dist-price-tbody"></tbody>
+            </table>
+          </div>
+          <div id="dist-price-empty" style="padding:40px;text-align:center;color:var(--g400);display:none">
+            <div style="font-size:32px;margin-bottom:8px">💲</div>
+            <div style="font-size:14px;font-weight:600">No prices set yet for this distributor</div>
+            <div style="font-size:12px;margin-top:4px">Click "+ Set Prices" to add offer prices</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: Price History -->
+      <div id="pricing-hist" style="display:none">
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">Price Change History</span>
+            <select id="hist-dist-sel" onchange="loadPriceHistory()" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);font-size:13px;background:#fff">
+              <option value="">All Distributors</option>
+            </select>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Date</th><th>Distributor</th><th>Model</th>
+                <th style="text-align:right">Old Price</th>
+                <th style="text-align:right">New Price</th>
+                <th style="text-align:center">Change</th>
+                <th>Notes</th>
+              </tr></thead>
+              <tbody id="hist-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
 
     <!-- HELP / USER MANUAL -->
     <div id="page-help" class="page">
