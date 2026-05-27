@@ -690,31 +690,55 @@ tr:hover td{background:var(--g50)}
     <div id="page-report" class="page">
       
       <div id="rep-data" style="display:none">
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;background:#fff;padding:14px 20px;border-radius:var(--rlg);box-shadow:var(--sh)">
-          <label style="font-size:12px;font-weight:600;color:var(--g500)">Year A:</label>
-          <select id="rep-year-a" onchange="loadReport()" style="padding:7px 10px;border:1px solid var(--g300);border-radius:var(--rsm);font-size:13px;background:#fff"><option>2026</option><option>2025</option><option>2027</option></select>
-          <label style="font-size:12px;font-weight:600;color:var(--g500)">Year B:</label>
-          <select id="rep-year-b" onchange="loadReport()" style="padding:7px 10px;border:1px solid var(--g300);border-radius:var(--rsm);font-size:13px;background:#fff"><option>2025</option><option>2026</option><option>2027</option></select>
-          <label style="font-size:12px;font-weight:600;color:var(--g500)">Division:</label>
-          <select id="rep-div" onchange="loadReport()" style="padding:7px 10px;border:1px solid var(--g300);border-radius:var(--rsm);font-size:13px;background:#fff">
-            <option value="">All Divisions</option>
-            <option value="Medical">Medical</option>
-            <option value="Dental">Dental</option>
-          </select>
+        <div style="background:#fff;padding:14px 20px;border-radius:var(--rlg);box-shadow:var(--sh);margin-bottom:16px">
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+            <!-- Division tabs -->
+            <div style="display:flex;border:1px solid var(--g200);border-radius:var(--rsm);overflow:hidden;flex-shrink:0">
+              <button id="rdiv-all" onclick="setRepDiv('')" style="padding:7px 14px;border:none;background:var(--blue);color:#fff;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">All</button>
+              <button id="rdiv-med" onclick="setRepDiv('Medical')" style="padding:7px 14px;border:none;background:var(--g100);color:var(--g600);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">Medical</button>
+              <button id="rdiv-den" onclick="setRepDiv('Dental')" style="padding:7px 14px;border:none;background:var(--g100);color:var(--g600);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">Dental</button>
+            </div>
+            <div style="width:1px;height:28px;background:var(--g200)"></div>
+            <!-- Year A -->
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--blue)"></div>
+              <label style="font-size:11px;font-weight:700;color:var(--g500)">Year A</label>
+              <select id="rep-year-a" onchange="loadReport()" style="padding:6px 10px;border:1.5px solid var(--blue);border-radius:var(--rsm);font-size:13px;background:#fff;color:var(--blue);font-weight:700">
+                <option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option><option value="2027">2027</option>
+              </select>
+            </div>
+            <!-- Year B -->
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--green)"></div>
+              <label style="font-size:11px;font-weight:700;color:var(--g500)">Year B</label>
+              <select id="rep-year-b" onchange="loadReport()" style="padding:6px 10px;border:1.5px solid var(--green);border-radius:var(--rsm);font-size:13px;background:#fff;color:var(--green);font-weight:700">
+                <option value="2025">2025</option><option value="2026">2026</option><option value="2024">2024</option><option value="2027">2027</option>
+              </select>
+            </div>
+            <!-- Year C -->
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--amber)"></div>
+              <label style="font-size:11px;font-weight:700;color:var(--g500)">Year C</label>
+              <select id="rep-year-c" onchange="loadReport()" style="padding:6px 10px;border:1.5px solid var(--amber);border-radius:var(--rsm);font-size:13px;background:#fff;color:var(--amber);font-weight:700">
+                <option value="2024">2024</option><option value="2023">2023</option><option value="">— None —</option>
+              </select>
+            </div>
+          </div>
+          <input type="hidden" id="rep-div" value="">
         </div>
         <div class="stat-grid" id="rep-stat-cards"></div>
         <div class="dash-grid" style="margin-bottom:16px">
           <div class="panel">
             <div class="panel-head"><span class="panel-title">Quarterly Comparison</span></div>
             <div class="tbl-wrap"><table>
-              <thead><tr><th>Quarter</th><th id="rep-qa-lbl">Year A</th><th>Goal A</th><th>Ach%</th><th id="rep-qb-lbl">Year B</th><th>Goal B</th><th>Ach%</th><th>YoY</th></tr></thead>
+              <thead><tr><th>Quarter</th><th id="rep-qa-lbl">Year A</th><th>Goal A</th><th>Ach%</th><th id="rep-qb-lbl">Year B</th><th>Goal B</th><th>Ach%</th><th>YoY A/B</th><th id="rep-qc-lbl" class="rep-c-col" style="display:none">Year C</th><th class="rep-c-col" style="display:none">Goal C</th><th class="rep-c-col" style="display:none">Ach%</th><th class="rep-c-col" style="display:none">YoY A/C</th></tr></thead>
               <tbody id="rep-quarterly"></tbody>
             </table></div>
           </div>
           <div class="panel">
             <div class="panel-head"><span class="panel-title">Country Comparison</span></div>
             <div class="tbl-wrap"><table>
-              <thead><tr><th>Country</th><th id="rep-ca-lbl">Year A</th><th id="rep-cb-lbl">Year B</th><th>YoY</th></tr></thead>
+              <thead><tr><th>Country</th><th id="rep-ca-lbl">Year A</th><th id="rep-cb-lbl">Year B</th><th>YoY A/B</th><th id="rep-cc-lbl" class="rep-c-col" style="display:none">Year C</th><th class="rep-c-col" style="display:none">YoY A/C</th></tr></thead>
               <tbody id="rep-country"></tbody>
             </table></div>
           </div>
@@ -722,7 +746,7 @@ tr:hover td{background:var(--g50)}
         <div class="panel" style="margin-bottom:16px">
           <div class="panel-head"><span class="panel-title" id="rep-monthly-title">Monthly Revenue vs Goal</span></div>
           <div class="tbl-wrap"><table>
-            <thead><tr><th>Month</th><th>Revenue A</th><th>Goal A</th><th>Ach% A</th><th>Revenue B</th><th>Goal B</th><th>Ach% B</th><th>YoY</th></tr></thead>
+            <thead><tr><th>Month</th><th>Revenue A</th><th>Goal A</th><th>Ach% A</th><th>Revenue B</th><th>Goal B</th><th>Ach% B</th><th>YoY A/B</th><th class="rep-c-col" style="display:none">Revenue C</th><th class="rep-c-col" style="display:none">Goal C</th><th class="rep-c-col" style="display:none">Ach% C</th><th class="rep-c-col" style="display:none">YoY A/C</th></tr></thead>
             <tbody id="rep-monthly"></tbody>
           </table></div>
         </div>
@@ -1960,80 +1984,162 @@ function sortPipe(col){
 }
 
 // ── REPORT ────────────────────────────────────────────────────────────────────
+function setRepDiv(div){
+  document.getElementById('rep-div').value=div;
+  ['all','med','den'].forEach(d=>{
+    const btn=document.getElementById('rdiv-'+d);
+    if(!btn)return;
+    const active=(d==='all'&&div==='')||(d==='med'&&div==='Medical')||(d==='den'&&div==='Dental');
+    btn.style.background=active?'var(--blue)':'var(--g100)';
+    btn.style.color=active?'#fff':'var(--g600)';
+  });
+  loadReport();
+}
+
 async function loadReport(){
-  showPageLoading('Loading Report...','Calculating year-over-year data');
+  showPageLoading('Loading Report...');
   document.getElementById('rep-data').style.display='none';
+
   const yrA=parseInt(document.getElementById('rep-year-a').value);
   const yrB=parseInt(document.getElementById('rep-year-b').value);
-  const divFilter=document.getElementById('rep-div').value;
+  const yrCVal=document.getElementById('rep-year-c').value;
+  const yrC=yrCVal?parseInt(yrCVal):null;
+  const hasC=!!yrC;
+  const divFilter=document.getElementById('rep-div').value; // '' | 'Medical' | 'Dental'
+
+  // Update column headers
   document.getElementById('rep-qa-lbl').textContent=yrA;
   document.getElementById('rep-qb-lbl').textContent=yrB;
   document.getElementById('rep-ca-lbl').textContent=yrA;
   document.getElementById('rep-cb-lbl').textContent=yrB;
-  document.getElementById('rep-monthly-title').textContent=`Monthly Revenue vs Goal — ${yrA} vs ${yrB}`;
-  const[{data:shipsAll=[]},{data:piAll=[]},{data:goalsAll=[]}]=await Promise.all([
+  const qcEl=document.getElementById('rep-qc-lbl');
+  const ccEl=document.getElementById('rep-cc-lbl');
+  if(qcEl)qcEl.textContent=yrC||'C';
+  if(ccEl)ccEl.textContent=yrC||'C';
+  document.querySelectorAll('.rep-c-col').forEach(el=>el.style.display=hasC?'':'none');
+  document.getElementById('rep-monthly-title').textContent=
+    `Monthly Revenue — ${yrA} vs ${yrB}`+(hasC?` vs ${yrC}`:'')+(divFilter?` (${divFilter})`:'');
+
+  // Fetch ALL data including fresh distributors (don't rely on masterCache)
+  const years=[yrA,yrB,...(yrC?[yrC]:[])];
+  const [{data:shipsAll=[]},{data:goalsAll=[]},{data:allDists=[]}]=await Promise.all([
     sb.from('shipments').select('*'),
-    sb.from('pi').select('*'),
-    sb.from('goals').select('*')
+    sb.from('goals').select('*'),
+    sb.from('distributors').select('company_name,division')
   ]);
-  let goalsA=goalsAll.filter(g=>g.year===yrA);
-  let goalsB=goalsAll.filter(g=>g.year===yrB);
-  if(divFilter){goalsA=goalsA.filter(g=>g.division===divFilter);goalsB=goalsB.filter(g=>g.division===divFilter);}
-  // ★ Revenue = Shipment date basis (shipped = recognized revenue)
-  const revA=shipsAll.filter(r=>r.date&&r.date.startsWith(String(yrA)));
-  const revB=shipsAll.filter(r=>r.date&&r.date.startsWith(String(yrB)));
-  const totalRevA=revA.reduce((s,r)=>s+(r.amount_usd||0),0);
-  const totalRevB=revB.reduce((s,r)=>s+(r.amount_usd||0),0);
-  const totalGoalA=goalsA.reduce((s,g)=>s+(g.target_amount_usd||0),0);
-  const totalGoalB=goalsB.reduce((s,g)=>s+(g.target_amount_usd||0),0);
-  const pctA=totalGoalA>0?Math.round(totalRevA/totalGoalA*100):0;
-  const pctB=totalGoalB>0?Math.round(totalRevB/totalGoalB*100):0;
-  const yoy=totalRevB>0?Math.round((totalRevA-totalRevB)/totalRevB*100):null;
-  document.getElementById('rep-stat-cards').innerHTML=`
-    <div class="stat-card blue"><div class="stat-label">Revenue ${yrA}</div><div class="stat-value">$${fmt(totalRevA)}</div><div class="stat-sub">${revA.length} PI(s)</div></div>
-    <div class="stat-card ${pctA>=100?'green':pctA>=70?'amber':'red'}"><div class="stat-label">Achievement ${yrA}</div><div class="stat-value">${pctA}%</div><div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(pctA,100)}%"></div></div><div class="stat-sub">Goal $${fmt(totalGoalA)}</div></div>
-    <div class="stat-card blue"><div class="stat-label">Revenue ${yrB}</div><div class="stat-value">$${fmt(totalRevB)}</div><div class="stat-sub">${revB.length} PI(s)</div></div>
-    <div class="stat-card ${pctB>=100?'green':pctB>=70?'amber':'red'}"><div class="stat-label">Achievement ${yrB}</div><div class="stat-value">${pctB}%</div><div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(pctB,100)}%"></div></div><div class="stat-sub">Goal $${fmt(totalGoalB)}</div></div>
-    ${yoy!==null?`<div class="stat-card ${yoy>=0?'green':'red'}"><div class="stat-label">YoY Growth</div><div class="stat-value">${yoy>=0?'+':''}${yoy}%</div><div class="stat-sub">${yrB} → ${yrA}</div></div>`:''}`;
-  const mCols=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_usd','aug_usd','sep_usd','oct_usd','nov_usd','dec_usd'];
-  const mGoalA=Array(12).fill(0),mGoalB=Array(12).fill(0),mRevA=Array(12).fill(0),mRevB=Array(12).fill(0);
-  goalsA.forEach(g=>mCols.forEach((c,i)=>mGoalA[i]+=(g[c]||0)));
-  goalsB.forEach(g=>mCols.forEach((c,i)=>mGoalB[i]+=(g[c]||0)));
-  revA.forEach(r=>{if(r.date){const m=parseInt(r.date.split('-')[1])-1;if(m>=0&&m<12)mRevA[m]+=(r.amount_usd||0);}});
-  revB.forEach(r=>{if(r.date){const m=parseInt(r.date.split('-')[1])-1;if(m>=0&&m<12)mRevB[m]+=(r.amount_usd||0);}});
+
+  // Build division lookup from fresh data
+  const distDivMap={};
+  allDists.forEach(d=>{ if(d.company_name)distDivMap[d.company_name]=d.division||''; });
+
+  // Filter functions
+  const shipMatchesDivFilter=r=>{
+    if(!divFilter)return true;
+    const div=distDivMap[r.distributor]||'';
+    return div===divFilter;
+  };
+  const goalMatchesDivFilter=g=>!divFilter||g.division===divFilter;
+
+  // Build revenue and goals per year
+  const revByYr={}, goalsByYr={};
+  years.forEach(y=>{
+    revByYr[y]=shipsAll.filter(r=>r.date&&r.date.startsWith(String(y))&&shipMatchesDivFilter(r));
+    goalsByYr[y]=goalsAll.filter(g=>g.year===y&&goalMatchesDivFilter(g));
+  });
+
+  // Totals
+  const totalRev={}, totalGoal={}, pct={};
+  years.forEach(y=>{
+    totalRev[y]=revByYr[y].reduce((s,r)=>s+(r.amount_usd||0),0);
+    totalGoal[y]=goalsByYr[y].reduce((s,g)=>s+(g.target_amount_usd||0),0);
+    pct[y]=totalGoal[y]>0?Math.round(totalRev[y]/totalGoal[y]*100):0;
+  });
+  const yoyAB=totalRev[yrB]>0?Math.round((totalRev[yrA]-totalRev[yrB])/totalRev[yrB]*100):null;
+  const yoyAC=yrC&&totalRev[yrC]>0?Math.round((totalRev[yrA]-totalRev[yrC])/totalRev[yrC]*100):null;
+
+  // Summary cards
+  const cc2=p=>p>=100?'green':p>=70?'amber':'red';
+  const yoyCard=(y,lbl)=>y===null?'':
+    `<div class="stat-card ${y>=0?'green':'red'}"><div class="stat-label">YoY Growth ${lbl}</div><div class="stat-value">${y>=0?'+':''}${y}%</div><div class="stat-sub">vs prior year</div></div>`;
+  document.getElementById('rep-stat-cards').innerHTML=
+    `<div class="stat-card blue"><div class="stat-label">Revenue ${yrA}</div><div class="stat-value">$${fmt(totalRev[yrA])}</div><div class="stat-sub">${revByYr[yrA].length} shipments${divFilter?' ('+divFilter+')':''}</div></div>`+
+    `<div class="stat-card ${cc2(pct[yrA])}"><div class="stat-label">Achievement ${yrA}</div><div class="stat-value">${pct[yrA]}%</div><div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(pct[yrA],100)}%"></div></div><div class="stat-sub">Goal $${fmt(totalGoal[yrA])}</div></div>`+
+    `<div class="stat-card" style="border-top-color:var(--green)"><div class="stat-label">Revenue ${yrB}</div><div class="stat-value" style="color:var(--green)">$${fmt(totalRev[yrB])}</div><div class="stat-sub">${revByYr[yrB].length} shipments</div></div>`+
+    `<div class="stat-card ${cc2(pct[yrB])}"><div class="stat-label">Achievement ${yrB}</div><div class="stat-value">${pct[yrB]}%</div><div class="stat-sub">Goal $${fmt(totalGoal[yrB])}</div></div>`+
+    yoyCard(yoyAB,`${yrB}→${yrA}`)+
+    (yrC?`<div class="stat-card" style="border-top-color:var(--amber)"><div class="stat-label">Revenue ${yrC}</div><div class="stat-value" style="color:var(--amber)">$${fmt(totalRev[yrC])}</div><div class="stat-sub">${revByYr[yrC].length} shipments</div></div>`+
+    `<div class="stat-card ${cc2(pct[yrC])}"><div class="stat-label">Achievement ${yrC}</div><div class="stat-value">${pct[yrC]}%</div><div class="stat-sub">Goal $${fmt(totalGoal[yrC])}</div></div>`+
+    yoyCard(yoyAC,`${yrC}→${yrA}`):'');
+
+  // Monthly arrays
+  const MO_COLS=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_usd','aug_usd','sep_usd','oct_usd','nov_usd','dec_usd'];
+  const mRev={}, mGoal={};
+  years.forEach(y=>{ mRev[y]=Array(12).fill(0); mGoal[y]=Array(12).fill(0); });
+  years.forEach(y=>{
+    goalsByYr[y].forEach(g=>MO_COLS.forEach((c,i)=>mGoal[y][i]+=(g[c]||0)));
+    revByYr[y].forEach(r=>{ if(r.date){const m=parseInt(r.date.split('-')[1])-1;if(m>=0&&m<12)mRev[y][m]+=(r.amount_usd||0);} });
+  });
+
+  // Helper: achievement class
+  const achCls=p=>p===null?'':p>=100?'ach-good':p>=70?'ach-warn':'ach-bad';
+  const yoyStr=(a,b)=>{const y=b>0?Math.round((a-b)/b*100):null;return y===null?'—':(y>=0?'+':'')+y+'%';};
+  const yoyClsStr=(a,b)=>{const y=b>0?Math.round((a-b)/b*100):null;return y===null?'':y>=0?'ach-good':'ach-bad';};
+
+  // Monthly table
   document.getElementById('rep-monthly').innerHTML=MONTHS.map((m,i)=>{
-    const pA=mGoalA[i]>0?Math.round(mRevA[i]/mGoalA[i]*100):null;
-    const pB=mGoalB[i]>0?Math.round(mRevB[i]/mGoalB[i]*100):null;
-    const yoy=mRevB[i]>0?Math.round((mRevA[i]-mRevB[i])/mRevB[i]*100):null;
-    return`<tr><td><strong>${m}</strong></td><td>$${fmt(mRevA[i])}</td><td>$${fmt(mGoalA[i])}</td><td class="${pA===null?'':pA>=100?'ach-good':pA>=70?'ach-warn':'ach-bad'}">${pA!==null?pA+'%':'—'}</td><td>$${fmt(mRevB[i])}</td><td>$${fmt(mGoalB[i])}</td><td class="${pB===null?'':pB>=100?'ach-good':pB>=70?'ach-warn':'ach-bad'}">${pB!==null?pB+'%':'—'}</td><td class="${yoy===null?'':yoy>=0?'ach-good':'ach-bad'}">${yoy!==null?(yoy>=0?'+':'')+yoy+'%':'—'}</td></tr>`;
+    const pA=mGoal[yrA][i]>0?Math.round(mRev[yrA][i]/mGoal[yrA][i]*100):null;
+    const pB=mGoal[yrB][i]>0?Math.round(mRev[yrB][i]/mGoal[yrB][i]*100):null;
+    let row=`<tr><td><strong>${m}</strong></td><td>$${fmt(mRev[yrA][i])}</td><td>$${fmt(mGoal[yrA][i])}</td><td class="${achCls(pA)}">${pA!==null?pA+'%':'—'}</td><td>$${fmt(mRev[yrB][i])}</td><td>$${fmt(mGoal[yrB][i])}</td><td class="${achCls(pB)}">${pB!==null?pB+'%':'—'}</td><td class="${yoyClsStr(mRev[yrA][i],mRev[yrB][i])}">${yoyStr(mRev[yrA][i],mRev[yrB][i])}</td>`;
+    if(hasC&&yrC){
+      const pC=mGoal[yrC][i]>0?Math.round(mRev[yrC][i]/mGoal[yrC][i]*100):null;
+      row+=`<td class="rep-c-col">$${fmt(mRev[yrC][i])}</td><td class="rep-c-col">$${fmt(mGoal[yrC][i])}</td><td class="rep-c-col ${achCls(pC)}">${pC!==null?pC+'%':'—'}</td><td class="rep-c-col ${yoyClsStr(mRev[yrA][i],mRev[yrC][i])}">${yoyStr(mRev[yrA][i],mRev[yrC][i])}</td>`;
+    }
+    return row+'</tr>';
   }).join('');
-  const quarters=[[0,3],[3,6],[6,9],[9,12]];
-  const qNames=['Q1 (Jan–Mar)','Q2 (Apr–Jun)','Q3 (Jul–Sep)','Q4 (Oct–Dec)'];
-  document.getElementById('rep-quarterly').innerHTML=quarters.map(([s,e],qi)=>{
-    const qrA=mRevA.slice(s,e).reduce((a,b)=>a+b,0),qrB=mRevB.slice(s,e).reduce((a,b)=>a+b,0);
-    const qgA=mGoalA.slice(s,e).reduce((a,b)=>a+b,0),qgB=mGoalB.slice(s,e).reduce((a,b)=>a+b,0);
-    const pA=qgA>0?Math.round(qrA/qgA*100):null,pB=qgB>0?Math.round(qrB/qgB*100):null;
-    const yoy=qrB>0?Math.round((qrA-qrB)/qrB*100):null;
-    return`<tr><td><strong>${qNames[qi]}</strong></td><td>$${fmt(qrA)}</td><td>$${fmt(qgA)}</td><td class="${pA===null?'':pA>=100?'ach-good':pA>=70?'ach-warn':'ach-bad'}">${pA!==null?pA+'%':'—'}</td><td>$${fmt(qrB)}</td><td>$${fmt(qgB)}</td><td class="${pB===null?'':pB>=100?'ach-good':pB>=70?'ach-warn':'ach-bad'}">${pB!==null?pB+'%':'—'}</td><td class="${yoy===null?'':yoy>=0?'ach-good':'ach-bad'}">${yoy!==null?(yoy>=0?'+':'')+yoy+'%':'—'}</td></tr>`;
+
+  // Quarterly table
+  const qDef=[[0,3],[3,6],[6,9],[9,12]], qN=['Q1 (Jan–Mar)','Q2 (Apr–Jun)','Q3 (Jul–Sep)','Q4 (Oct–Dec)'];
+  document.getElementById('rep-quarterly').innerHTML=qDef.map(([s2,e2],qi)=>{
+    const sum=(arr,a,b)=>arr.slice(a,b).reduce((x,y)=>x+y,0);
+    const qrA=sum(mRev[yrA],s2,e2), qrB=sum(mRev[yrB],s2,e2);
+    const qgA=sum(mGoal[yrA],s2,e2), qgB=sum(mGoal[yrB],s2,e2);
+    const pA=qgA>0?Math.round(qrA/qgA*100):null, pB=qgB>0?Math.round(qrB/qgB*100):null;
+    let row=`<tr><td><strong>${qN[qi]}</strong></td><td>$${fmt(qrA)}</td><td>$${fmt(qgA)}</td><td class="${achCls(pA)}">${pA!==null?pA+'%':'—'}</td><td>$${fmt(qrB)}</td><td>$${fmt(qgB)}</td><td class="${achCls(pB)}">${pB!==null?pB+'%':'—'}</td><td class="${yoyClsStr(qrA,qrB)}">${yoyStr(qrA,qrB)}</td>`;
+    if(hasC&&yrC){
+      const qrC=sum(mRev[yrC],s2,e2), qgC=sum(mGoal[yrC],s2,e2);
+      const pC=qgC>0?Math.round(qrC/qgC*100):null;
+      row+=`<td class="rep-c-col">$${fmt(qrC)}</td><td class="rep-c-col">$${fmt(qgC)}</td><td class="rep-c-col ${achCls(pC)}">${pC!==null?pC+'%':'—'}</td><td class="rep-c-col ${yoyClsStr(qrA,qrC)}">${yoyStr(qrA,qrC)}</td>`;
+    }
+    return row+'</tr>';
   }).join('');
-  const cRevA={},cRevB={};
-  revA.forEach(r=>{cRevA[r.country||'N/A']=(cRevA[r.country||'N/A']||0)+(r.amount_usd||0);});
-  revB.forEach(r=>{cRevB[r.country||'N/A']=(cRevB[r.country||'N/A']||0)+(r.amount_usd||0);});
-  const allC=[...new Set([...Object.keys(cRevA),...Object.keys(cRevB)])].sort();
-  document.getElementById('rep-country').innerHTML=allC.map(c=>{
-    const a=cRevA[c]||0,b=cRevB[c]||0;
-    const yoy=b>0?Math.round((a-b)/b*100):null;
-    return`<tr><td>${c}</td><td>$${fmt(a)}</td><td>$${fmt(b)}</td><td class="${yoy===null?'':yoy>=0?'ach-good':'ach-bad'}">${yoy!==null?(yoy>=0?'+':'')+yoy+'%':'—'}</td></tr>`;
+
+  // Country comparison
+  const allCountries=[...new Set([...revByYr[yrA],...revByYr[yrB],...(yrC?revByYr[yrC]:[])].map(r=>r.country||'N/A'))].sort();
+  const cRevByYr={};
+  years.forEach(y=>{ cRevByYr[y]={}; revByYr[y].forEach(r=>{const c=r.country||'N/A';cRevByYr[y][c]=(cRevByYr[y][c]||0)+(r.amount_usd||0);}); });
+  document.getElementById('rep-country').innerHTML=allCountries.map(c=>{
+    const a=cRevByYr[yrA][c]||0, b=cRevByYr[yrB][c]||0;
+    let row=`<tr><td><strong>${c}</strong></td><td>$${fmt(a)}</td><td>$${fmt(b)}</td><td class="${yoyClsStr(a,b)}">${yoyStr(a,b)}</td>`;
+    if(hasC&&yrC){const cv=cRevByYr[yrC][c]||0;row+=`<td class="rep-c-col">$${fmt(cv)}</td><td class="rep-c-col ${yoyClsStr(a,cv)}">${yoyStr(a,cv)}</td>`;}
+    return row+'</tr>';
   }).join('');
+
+  // Distributor performance (Year A)
   const distRevA={};
-  revA.forEach(r=>{distRevA[r.distributor||'N/A']=(distRevA[r.distributor||'N/A']||0)+(r.amount_usd||0);});
-  document.getElementById('rep-dist').innerHTML=goalsA.filter(g=>g.target_amount_usd>0).sort((a,b)=>b.target_amount_usd-a.target_amount_usd).map(g=>{
-    const rev=distRevA[g.distributor]||0,pct=g.target_amount_usd>0?Math.round(rev/g.target_amount_usd*100):null;
-    return`<tr><td><strong>${g.distributor}</strong></td><td>${g.country||'-'}</td><td>${g.division||'-'}</td><td>$${fmt(rev)}</td><td>$${fmt(g.target_amount_usd)}</td><td class="${pct===null?'':pct>=100?'ach-good':pct>=70?'ach-warn':'ach-bad'}">${pct!==null?pct+'%':'—'}</td></tr>`;
-  }).join('');
+  revByYr[yrA].forEach(r=>{const k=r.distributor||'N/A';distRevA[k]=(distRevA[k]||0)+(r.amount_usd||0);});
+  document.getElementById('rep-dist').innerHTML=goalsByYr[yrA]
+    .filter(g=>g.target_amount_usd>0)
+    .sort((a,b)=>b.target_amount_usd-a.target_amount_usd)
+    .map(g=>{
+      const rev=distRevA[g.distributor]||0;
+      const p=g.target_amount_usd>0?Math.round(rev/g.target_amount_usd*100):null;
+      return`<tr><td><strong>${g.distributor}</strong></td><td>${g.country||'-'}</td><td>${g.division||'-'}</td><td>$${fmt(rev)}</td><td>$${fmt(g.target_amount_usd)}</td><td class="${achCls(p)}">${p!==null?p+'%':'—'}</td></tr>`;
+    }).join('');
+
   hidePageLoading();
   document.getElementById('rep-data').style.display='block';
 }
+
 
 // ── GOALS PAGE ────────────────────────────────────────────────────────────────
 let goalView='combined'; // 'combined' | 'split'
