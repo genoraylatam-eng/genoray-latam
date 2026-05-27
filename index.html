@@ -487,16 +487,16 @@ tr:hover td{background:var(--g50)}
   <div class="logo"><h1>Genoray LATAM</h1><p>Sales Management</p></div>
   <div class="nav-sec">
     <div class="nav-lbl">Overview</div>
-    <div class="nav-item active" data-page="dashboard"><span class="nav-icon">📊</span>Dashboard</div>
-    <div class="nav-item" data-page="pipeline"><span class="nav-icon">🔄</span>Pipeline & Backlog</div>
+    <div class="nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')"><span class="nav-icon">📊</span>Dashboard</div>
+    <div class="nav-item" data-page="pipeline" onclick="navigateTo('pipeline')"><span class="nav-icon">🔄</span>Pipeline & Backlog</div>
     <div class="nav-item" data-page="report" onclick="navigateTo('report')"><span class="nav-icon">📈</span>Report</div>
   </div>
   <div class="nav-sec">
     <div class="nav-lbl">Sales</div>
-    <div class="nav-item" data-page="pi"><span class="nav-icon">📋</span>PI Management</div>
+    <div class="nav-item" data-page="pi" onclick="navigateTo('pi')"><span class="nav-icon">📋</span>PI Management</div>
     <div class="nav-item" data-page="po" onclick="navigateTo('po')"><span class="nav-icon">📦</span>PO Management</div>
     <div class="nav-item" data-page="hqpo" onclick="navigateTo('hqpo')"><span class="nav-icon">🏭</span>HQ PO</div>
-    <div class="nav-item" data-page="shipments"><span class="nav-icon">🚢</span>Shipments</div>
+    <div class="nav-item" data-page="shipments" onclick="navigateTo('shipments')"><span class="nav-icon">🚢</span>Shipments</div>
     <div class="nav-item" data-page="collections" onclick="navigateTo('collections')"><span class="nav-icon">💰</span>Collections</div>
   </div>
   <div class="nav-sec">
@@ -506,7 +506,7 @@ tr:hover td{background:var(--g50)}
     <div class="nav-item" data-page="goals" onclick="navigateTo('goals')"><span class="nav-icon">🎯</span>Annual Goals</div>
   </div>
   <div class="nav-sec" style="margin-top:auto;border-top:1px solid rgba(255,255,255,.08);padding-top:10px">
-    <div class="nav-item" data-page="help"><span class="nav-icon">📖</span>User Manual</div>
+    <div class="nav-item" data-page="help" onclick="navigateTo('help')"><span class="nav-icon">📖</span>User Manual</div>
   </div>
 </div>
 
@@ -539,7 +539,7 @@ tr:hover td{background:var(--g50)}
     <!-- DASHBOARD -->
     <div id="page-dashboard" class="page active">
       
-      <div id="d-data" style="display:none">
+      <div id="d-data">
         <!-- Stat Cards -->
         <div class="stat-grid" id="stat-cards"></div>
 
@@ -1150,15 +1150,10 @@ if(sessionStorage.getItem('gl_auth')){
   const role=sessionStorage.getItem('gl_role')||'user';
   const badge=role==='admin'?' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>':'';
   document.getElementById('logged-in-user').innerHTML='👤 '+u+badge;
-  // Show d-data IMMEDIATELY on refresh - never blank screen
-  const dd=document.getElementById('d-data');
-  if(dd){dd.style.display='block';}
+  // d-data is always visible (no display:none in HTML)
   // Show loading indicator in topbar
   const ptitle=document.getElementById('page-title');
   if(ptitle)ptitle.innerHTML='Dashboard <span id="tb-loading" style="font-size:11px;color:var(--g400);font-weight:400">● Loading...</span>';
-  // Stat cards placeholder while loading
-  const sc=document.getElementById('stat-cards');
-  if(sc)sc.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--g400)"><div class="spinner" style="margin:0 auto 8px"></div>Connecting to database...</div>';
 }
 
 // ── STATE ────────────────────────────────────────────────────────────────────
@@ -1236,7 +1231,6 @@ async function loadDash(){
 
   // Step 2: Show dashboard IMMEDIATELY after data loads
   hidePageLoading();
-  document.getElementById('d-data').style.display='block';
 
   const shipsYr=ships.filter(r=>r.date&&r.date.startsWith(String(yr)));
   const sales=shipsYr.reduce((s,r)=>s+(r.amount_usd||0),0);
