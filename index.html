@@ -824,28 +824,39 @@ async function loadDash(){
   document.getElementById('d-data').style.display='none';
   const yr=new Date().getFullYear();
   document.getElementById('yr-badge').textContent=yr;
-  const[{data:piAll=[]},{data:cols=[]},{data:goalsAll=[]}]=await Promise.all([
-    sb.from('pi').select('*'),sb.from('collections').select('*'),
+
+  // ★ 매출 기준: Shipment date(J열) + Shipment amount(I열)
+  const[{data:ships=[]},{data:piAll=[]},{data:cols=[]},{data:goalsAll=[]}]=await Promise.all([
+    sb.from('shipments').select('*'),
+    sb.from('pi').select('*'),
+    sb.from('collections').select('*'),
     sb.from('goals').select('*').eq('year',yr)
   ]);
-  const piYr=piAll.filter(r=>r.date&&r.date.startsWith(String(yr)));
-  const sales=piYr.reduce((s,r)=>s+(r.amount_usd||0),0);
+
+  // 당해연도 선적 완료 = 매출 (date 있는 것 = 선적완료)
+  const shipsYr=ships.filter(r=>r.date&&r.date.startsWith(String(yr)));
+  const sales=shipsYr.reduce((s,r)=>s+(r.amount_usd||0),0);
   const coll=cols.reduce((s,r)=>s+(r.collected_amount_usd||0),0);
   const totalGoal=goalsAll.reduce((s,r)=>s+(r.target_amount_usd||0),0);
   const pct=totalGoal>0?Math.round(sales/totalGoal*100):0;
-  const piPending=piAll.filter(r=>r.status==='In Progress'||r.status==='Pending').length;
+  // Active PI = has no shipment date yet
+  const shippedPIs=new Set(ships.filter(r=>r.date).map(r=>r.pi_number));
+  const piPending=piAll.filter(r=>!shippedPIs.has(r.pi_number)&&r.status!=='Cancelled').length;
+  // Outstanding = invoiced but not collected
+  const totalInvoiced=cols.reduce((s,r)=>s+(r.invoice_amount_usd||0),0);
+  const outstanding=Math.max(0,totalInvoiced-coll);
 
   document.getElementById('stat-cards').innerHTML=`
-    <div class="stat-card blue"><div class="stat-label">Total Revenue (${yr})</div><div class="stat-value">$${fmt(sales)}</div><div class="stat-sub">${piYr.length} PI(s) issued</div><div class="stat-icon">📈</div></div>
+    <div class="stat-card blue"><div class="stat-label">Revenue (${yr}, Shipped)</div><div class="stat-value">$${fmt(sales)}</div><div class="stat-sub">${shipsYr.length}건 선적완료 기준</div><div class="stat-icon">📈</div></div>
     <div class="stat-card ${pct>=100?'green':pct>=70?'amber':'red'}"><div class="stat-label">Goal Achievement</div><div class="stat-value">${pct}%</div><div class="prog-wrap"><div class="prog-bar" style="width:${Math.min(pct,100)}%"></div></div><div class="stat-sub">Target $${fmt(totalGoal)}</div><div class="stat-icon">🎯</div></div>
-    <div class="stat-card green"><div class="stat-label">Collected</div><div class="stat-value">$${fmt(coll)}</div><div class="stat-sub">Payment received</div><div class="stat-icon">✅</div></div>
-    <div class="stat-card amber"><div class="stat-label">Outstanding</div><div class="stat-value">$${fmt(Math.max(0,sales-coll))}</div><div class="stat-sub">Pending collection</div><div class="stat-icon">⏳</div></div>
-    <div class="stat-card purple"><div class="stat-label">Active PI</div><div class="stat-value">${piPending}</div><div class="stat-sub">In progress / pending</div><div class="stat-icon">📋</div></div>`;
+    <div class="stat-card green"><div class="stat-label">Collected</div><div class="stat-value">$${fmt(coll)}</div><div class="stat-sub">실제 수금액</div><div class="stat-icon">✅</div></div>
+    <div class="stat-card amber"><div class="stat-label">Outstanding (A/R)</div><div class="stat-value">$${fmt(outstanding)}</div><div class="stat-sub">미수금</div><div class="stat-icon">⏳</div></div>
+    <div class="stat-card purple"><div class="stat-label">Active PI</div><div class="stat-value">${piPending}</div><div class="stat-sub">미선적 PI</div><div class="stat-icon">📋</div></div>`;
 
-  // Monthly chart
+  // Monthly chart: Shipment date 기준
   const mRev=Array(12).fill(0),mGoal=Array(12).fill(0);
   const mCols=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_usd','aug_usd','sep_usd','oct_usd','nov_usd','dec_usd'];
-  piYr.forEach(r=>{if(r.date){const m=parseInt(r.date.split('-')[1])-1;if(m>=0&&m<12)mRev[m]+=(r.amount_usd||0);}});
+  shipsYr.forEach(r=>{const m=parseInt(r.date.split('-')[1])-1;if(m>=0&&m<12)mRev[m]+=(r.amount_usd||0);});
   goalsAll.forEach(g=>mCols.forEach((c,i)=>mGoal[i]+=(g[c]||0)));
   const maxMG=Math.max(...mRev,...mGoal,1);
   document.getElementById('monthly-chart').innerHTML=`
@@ -858,13 +869,13 @@ async function loadDash(){
         <div class="mc-lbl">${m}</div>
       </div>`).join('')}</div>
     <div class="mc-legend">
-      <span><div class="dot" style="background:var(--blue)"></div>Revenue</span>
+      <span><div class="dot" style="background:var(--blue)"></div>Revenue (Shipped)</span>
       <span><div class="dot" style="background:var(--blue2);opacity:.5"></div>Goal</span>
     </div>`;
 
-  // Country chart & achievement
+  // Country chart: shipment 기준
   const byC={},goalByC={};
-  piYr.forEach(r=>{byC[r.country||'N/A']=(byC[r.country||'N/A']||0)+(r.amount_usd||0);});
+  shipsYr.forEach(r=>{byC[r.country||'N/A']=(byC[r.country||'N/A']||0)+(r.amount_usd||0);});
   goalsAll.forEach(g=>{goalByC[g.country||'N/A']=(goalByC[g.country||'N/A']||0)+(g.target_amount_usd||0);});
   const cSorted=Object.entries(byC).sort((a,b)=>b[1]-a[1]);
   const cMax=cSorted.length?cSorted[0][1]:1;
@@ -880,9 +891,9 @@ async function loadDash(){
     return`<tr><td>${c}</td><td>$${fmt(rev)}</td><td>$${fmt(goal)}</td><td class="${cls}">${ach!==null?ach+'%':'—'}</td></tr>`;
   }).join('');
 
-  // Division chart
+  // Division chart: PI의 distributor division으로 매핑
   const byDiv={};
-  piYr.forEach(r=>{
+  shipsYr.forEach(r=>{
     const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
     const div=dist?.division||'N/A';
     byDiv[div]=(byDiv[div]||0)+(r.amount_usd||0);
@@ -894,9 +905,14 @@ async function loadDash(){
     ?divS.map(([d,a])=>`<div class="bc-row"><div class="bc-label" style="width:70px">${d}</div><div class="bc-bar-bg"><div class="bc-bar" style="width:${Math.round(a/divMax*100)}%;background:${divColors[d]||'var(--purple)'}"><span>${Math.round(a/divMax*100)}%</span></div></div><div class="bc-val">$${fmt(a)}</div></div>`).join('')
     :'<p style="color:var(--g400);font-size:13px">No data</p>';
 
-  // Sales rep chart
+  // Sales rep chart: PI의 sales_rep을 shipment PI에 매핑
+  const piMap={};piAll.forEach(p=>{piMap[p.pi_number]=p;});
   const byRep={};
-  piYr.forEach(r=>{const rep=r.sales_rep||'Unassigned';byRep[rep]=(byRep[rep]||0)+(r.amount_usd||0);});
+  shipsYr.forEach(r=>{
+    const pi=piMap[r.pi_number];
+    const rep=pi?.sales_rep||'Unassigned';
+    byRep[rep]=(byRep[rep]||0)+(r.amount_usd||0);
+  });
   const repS=Object.entries(byRep).sort((a,b)=>b[1]-a[1]);
   const repMax=repS.length?repS[0][1]:1;
   document.getElementById('rep-chart').innerHTML=repS.length
@@ -1016,14 +1032,17 @@ async function loadReport(){
   document.getElementById('rep-ca-lbl').textContent=yrA;
   document.getElementById('rep-cb-lbl').textContent=yrB;
   document.getElementById('rep-monthly-title').textContent=`Monthly Revenue vs Goal — ${yrA} vs ${yrB}`;
-  const[{data:piAll=[]},{data:goalsAll=[]}]=await Promise.all([
-    sb.from('pi').select('*'),sb.from('goals').select('*')
+  const[{data:shipsAll=[]},{data:piAll=[]},{data:goalsAll=[]}]=await Promise.all([
+    sb.from('shipments').select('*'),
+    sb.from('pi').select('*'),
+    sb.from('goals').select('*')
   ]);
   let goalsA=goalsAll.filter(g=>g.year===yrA);
   let goalsB=goalsAll.filter(g=>g.year===yrB);
   if(divFilter){goalsA=goalsA.filter(g=>g.division===divFilter);goalsB=goalsB.filter(g=>g.division===divFilter);}
-  const revA=piAll.filter(r=>r.date&&r.date.startsWith(String(yrA)));
-  const revB=piAll.filter(r=>r.date&&r.date.startsWith(String(yrB)));
+  // ★ Revenue = Shipment date 기준 (선적완료 = 매출)
+  const revA=shipsAll.filter(r=>r.date&&r.date.startsWith(String(yrA)));
+  const revB=shipsAll.filter(r=>r.date&&r.date.startsWith(String(yrB)));
   const totalRevA=revA.reduce((s,r)=>s+(r.amount_usd||0),0);
   const totalRevB=revB.reduce((s,r)=>s+(r.amount_usd||0),0);
   const totalGoalA=goalsA.reduce((s,g)=>s+(g.target_amount_usd||0),0);
