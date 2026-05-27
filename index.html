@@ -575,6 +575,7 @@ tr:hover td{background:var(--g50)}
             <th class="sortable" onclick="sortTbl('hqpo','hq_po_number')">HQ PO No.</th>
             <th class="sortable" onclick="sortTbl('hqpo','issue_date')">Issue Date</th>
             <th class="sortable" onclick="sortTbl('hqpo','pi_number')">PI No.</th>
+            <th class="sortable" onclick="sortTbl('hqpo','po_number')">PO No.</th>
             <th class="sortable" onclick="sortTbl('hqpo','distributor')">Distributor</th>
             <th class="sortable" onclick="sortTbl('hqpo','country')">Country</th>
             <th class="sortable" onclick="sortTbl('hqpo','models')">Models</th>
@@ -605,8 +606,11 @@ tr:hover td{background:var(--g50)}
             <th class="sortable" onclick="sortTbl('shipments','shipment_number')">No.</th>
             <th class="sortable" onclick="sortTbl('shipments','date')">Date</th>
             <th class="sortable" onclick="sortTbl('shipments','pi_number')">PI No.</th>
+            <th class="sortable" onclick="sortTbl('shipments','hq_po_number')">HQ PO#</th>
             <th class="sortable" onclick="sortTbl('shipments','distributor')">Distributor</th>
             <th class="sortable" onclick="sortTbl('shipments','country')">Country</th>
+            <th class="sortable" onclick="sortTbl('shipments','models')">Models</th>
+            <th class="sortable" onclick="sortTbl('shipments','quantity')">Qty</th>
             <th class="sortable" onclick="sortTbl('shipments','etd')">ETD</th>
             <th class="sortable" onclick="sortTbl('shipments','eta')">ETA</th>
             <th>BL No.</th>
@@ -2094,8 +2098,8 @@ function rowHTML(page,r){
       ${isAdmin?`<button class="btn btn-danger btn-sm" onclick="delRow('pi','${r.id}')">Del</button>`:''}
     </div></td></tr>`;
   if(page==='po') return`<tr><td><strong>${r.po_number}</strong></td><td>${r.date||'-'}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td>${piLink(r.pi_number,r.pi_number)}</td><td>$${fmt(r.amount_usd)}</td><td>${pill(r.status)}</td>${acts}</tr>`;
-  if(page==='hqpo') return`<tr><td><strong>${r.hq_po_number}</strong></td><td>${r.issue_date||'-'}</td><td>${piLink(r.pi_number,r.pi_number)}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.models||'-'}</td><td>${r.quantity||'-'}</td><td>$${fmt(r.pi_total_usd)}</td><td>${pill(r.delivery_status)}</td><td>${pill(r.ship_status)}</td><td>${r.owner||'-'}</td>${acts}</tr>`;
-  if(page==='shipments') return`<tr><td>${r.shipment_number}</td><td>${r.date||'-'}</td><td>${piLink(r.pi_number,r.pi_number)}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td>${r.etd||'-'}</td><td>${r.eta||'-'}</td><td>${r.bl_number||'-'}</td><td>$${fmt(r.amount_usd)}</td><td>${pill(r.status)}</td>${acts}</tr>`;
+  if(page==='hqpo') return`<tr><td><strong>${r.hq_po_number}</strong></td><td>${r.issue_date||'-'}</td><td>${piLink(r.pi_number,r.pi_number)}</td><td>${r.po_number||'-'}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td style="font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.models||''}">${r.models||'-'}</td><td style="text-align:center">${r.quantity||'-'}</td><td><strong>$${fmt(r.pi_total_usd)}</strong></td><td>${pill(r.delivery_status)}</td><td>${pill(r.ship_status)}</td><td>${r.owner||'-'}</td>${acts}</tr>`;
+  if(page==='shipments') return`<tr><td>${r.shipment_number}</td><td>${r.date||'-'}</td><td>${piLink(r.pi_number,r.pi_number)}</td><td><strong>${r.hq_po_number||'—'}</strong></td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td style="font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.models||''}">${r.models||'-'}</td><td style="text-align:center">${r.quantity||'-'}</td><td>${r.etd||'-'}</td><td>${r.eta||'-'}</td><td>${r.bl_number||'-'}</td><td><strong>$${fmt(r.amount_usd)}</strong></td><td>${pill(r.status)}</td>${acts}</tr>`;
   if(page==='collections') return`<tr><td>${r.collection_id}</td><td>${piLink(r.pi_number,r.pi_number)}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td>$${fmt(r.invoice_amount_usd)}</td><td>$${fmt(r.collected_amount_usd)}</td><td>${r.collection_date||'-'}</td><td>${pill(r.status)}</td>${acts}</tr>`;
   if(page==='distributors'){
     const divPill=r.division==='Medical'?'<span class="pill p-blue">Medical</span>':r.division==='Dental'?'<span class="pill p-green">Dental</span>':'<span class="pill p-gray">—</span>';
