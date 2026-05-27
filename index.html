@@ -489,21 +489,21 @@ tr:hover td{background:var(--g50)}
     <div class="nav-lbl">Overview</div>
     <div class="nav-item active" data-page="dashboard"><span class="nav-icon">📊</span>Dashboard</div>
     <div class="nav-item" data-page="pipeline"><span class="nav-icon">🔄</span>Pipeline & Backlog</div>
-    <div class="nav-item" data-page="report"><span class="nav-icon">📈</span>Report</div>
+    <div class="nav-item" data-page="report" onclick="navigateTo('report')"><span class="nav-icon">📈</span>Report</div>
   </div>
   <div class="nav-sec">
     <div class="nav-lbl">Sales</div>
     <div class="nav-item" data-page="pi"><span class="nav-icon">📋</span>PI Management</div>
-    <div class="nav-item" data-page="po"><span class="nav-icon">📦</span>PO Management</div>
-    <div class="nav-item" data-page="hqpo"><span class="nav-icon">🏭</span>HQ PO</div>
+    <div class="nav-item" data-page="po" onclick="navigateTo('po')"><span class="nav-icon">📦</span>PO Management</div>
+    <div class="nav-item" data-page="hqpo" onclick="navigateTo('hqpo')"><span class="nav-icon">🏭</span>HQ PO</div>
     <div class="nav-item" data-page="shipments"><span class="nav-icon">🚢</span>Shipments</div>
-    <div class="nav-item" data-page="collections"><span class="nav-icon">💰</span>Collections</div>
+    <div class="nav-item" data-page="collections" onclick="navigateTo('collections')"><span class="nav-icon">💰</span>Collections</div>
   </div>
   <div class="nav-sec">
     <div class="nav-lbl">Master Data</div>
-    <div class="nav-item" data-page="distributors"><span class="nav-icon">🏢</span>Distributors</div>
-    <div class="nav-item" data-page="products"><span class="nav-icon">🔬</span>Products</div>
-    <div class="nav-item" data-page="goals"><span class="nav-icon">🎯</span>Annual Goals</div>
+    <div class="nav-item" data-page="distributors" onclick="navigateTo('distributors')"><span class="nav-icon">🏢</span>Distributors</div>
+    <div class="nav-item" data-page="products" onclick="navigateTo('products')"><span class="nav-icon">🔬</span>Products</div>
+    <div class="nav-item" data-page="goals" onclick="navigateTo('goals')"><span class="nav-icon">🎯</span>Annual Goals</div>
   </div>
   <div class="nav-sec" style="margin-top:auto;border-top:1px solid rgba(255,255,255,.08);padding-top:10px">
     <div class="nav-item" data-page="help"><span class="nav-icon">📖</span>User Manual</div>
@@ -1150,12 +1150,15 @@ if(sessionStorage.getItem('gl_auth')){
   const role=sessionStorage.getItem('gl_role')||'user';
   const badge=role==='admin'?' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>':'';
   document.getElementById('logged-in-user').innerHTML='👤 '+u+badge;
-  // Show d-data IMMEDIATELY on refresh so blank screen never appears
+  // Show d-data IMMEDIATELY on refresh - never blank screen
   const dd=document.getElementById('d-data');
-  if(dd)dd.style.display='block';
-  // Show topbar loading indicator
-  const tb=document.getElementById('page-title');
-  if(tb)tb.innerHTML='Dashboard <span id="tb-loading" style="font-size:11px;color:var(--g400);font-weight:400">● Loading...</span>';
+  if(dd){dd.style.display='block';}
+  // Show loading indicator in topbar
+  const ptitle=document.getElementById('page-title');
+  if(ptitle)ptitle.innerHTML='Dashboard <span id="tb-loading" style="font-size:11px;color:var(--g400);font-weight:400">● Loading...</span>';
+  // Stat cards placeholder while loading
+  const sc=document.getElementById('stat-cards');
+  if(sc)sc.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--g400)"><div class="spinner" style="margin:0 auto 8px"></div>Connecting to database...</div>';
 }
 
 // ── STATE ────────────────────────────────────────────────────────────────────
@@ -1209,7 +1212,7 @@ const fmtK=v=>v>=1000000?(v/1000000).toFixed(1)+'M':v>=1000?Math.round(v/1000)+'
 
 async function loadDash(){
   showPageLoading('Loading Dashboard...','Fetching data from database');
-  document.getElementById('d-data').style.display='none';
+  // d-data stays visible - never blank screen
 
   const yr=parseInt(document.getElementById('dash-yr')?.value||new Date().getFullYear());
   const nowMo=new Date().getMonth()+1;
