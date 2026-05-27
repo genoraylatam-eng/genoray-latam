@@ -983,8 +983,9 @@ tr[data-paid="true"] td{opacity:.55}
             <div class="search-box"><span>🔍</span><input id="distributors-search" placeholder="Search..." oninput="filterTbl('distributors')"></div>
             <select id="dist-div-filter" onchange="filterTbl('distributors')" style="padding:7px 10px;border:1px solid var(--g200);border-radius:var(--rsm);font-size:13px;background:#fff">
               <option value="">All Divisions</option>
-              <option value="Medical">Medical</option>
-              <option value="Dental">Dental</option>
+              <option value="Medical">🏥 Medical</option>
+              <option value="Dental">🦷 Dental</option>
+              <option value="Both">🏥+🦷 Both</option>
             </select>
             <button class="btn btn-primary" onclick="openForm('distributors')">+ Add Distributor</button>
           </div>
@@ -1515,7 +1516,9 @@ async function loadDash(){
   try {
     const byDiv={};
     shipsYr.forEach(r=>{const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);const div=(dist&&dist.division)||'N/A';byDiv[div]=(byDiv[div]||0)+(r.amount_usd||0);});
-    const divColors={'Medical':'var(--blue)','Dental':'var(--green)','N/A':'var(--g400)'};
+    // Distribute 'Both' revenue into Medical and Dental for chart display
+    if(byDiv['Both']){byDiv['Medical']=(byDiv['Medical']||0)+byDiv['Both'];byDiv['Dental']=(byDiv['Dental']||0)+byDiv['Both'];delete byDiv['Both'];}
+    const divColors={'Medical':'var(--blue)','Dental':'var(--green)','Both':'var(--purple)','N/A':'var(--g400)'};
     const divS=Object.entries(byDiv).sort((a,b)=>b[1]-a[1]);
     const divTotal=divS.reduce((s,[,a])=>s+a,0);const divMax=divS[0]?divS[0][1]:1;
     document.getElementById('division-chart').innerHTML=divS.length
@@ -1538,8 +1541,8 @@ async function loadDash(){
       const dist=masterCache.distributors.find(d=>d.company_name===r.distributor);
       const div=(dist&&dist.division)||'N/A'; const a=r.amount_usd||0;
       revAll[c]=(revAll[c]||0)+a;
-      if(div==='Medical')revMed[c]=(revMed[c]||0)+a;
-      if(div==='Dental')revDen[c]=(revDen[c]||0)+a;
+      if(div==='Medical'||div==='Both')revMed[c]=(revMed[c]||0)+a;
+      if(div==='Dental'||div==='Both')revDen[c]=(revDen[c]||0)+a;
     });
     const MO_COLS_=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_usd','aug_usd','sep_usd','oct_usd','nov_usd','dec_usd'];
     const goalsMap={all:{},Medical:{},Dental:{}};
@@ -2539,9 +2542,9 @@ async function loadReport(){
   const shipMatchesDivFilter=r=>{
     if(!divFilter)return true;
     const div=distDivMap[r.distributor]||'';
-    return div===divFilter;
+    return div===divFilter||div==='Both';
   };
-  const goalMatchesDivFilter=g=>!divFilter||g.division===divFilter;
+  const goalMatchesDivFilter=g=>!divFilter||g.division===divFilter||g.division==='Both';
 
   // Build revenue and goals per year
   const revByYr={}, goalsByYr={};
@@ -2888,7 +2891,11 @@ function renderGoals(){
       const q2=(r.apr_usd||0)+(r.may_usd||0)+(r.jun_usd||0);
       const q3=(r.jul_usd||0)+(r.aug_usd||0)+(r.sep_usd||0);
       const q4=(r.oct_usd||0)+(r.nov_usd||0)+(r.dec_usd||0);
-      const divPill=r.division==='Medical'?'<span class="pill p-blue">Medical</span>':r.division==='Dental'?'<span class="pill p-green">Dental</span>':'<span class="pill p-gray">—</span>';
+      const divPill=r.division==='Both'
+      ?'<span class="pill" style="background:linear-gradient(90deg,#dbeafe,#dcfce7);color:#374151;border:1px solid #c3dafe">🏥+🦷 Both</span>'
+      :r.division==='Medical'?'<span class="pill p-blue">Medical</span>'
+      :r.division==='Dental'?'<span class="pill p-green">Dental</span>'
+      :'<span class="pill p-gray">—</span>';
       return`<tr>
         <td>${r.year}</td><td>${r.country||'-'}</td><td>${r.distributor||'-'}</td>
         <td>${divPill}</td>
@@ -4058,7 +4065,7 @@ const FORMS={
     <div class="fg"><label>Code</label><input name="code" value="${esc(d.code||'')}"></div>
     <div class="fg"><label>Company Name</label><input name="company_name" value="${esc(d.company_name||'')}"></div>
     <div class="fg"><label>Country</label><input name="country" value="${esc(d.country||'')}"></div>
-    <div class="fg"><label>Division</label><select name="division">${selOpts(['Medical','Dental',''],d.division)}</select></div>
+    <div class="fg"><label>Division</label><select name="division">${selOpts(['Medical','Dental','Both',''],d.division)}</select></div>
     <div class="fg"><label>Contact Person</label><input name="contact_person" value="${esc(d.contact_person||'')}"></div>
     <div class="fg"><label>Email</label><input type="email" name="email" value="${esc(d.email||'')}"></div>
     <div class="fg"><label>Phone</label><input name="phone" value="${esc(d.phone||'')}"></div>
