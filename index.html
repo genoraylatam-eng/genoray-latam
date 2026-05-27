@@ -558,14 +558,19 @@ tr:hover td{background:var(--g50)}
           <span class="panel-title">Distributors</span>
           <div class="panel-acts">
             <div class="search-box"><span>🔍</span><input id="distributors-search" placeholder="Search..." oninput="filterTbl('distributors')"></div>
+            <select id="dist-div-filter" onchange="filterTbl('distributors')" style="padding:7px 10px;border:1px solid var(--g200);border-radius:var(--rsm);font-size:13px;background:#fff">
+              <option value="">All Divisions</option>
+              <option value="Medical">Medical</option>
+              <option value="Dental">Dental</option>
+            </select>
             <button class="btn btn-primary" onclick="openForm('distributors')">+ Add Distributor</button>
           </div>
         </div>
         <div class="tbl-wrap"><table>
           <thead><tr>
-            <th class="sortable" onclick="sortTbl('distributors','code')">Code</th>
             <th class="sortable" onclick="sortTbl('distributors','company_name')">Company</th>
             <th class="sortable" onclick="sortTbl('distributors','country')">Country</th>
+            <th class="sortable" onclick="sortTbl('distributors','division')">Division</th>
             <th class="sortable" onclick="sortTbl('distributors','contact_person')">Contact</th>
             <th>Email</th>
             <th>Address</th>
@@ -597,23 +602,41 @@ tr:hover td{background:var(--g50)}
 
     <!-- GOALS -->
     <div id="page-goals" class="page">
-      <div class="panel">
-        <div class="panel-head">
+      <!-- GOALS TOOLBAR -->
+      <div class="panel" style="margin-bottom:14px">
+        <div class="panel-head" style="flex-wrap:wrap;gap:10px">
           <span class="panel-title">Annual Sales Goals</span>
-          <button class="btn btn-primary" onclick="openForm('goals')">+ Add Goal</button>
+          <div class="panel-acts">
+            <div class="search-box"><span>🔍</span><input id="goals-search" placeholder="Search..." oninput="renderGoals()"></div>
+            <select id="goals-year" onchange="renderGoals()" style="padding:7px 10px;border:1px solid var(--g200);border-radius:var(--rsm);font-size:13px;background:#fff">
+              <option value="">All Years</option>
+              <option value="2026" selected>2026</option>
+              <option value="2025">2025</option>
+              <option value="2027">2027</option>
+            </select>
+            <select id="goals-div" onchange="renderGoals()" style="padding:7px 10px;border:1px solid var(--g200);border-radius:var(--rsm);font-size:13px;background:#fff">
+              <option value="">All Divisions</option>
+              <option value="Medical">Medical</option>
+              <option value="Dental">Dental</option>
+            </select>
+            <div style="display:flex;border:1px solid var(--g200);border-radius:var(--rsm);overflow:hidden">
+              <button id="gv-combined" class="btn" style="border-radius:0;border:none;background:var(--blue);color:#fff;padding:7px 12px;font-size:12px" onclick="setGoalView('combined')">M+D Combined</button>
+              <button id="gv-split" class="btn" style="border-radius:0;border:none;background:var(--g100);color:var(--g700);padding:7px 12px;font-size:12px" onclick="setGoalView('split')">Split by Division</button>
+            </div>
+            <button class="btn btn-primary" onclick="openGoalForm()">+ New Goal</button>
+          </div>
         </div>
-        <div class="tbl-wrap"><table>
-          <thead><tr>
-            <th class="sortable" onclick="sortTbl('goals','year')">Year</th>
-            <th class="sortable" onclick="sortTbl('goals','country')">Country</th>
-            <th class="sortable" onclick="sortTbl('goals','distributor')">Distributor</th>
-            <th class="sortable" onclick="sortTbl('goals','division')">Division</th>
-            <th class="sortable" onclick="sortTbl('goals','target_amount_usd')">Annual Target</th>
-            <th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th>
-            <th>Actions</th>
-          </tr></thead>
-          <tbody id="goals-tbody"></tbody>
-        </table></div>
+      </div>
+      <!-- GOALS SUMMARY STATS -->
+      <div class="stat-grid" id="goals-stat-cards" style="margin-bottom:14px"></div>
+      <!-- GOALS TABLE -->
+      <div class="panel">
+        <div class="tbl-wrap">
+          <table id="goals-table">
+            <thead id="goals-thead"></thead>
+            <tbody id="goals-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -631,6 +654,21 @@ tr:hover td{background:var(--g50)}
     <div class="modal-foot">
       <button class="btn btn-secondary" onclick="closeForm()">Cancel</button>
       <button class="btn btn-primary" id="save-btn" onclick="saveForm()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- GOAL FORM MODAL -->
+<div id="goal-overlay" class="overlay" onclick="if(event.target===this)closeGoalForm()">
+  <div class="modal" style="width:860px">
+    <div class="modal-head">
+      <span class="modal-title" id="goal-modal-title">New Annual Goal</span>
+      <button class="modal-close" onclick="closeGoalForm()">×</button>
+    </div>
+    <div class="modal-body" id="goal-modal-body"></div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeGoalForm()">Cancel</button>
+      <button class="btn btn-primary" id="goal-save-btn" onclick="saveGoal()">Save Goal</button>
     </div>
   </div>
 </div>
@@ -775,6 +813,7 @@ function loadPage(p){
   if(p==='dashboard')return loadDash();
   if(p==='pipeline')return loadPipeline();
   if(p==='report')return loadReport();
+  if(p==='goals')return loadGoals();
   loadTable(p);
 }
 
@@ -1038,6 +1077,299 @@ async function loadReport(){
   document.getElementById('rep-data').style.display='block';
 }
 
+// ── GOALS PAGE ────────────────────────────────────────────────────────────────
+let goalView='combined'; // 'combined' | 'split'
+let goalFS={id:null,items:[],ed:{}};
+
+function setGoalView(v){
+  goalView=v;
+  document.getElementById('gv-combined').style.background=v==='combined'?'var(--blue)':'var(--g100)';
+  document.getElementById('gv-combined').style.color=v==='combined'?'#fff':'var(--g700)';
+  document.getElementById('gv-split').style.background=v==='split'?'var(--blue)':'var(--g100)';
+  document.getElementById('gv-split').style.color=v==='split'?'#fff':'var(--g700)';
+  renderGoals();
+}
+
+// Helper: strip -M / -D suffix to get base name
+function baseName(name){return (name||'').replace(/[-–]\s*[MD]$/,'').trim();}
+
+async function loadGoals(){
+  const wrap=document.getElementById('goals-tbody');
+  if(wrap)wrap.innerHTML=`<tr><td colspan="12"><div class="spin-wrap" style="padding:32px"><div class="spinner"></div></div></td></tr>`;
+  const{data}=await sb.from('goals').select('*').order('country').order('distributor');
+  cache.goals=data||[];
+  renderGoals();
+}
+
+function renderGoals(){
+  const yrF=document.getElementById('goals-year')?.value||'';
+  const divF=document.getElementById('goals-div')?.value||'';
+  const q=document.getElementById('goals-search')?.value.toLowerCase()||'';
+  const isAdmin=sessionStorage.getItem('gl_role')==='admin';
+
+  let rows=cache.goals||[];
+  if(yrF)rows=rows.filter(r=>String(r.year)===yrF);
+  if(divF)rows=rows.filter(r=>r.division===divF);
+  if(q)rows=rows.filter(r=>['distributor','country','division','year'].some(k=>String(r[k]||'').toLowerCase().includes(q)));
+
+  const mCols=['jan_usd','feb_usd','mar_usd','apr_usd','may_usd','jun_usd','jul_usd','aug_usd','sep_usd','oct_usd','nov_usd','dec_usd'];
+
+  // Summary stats
+  const totalTarget=rows.reduce((s,r)=>s+(r.target_amount_usd||0),0);
+  const medTarget=rows.filter(r=>r.division==='Medical').reduce((s,r)=>s+(r.target_amount_usd||0),0);
+  const denTarget=rows.filter(r=>r.division==='Dental').reduce((s,r)=>s+(r.target_amount_usd||0),0);
+  document.getElementById('goals-stat-cards').innerHTML=`
+    <div class="stat-card blue"><div class="stat-label">Total Target</div><div class="stat-value">$${fmt(totalTarget)}</div><div class="stat-sub">${rows.length} entries</div></div>
+    <div class="stat-card blue"><div class="stat-label">Medical Target</div><div class="stat-value">$${fmt(medTarget)}</div><div class="stat-sub">${rows.filter(r=>r.division==='Medical').length} entries</div></div>
+    <div class="stat-card green"><div class="stat-label">Dental Target</div><div class="stat-value">$${fmt(denTarget)}</div><div class="stat-sub">${rows.filter(r=>r.division==='Dental').length} entries</div></div>`;
+
+  const thead=document.getElementById('goals-thead');
+  const tbody=document.getElementById('goals-tbody');
+
+  if(goalView==='combined'){
+    // Group M+D rows by (year, country, baseName)
+    const grouped={};
+    rows.forEach(r=>{
+      const key=`${r.year}||${r.country}||${baseName(r.distributor)}`;
+      if(!grouped[key]) grouped[key]={year:r.year,country:r.country,base:baseName(r.distributor),medical:null,dental:null};
+      if(r.division==='Medical') grouped[key].medical=r;
+      else if(r.division==='Dental') grouped[key].dental=r;
+      else grouped[key].other=r; // rows with no division
+    });
+    thead.innerHTML=`<tr>
+      <th>Year</th><th>Country</th><th>Distributor</th>
+      <th style="color:var(--blue)">Medical</th><th style="color:var(--green)">Dental</th><th>Combined Total</th>
+      <th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Actions</th></tr>`;
+    if(!Object.keys(grouped).length){tbody.innerHTML='<tr><td colspan="11"><div class="empty-state">No records</div></td></tr>';return;}
+    tbody.innerHTML=Object.values(grouped).map(g=>{
+      const medAmt=(g.medical?.target_amount_usd||0)+(g.other?.target_amount_usd||0);
+      const denAmt=g.dental?.target_amount_usd||0;
+      const combined=medAmt+denAmt;
+      const allQ=mCols.map(c=>(g.medical?.[c]||0)+(g.dental?.[c]||0)+(g.other?.[c]||0));
+      const q1=allQ.slice(0,3).reduce((a,b)=>a+b,0);
+      const q2=allQ.slice(3,6).reduce((a,b)=>a+b,0);
+      const q3=allQ.slice(6,9).reduce((a,b)=>a+b,0);
+      const q4=allQ.slice(9,12).reduce((a,b)=>a+b,0);
+      const actM=g.medical?`<button class="btn btn-secondary btn-sm" onclick="openGoalForm('${g.medical.id}')">✏️ Med</button>${isAdmin?`<button class="btn btn-danger btn-sm" onclick="delGoalRow('${g.medical.id}')">Del</button>`:''}`:
+        `<button class="btn btn-primary btn-sm" onclick="openGoalForm(null,'${g.base}','Medical','${g.country||''}','${g.year}')">+ Med</button>`;
+      const actD=g.dental?`<button class="btn btn-secondary btn-sm" onclick="openGoalForm('${g.dental.id}')">✏️ Den</button>${isAdmin?`<button class="btn btn-danger btn-sm" onclick="delGoalRow('${g.dental.id}')">Del</button>`:''}`:
+        `<button class="btn btn-primary btn-sm" onclick="openGoalForm(null,'${g.base}','Dental','${g.country||''}','${g.year}')">+ Den</button>`;
+      return`<tr>
+        <td>${g.year}</td><td>${g.country||'-'}</td><td><strong>${g.base}</strong></td>
+        <td style="color:var(--blue)">${medAmt>0?'$'+fmt(medAmt):'-'}</td>
+        <td style="color:var(--green)">${denAmt>0?'$'+fmt(denAmt):'-'}</td>
+        <td><strong>$${fmt(combined)}</strong></td>
+        <td>${q1>0?'$'+fmt(q1):'-'}</td><td>${q2>0?'$'+fmt(q2):'-'}</td>
+        <td>${q3>0?'$'+fmt(q3):'-'}</td><td>${q4>0?'$'+fmt(q4):'-'}</td>
+        <td><div class="td-acts" style="flex-wrap:wrap;gap:4px">${actM}${actD}</div></td>
+      </tr>`;
+    }).join('');
+  } else {
+    // Split view — show each row individually
+    thead.innerHTML=`<tr>
+      <th>Year</th><th>Country</th><th>Distributor</th><th>Division</th>
+      <th>Annual Target</th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Actions</th></tr>`;
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="10"><div class="empty-state">No records</div></td></tr>';return;}
+    tbody.innerHTML=rows.map(r=>{
+      const q1=(r.jan_usd||0)+(r.feb_usd||0)+(r.mar_usd||0);
+      const q2=(r.apr_usd||0)+(r.may_usd||0)+(r.jun_usd||0);
+      const q3=(r.jul_usd||0)+(r.aug_usd||0)+(r.sep_usd||0);
+      const q4=(r.oct_usd||0)+(r.nov_usd||0)+(r.dec_usd||0);
+      const divPill=r.division==='Medical'?'<span class="pill p-blue">Medical</span>':r.division==='Dental'?'<span class="pill p-green">Dental</span>':'<span class="pill p-gray">—</span>';
+      return`<tr>
+        <td>${r.year}</td><td>${r.country||'-'}</td><td>${r.distributor||'-'}</td>
+        <td>${divPill}</td>
+        <td><strong>$${fmt(r.target_amount_usd)}</strong></td>
+        <td>$${fmt(q1)}</td><td>$${fmt(q2)}</td><td>$${fmt(q3)}</td><td>$${fmt(q4)}</td>
+        <td><div class="td-acts">
+          <button class="btn btn-secondary btn-sm" onclick="openGoalForm('${r.id}')">Edit</button>
+          ${isAdmin?`<button class="btn btn-danger btn-sm" onclick="delGoalRow('${r.id}')">Del</button>`:''}
+        </div></td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+async function delGoalRow(id){
+  if(!confirm('Delete this goal entry?'))return;
+  const{error}=await sb.from('goals').delete().eq('id',id);
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast('Deleted','ok');loadGoals();
+}
+
+// ── GOAL FORM ────────────────────────────────────────────────────────────────
+function openGoalForm(id=null, prefillDist='', prefillDiv='', prefillCountry='', prefillYear=''){
+  goalFS={id,items:[],ed:{}};
+  document.getElementById('goal-modal-title').textContent=id?'Edit Annual Goal':'New Annual Goal';
+  if(id){
+    const rec=(cache.goals||[]).find(r=>r.id===id)||{};
+    goalFS.ed=rec;
+    goalFS.items=(rec.model_items||[]).length?[...rec.model_items]:[{model:'',qty:0,unit_price:0,amount:0}];
+    renderGoalForm();
+  } else {
+    goalFS.ed={year:prefillYear||new Date().getFullYear(),distributor:prefillDist,division:prefillDiv,country:prefillCountry};
+    goalFS.items=[{model:'',qty:0,unit_price:0,amount:0}];
+    renderGoalForm();
+  }
+  document.getElementById('goal-overlay').classList.add('show');
+}
+function closeGoalForm(){document.getElementById('goal-overlay').classList.remove('show');}
+
+function renderGoalForm(){
+  const d=goalFS.ed||{};
+  const mCols=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  document.getElementById('goal-modal-body').innerHTML=`
+  <div class="form-grid">
+    <div class="fg"><label>Year</label><input type="number" id="gf-year" value="${d.year||new Date().getFullYear()}"></div>
+    <div class="fg ac-wrap"><label>Distributor</label><input id="gf-dist" value="${esc(d.distributor||'')}" placeholder="Type to search..."></div>
+    <div class="fg" id="gf-country-fg"><label>Country</label><input id="gf-country" value="${esc(d.country||'')}"></div>
+    <div class="fg"><label>Division</label>
+      <select id="gf-division">
+        <option value="" ${!d.division?'selected':''}>— Select —</option>
+        <option value="Medical" ${d.division==='Medical'?'selected':''}>Medical</option>
+        <option value="Dental" ${d.division==='Dental'?'selected':''}>Dental</option>
+      </select>
+    </div>
+
+    <!-- MODEL LINE ITEMS -->
+    <div class="form-sec full" style="padding-top:12px;margin-top:4px">
+      <div class="form-sec-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Model Targets (Optional — 모델별 목표)</span>
+        <span style="font-size:11px;color:var(--g400);font-weight:400">소규모 딜러는 아래 Monthly amount만 입력해도 됩니다</span>
+      </div>
+      <table class="items-tbl">
+        <thead><tr>
+          <th style="width:5%">#</th>
+          <th style="width:35%">Model / Product</th>
+          <th style="width:15%">Annual Qty</th>
+          <th style="width:18%">Unit Price (USD)</th>
+          <th style="width:18%">Amount (USD)</th>
+          <th style="width:9%"></th>
+        </tr></thead>
+        <tbody id="goal-items-body"></tbody>
+      </table>
+      <button class="btn btn-secondary" style="margin-top:8px;font-size:12px;padding:5px 12px" onclick="addGoalLine()">+ Add Model</button>
+      <div id="goal-items-total" style="text-align:right;margin-top:6px;font-weight:700;font-size:14px;color:var(--navy)"></div>
+    </div>
+
+    <!-- MONTHLY TARGETS -->
+    <div class="form-sec full">
+      <div class="form-sec-title">Monthly Targets (USD) — 월별 목표금액</div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px">
+        ${mCols.map(m=>`<div class="fg"><label style="text-transform:capitalize">${m.charAt(0).toUpperCase()+m.slice(1)}</label><input type="number" id="gf-${m}" value="${d[m+'_usd']||0}" oninput="calcGoalMonthly()"></div>`).join('')}
+      </div>
+      <div id="gf-monthly-total" style="text-align:right;margin-top:8px;font-size:13px;color:var(--g500)">Monthly Total: $0</div>
+    </div>
+
+    <!-- ANNUAL TARGET OVERRIDE -->
+    <div class="fg full">
+      <label>Annual Target Total (USD) — 자동계산되거나 직접 입력 가능</label>
+      <input type="number" id="gf-target" value="${d.target_amount_usd||0}" style="font-size:15px;font-weight:700">
+    </div>
+  </div>`;
+
+  // Setup distributor autocomplete
+  const distInp=document.getElementById('gf-dist');
+  makeAC(distInp,masterCache.distributors,
+    d=>d.company_name+(d.country?' ('+d.country+')':''),
+    d=>{
+      distInp.value=baseName(d.company_name);
+      document.getElementById('gf-country').value=d.country||'';
+      if(d.division)document.getElementById('gf-division').value=d.division;
+    });
+
+  renderGoalLines();
+  calcGoalMonthly();
+}
+
+function renderGoalLines(){
+  const tbody=document.getElementById('goal-items-body');
+  if(!tbody)return;
+  tbody.innerHTML=goalFS.items.map((it,i)=>`
+    <tr>
+      <td style="color:var(--g400);font-size:11px;text-align:center">${i+1}</td>
+      <td class="ac-wrap"><input value="${esc(it.model||'')}" placeholder="Model name" oninput="updGoalLine(${i},'model',this.value)" id="gl-m-${i}" style="padding:6px 8px;border:1px solid var(--g300);border-radius:4px;font-size:12px;width:100%"></td>
+      <td><input type="number" value="${it.qty||0}" placeholder="0" oninput="updGoalLine(${i},'qty',this.value);calcGoalLine(${i})" style="padding:6px 8px;border:1px solid var(--g300);border-radius:4px;font-size:12px;width:100%"></td>
+      <td><input type="number" value="${it.unit_price||0}" placeholder="0" oninput="updGoalLine(${i},'unit_price',this.value);calcGoalLine(${i})" style="padding:6px 8px;border:1px solid var(--g300);border-radius:4px;font-size:12px;width:100%"></td>
+      <td class="amt-cell" id="gl-a-${i}" style="text-align:right;font-weight:600;color:var(--g700);padding-right:8px">$${fmt(it.amount||0)}</td>
+      <td><button onclick="rmGoalLine(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:2px 6px" ${goalFS.items.length<=1?'disabled':''}>×</button></td>
+    </tr>`).join('');
+  // Product autocomplete for each model input
+  goalFS.items.forEach((_,i)=>{
+    const inp=document.getElementById(`gl-m-${i}`);
+    if(inp)makeAC(inp,masterCache.products,p=>p.product_name+(p.code?' ['+p.code+']':''),p=>{
+      inp.value=p.product_name;updGoalLine(i,'model',p.product_name);
+      const row=document.getElementById(`gl-m-${i}`)?.closest('tr');
+      if(row&&p.unit_price_usd){
+        const priceInp=row.querySelectorAll('input')[2];
+        if(priceInp){priceInp.value=p.unit_price_usd;updGoalLine(i,'unit_price',p.unit_price_usd);}
+      }
+      calcGoalLine(i);
+    });
+  });
+  calcGoalItemsTotal();
+}
+
+function updGoalLine(i,f,v){if(goalFS.items[i])goalFS.items[i][f]=v;}
+function calcGoalLine(i){
+  const it=goalFS.items[i];
+  const qty=parseFloat(it.qty)||0;
+  const up=parseFloat(it.unit_price)||0;
+  it.amount=qty>0&&up>0?qty*up:(parseFloat(it.amount)||0);
+  const el=document.getElementById(`gl-a-${i}`);
+  if(el)el.textContent='$'+fmt(it.amount);
+  calcGoalItemsTotal();
+}
+function addGoalLine(){goalFS.items.push({model:'',qty:0,unit_price:0,amount:0});renderGoalLines();}
+function rmGoalLine(i){if(goalFS.items.length<=1)return;goalFS.items.splice(i,1);renderGoalLines();}
+
+function calcGoalItemsTotal(){
+  const total=goalFS.items.reduce((s,it)=>s+(parseFloat(it.amount)||0),0);
+  const el=document.getElementById('goal-items-total');
+  if(el)el.textContent=total>0?`Model Total: $${fmt(total)}`:'';
+  // If model items have values, also sync to annual target
+  if(total>0){const t=document.getElementById('gf-target');if(t)t.value=Math.round(total);}
+}
+
+function calcGoalMonthly(){
+  const mCols=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  const total=mCols.reduce((s,m)=>{const el=document.getElementById('gf-'+m);return s+(parseFloat(el?.value)||0);},0);
+  const el=document.getElementById('gf-monthly-total');
+  if(el)el.textContent=`Monthly Total: $${fmt(total)}`;
+  // Sync to annual target if model items are empty
+  const modelTotal=goalFS.items.reduce((s,it)=>s+(parseFloat(it.amount)||0),0);
+  if(modelTotal===0&&total>0){const t=document.getElementById('gf-target');if(t)t.value=Math.round(total);}
+}
+
+async function saveGoal(){
+  const btn=document.getElementById('goal-save-btn');
+  btn.textContent='Saving...';btn.disabled=true;
+  const mCols=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  const monthlyData={};
+  mCols.forEach(m=>{monthlyData[m+'_usd']=parseFloat(document.getElementById('gf-'+m)?.value)||0;});
+  const monthlyTotal=Object.values(monthlyData).reduce((s,v)=>s+v,0);
+  const modelTotal=goalFS.items.reduce((s,it)=>s+(parseFloat(it.amount)||0),0);
+  const manualTarget=parseFloat(document.getElementById('gf-target')?.value)||0;
+  const target=manualTarget||modelTotal||monthlyTotal;
+  const validItems=goalFS.items.filter(it=>it.model||(parseFloat(it.amount)||0)>0);
+  const data={
+    year:parseInt(document.getElementById('gf-year')?.value)||new Date().getFullYear(),
+    distributor:document.getElementById('gf-dist')?.value.trim()||null,
+    country:document.getElementById('gf-country')?.value.trim()||null,
+    division:document.getElementById('gf-division')?.value||null,
+    target_amount_usd:target,
+    ...monthlyData,
+    model_items:validItems.length?validItems:[]
+  };
+  const{error}=goalFS.id
+    ?await sb.from('goals').update(data).eq('id',goalFS.id)
+    :await sb.from('goals').insert(data);
+  btn.textContent='Save Goal';btn.disabled=false;
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast('Goal saved!','ok');
+  closeGoalForm();loadGoals();
+}
+
 // ── TABLE LOADER ──────────────────────────────────────────────────────────────
 async function loadTable(page){
   const tbody=document.getElementById(page+'-tbody');
@@ -1077,7 +1409,10 @@ function rowHTML(page,r){
   if(page==='hqpo') return`<tr><td><strong>${r.hq_po_number}</strong></td><td>${r.issue_date||'-'}</td><td>${piLink(r.pi_number,r.pi_number)}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.models||'-'}</td><td>${r.quantity||'-'}</td><td>$${fmt(r.pi_total_usd)}</td><td>${pill(r.delivery_status)}</td><td>${pill(r.ship_status)}</td><td>${r.owner||'-'}</td>${acts}</tr>`;
   if(page==='shipments') return`<tr><td>${r.shipment_number}</td><td>${r.date||'-'}</td><td>${piLink(r.pi_number,r.pi_number)}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td>${r.etd||'-'}</td><td>${r.eta||'-'}</td><td>${r.bl_number||'-'}</td><td>$${fmt(r.amount_usd)}</td><td>${pill(r.status)}</td>${acts}</tr>`;
   if(page==='collections') return`<tr><td>${r.collection_id}</td><td>${piLink(r.pi_number,r.pi_number)}</td><td>${r.distributor||'-'}</td><td>${r.country||'-'}</td><td>$${fmt(r.invoice_amount_usd)}</td><td>$${fmt(r.collected_amount_usd)}</td><td>${r.collection_date||'-'}</td><td>${pill(r.status)}</td>${acts}</tr>`;
-  if(page==='distributors') return`<tr><td><strong>${r.code}</strong></td><td>${r.company_name}</td><td>${r.country||'-'}</td><td>${r.contact_person||'-'}</td><td>${r.email||'-'}</td><td style="max-width:200px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.address||'-'}</td>${acts}</tr>`;
+  if(page==='distributors'){
+    const divPill=r.division==='Medical'?'<span class="pill p-blue">Medical</span>':r.division==='Dental'?'<span class="pill p-green">Dental</span>':'<span class="pill p-gray">—</span>';
+    return`<tr><td><strong>${r.company_name}</strong><br><span style="font-size:10px;color:var(--g400)">${r.code||''}</span></td><td>${r.country||'-'}</td><td>${divPill}</td><td>${r.contact_person||'-'}</td><td>${r.email||'-'}</td><td style="max-width:180px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.address||'-'}</td>${acts}</tr>`;
+  }
   if(page==='products') return`<tr><td><strong>${r.code}</strong></td><td>${r.product_name}</td><td>$${fmt(r.unit_price_usd)}</td>${acts}</tr>`;
   if(page==='goals'){
     const q1=(r.jan_usd||0)+(r.feb_usd||0)+(r.mar_usd||0);
@@ -1089,8 +1424,13 @@ function rowHTML(page,r){
 }
 
 function filterTbl(page){
-  const q=document.getElementById(page+'-search').value.toLowerCase();
-  const filtered=(cache[page]||[]).filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q)));
+  const q=(document.getElementById(page+'-search')?.value||'').toLowerCase();
+  let rows=cache[page]||[];
+  if(page==='distributors'){
+    const divF=document.getElementById('dist-div-filter')?.value||'';
+    if(divF)rows=rows.filter(r=>r.division===divF);
+  }
+  const filtered=q?rows.filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q))):rows;
   sortState[page]?renderTbl(page,applySortToRows(page,filtered)):renderTbl(page,filtered);
 }
 
@@ -1642,14 +1982,10 @@ const FORMS={
     <div class="fg"><label>Product Name</label><input name="product_name" value="${esc(d.product_name||'')}"></div>
     <div class="fg full"><label>Unit Price (USD)</label><input type="number" name="unit_price_usd" value="${d.unit_price_usd||''}"></div>
   </div>`,
-  goals:d=>`<div class="form-grid">
-    <div class="fg"><label>Year</label><input type="number" name="year" value="${d.year||new Date().getFullYear()}"></div>
-    ${acDistFg('ac-gl',d.distributor||'')}${cntryFg('cnt-gl',d.country||'')}
-    <div class="fg"><label>Target Amount (USD)</label><input type="number" name="target_amount_usd" value="${d.target_amount_usd||''}"></div>
-  </div>`
+  goals:d=>'' // Goals use separate openGoalForm() modal
 };
 
-const MTITLES={po:'Purchase Order',hqpo:'HQ PO',shipments:'Shipment',collections:'Collection',distributors:'Distributor',products:'Product',goals:'Annual Goal'};
+const MTITLES={po:'Purchase Order',hqpo:'HQ PO',shipments:'Shipment',collections:'Collection',distributors:'Distributor',products:'Product'};
 
 async function openForm(page,id=null){
   formState={table:tbl(page),page,id};
