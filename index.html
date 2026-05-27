@@ -1206,6 +1206,7 @@ async function loadDash(){
   if(moSel&&!moSel._inited){moSel.value=String(nowMo);moSel._inited=true;}
 
   // Step 1: Fetch all data
+  setStatus('Step 3: Fetching sales data ('+yr+')...');
   let ships=[],piAll=[],cols=[],goalsAll=[];
   try {
     const [sd,pd,cd,gd]=await Promise.all([
@@ -1214,9 +1215,13 @@ async function loadDash(){
       sb.from('collections').select('*'),
       sb.from('goals').select('*').eq('year',yr)
     ]);
+    if(sd.error)throw new Error('Shipments error: '+(sd.error.message||'unknown'));
+    if(pd.error)throw new Error('PI error: '+(pd.error.message||'unknown'));
     ships=sd.data||[]; piAll=pd.data||[]; cols=cd.data||[]; goalsAll=gd.data||[];
+    setStatus('Step 4: Rendering '+ships.length+' shipments, '+piAll.length+' PIs...');
   } catch(fetchErr){
-    showPloError('Cannot load data','Check your internet connection.\n'+fetchErr.message);
+    setStatus('Data fetch failed: '+fetchErr.message, true);
+    console.error('loadDash fetch:', fetchErr);
     return;
   }
 
@@ -3905,29 +3910,35 @@ function resetTimer(){
   document.addEventListener(evt, resetTimer, {passive:true})
 );
 
+function setStatus(msg, isErr){
+  const sc=document.getElementById('stat-cards');
+  if(!sc)return;
+  const col=isErr?'#dc2626':'#2563eb';
+  sc.innerHTML='<div style="grid-column:1/-1;padding:20px;text-align:center;color:'+col+';font-size:13px;font-weight:600">'+(isErr?'⚠️ ':'⏳ ')+msg+'</div>';
+}
+
 async function init(){
   const user=sessionStorage.getItem('gl_auth')||'';
   const role=sessionStorage.getItem('gl_role')||'user';
   const badge=role==='admin'?' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>':'';
-  document.getElementById('logged-in-user').innerHTML=user?'👤 '+user+badge:'';
-  document.getElementById('yr-badge').textContent=new Date().getFullYear();
-  showPageLoading('Connecting...','Loading Genoray LATAM');
+  const lui=document.getElementById('logged-in-user');
+  if(lui)lui.innerHTML=user?'👤 '+user+badge:'';
+  const yb=document.getElementById('yr-badge');
+  if(yb)yb.textContent=new Date().getFullYear();
+
+  setStatus('Step 1: Connecting to database...');
   try {
-    const[{data:dists,error:e1},{data:prods,error:e2}]=await Promise.all([
-      sb.from('distributors').select('*').order('company_name'),
-      sb.from('products').select('*').order('product_name')
-    ]);
-    if(e1||e2) throw new Error((e1||e2).message);
-    masterCache.distributors=dists||[];
-    masterCache.products=prods||[];
+    const r1=await sb.from('distributors').select('*').order('company_name');
+    const r2=await sb.from('products').select('*').order('product_name');
+    if(r1.error)throw new Error('Distributors: '+r1.error.message);
+    if(r2.error)throw new Error('Products: '+r2.error.message);
+    masterCache.distributors=r1.data||[];
+    masterCache.products=r2.data||[];
+    setStatus('Step 2: Data connected ('+r1.data.length+' distributors). Loading dashboard...');
     loadDash();
   } catch(err) {
-    const sc=document.getElementById('stat-cards');
-    if(sc)sc.innerHTML='<div style="grid-column:1/-1;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:16px 20px">'
-      +'<div style="font-size:14px;font-weight:700;color:#dc2626;margin-bottom:6px">⚠️ Cannot connect to database</div>'
-      +'<div style="font-size:12px;color:#7f1d1d;margin-bottom:12px">'+err.message+'</div>'
-      +'<button onclick="location.reload()" style="padding:8px 18px;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">🔄 Reload</button>'
-      +'</div>';
+    setStatus('Connection failed: '+err.message, true);
+    console.error('init() error:', err);
   }
 }
 
