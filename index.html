@@ -542,6 +542,15 @@ tr:hover td{background:var(--g50)}
       <div id="d-data">
         <!-- Stat Cards -->
         <div class="stat-grid" id="stat-cards"></div>
+        <!-- Dashboard Drill-Down Panel -->
+        <div id="dash-drill" style="display:none;background:#fff;border-radius:var(--rlg);box-shadow:var(--sh);margin-bottom:16px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--g100)">
+            <span id="dash-drill-title" style="font-size:14px;font-weight:700;color:var(--g900)">Detail</span>
+            <button onclick="document.getElementById('dash-drill').style.display='none'" style="background:none;border:none;font-size:18px;color:var(--g400);cursor:pointer;padding:0 4px;line-height:1">×</button>
+          </div>
+          <div class="tbl-wrap"><table><thead id="dash-drill-head"></thead><tbody id="dash-drill-body"></tbody></table></div>
+          <div id="dash-drill-footer" style="padding:10px 20px;text-align:right;font-size:13px;font-weight:700;color:var(--g700);border-top:1px solid var(--g100)"></div>
+        </div>
 
         <!-- Monthly Chart -->
         <div class="panel" style="margin-bottom:16px">
@@ -1294,13 +1303,22 @@ async function loadDash(){
   // KPI Cards
   try {
     if(!document.getElementById('stat-cards'))throw new Error('stat-cards element missing');
-    document.getElementById('stat-cards').innerHTML=[
-      ['blue','📈','Revenue ('+yr+', Shipped)','$'+fmt(sales),shipsYr.length+' shipments'],
-      [pct>=100?'green':pct>=70?'amber':'red','🎯','Goal Achievement',pct+'%','Target $'+fmt(totalGoal)],
-      ['green','✅','Collected','$'+fmt(coll),'Cash received'],
-      ['amber','⏳','Outstanding (A/R)','$'+fmt(outstanding),'Unpaid balance'],
-      ['purple','📋','Active PI',piPending,'Unshipped PIs']
-    ].map(([c,ic,lbl,val,sub])=>'<div class="stat-card '+c+'"><div class="stat-label">'+lbl+'</div><div class="stat-value">'+val+'</div><div class="stat-sub">'+sub+'</div><div class="stat-icon">'+ic+'</div></div>').join('');
+    // Store data for drill-down
+    window._dashDrill={shipsYr, cols, piAll, piMap, yr, shippedPIs};
+
+    // KPI cards - clickable (except Goal Achievement)
+    const kpiCard=(c,ic,lbl,val,sub,drillKey)=>{
+      const clickable=drillKey?'cursor:pointer':'';
+      const hint=drillKey?'<span style="font-size:9px;opacity:.5;margin-left:4px">▼ 내역</span>':'';
+      const onclick=drillKey?`onclick="showDashDrill('${drillKey}')" `:'';
+      return`<div class="stat-card ${c}" style="${clickable}" ${onclick}title="${drillKey?'클릭하여 내역 보기':''}"><div class="stat-label">${lbl}</div><div class="stat-value">${val}${hint}</div><div class="stat-sub">${sub}</div><div class="stat-icon">${ic}</div></div>`;
+    };
+    document.getElementById('stat-cards').innerHTML=
+      kpiCard('blue','📈','Revenue ('+yr+', Shipped)','$'+fmt(sales),shipsYr.length+' shipments','revenue')+
+      kpiCard(pct>=100?'green':pct>=70?'amber':'red','🎯','Goal Achievement',pct+'%','Target $'+fmt(totalGoal),'')+
+      kpiCard('green','✅','Collected','$'+fmt(coll),'Cash received','collected')+
+      kpiCard('amber','⏳','Outstanding (A/R)','$'+fmt(outstanding),'Unpaid balance','outstanding')+
+      kpiCard('purple','📋','Active PI',piPending,'Unshipped PIs','activepi');
   } catch(e){ console.error('stat-cards error:',e); }
 
   // Monthly chart data
@@ -1548,6 +1566,89 @@ function renderCompareChart(years,yearData,colors,colorsLight){
 }
 
 
+function showDashDrill(key){
+  const D=window._dashDrill; if(!D)return;
+  const panel=document.getElementById('dash-drill');
+  const head=document.getElementById('dash-drill-head');
+  const body=document.getElementById('dash-drill-body');
+  const footer=document.getElementById('dash-drill-footer');
+  const title=document.getElementById('dash-drill-title');
+  if(!panel)return;
+
+  let rows=[], headHTML='', footHTML='', titleStr='';
+
+  if(key==='revenue'){
+    titleStr=`Revenue ${D.yr} — Shipment Detail (${D.shipsYr.length} records)`;
+    headHTML='<tr><th>Date</th><th>PI Number</th><th>Distributor</th><th>Country</th><th>Model</th><th>Qty</th><th style="text-align:right">Amount</th></tr>';
+    const sorted=[...D.shipsYr].sort((a,b)=>(a.date||'')>(b.date||'')?1:-1);
+    rows=sorted.map(s=>`<tr>
+      <td>${(s.date||'').slice(0,10)}</td>
+      <td><strong style="color:var(--blue)">${s.pi_number||'—'}</strong></td>
+      <td>${s.distributor||'—'}</td><td>${s.country||'—'}</td>
+      <td style="font-size:12px">${s.models||'—'}</td>
+      <td style="text-align:center">${s.quantity||'—'}</td>
+      <td style="text-align:right;font-weight:700">$${fmt(s.amount_usd||0)}</td>
+    </tr>`);
+    const total=D.shipsYr.reduce((s,r)=>s+(r.amount_usd||0),0);
+    footHTML=`Total Revenue: <span style="color:var(--blue)">$${fmt(total)}</span> &nbsp;|&nbsp; ${D.shipsYr.length} shipments`;
+
+  } else if(key==='collected'){
+    const recs=D.cols.filter(c=>c.collected_amount_usd>0);
+    titleStr=`Collected — ${recs.length} records`;
+    headHTML='<tr><th>PI Number</th><th>Distributor</th><th>Invoice Amt</th><th style="text-align:right">Collected</th></tr>';
+    rows=recs.sort((a,b)=>(b.collected_amount_usd||0)-(a.collected_amount_usd||0))
+      .map(c=>`<tr>
+        <td><strong style="color:var(--green)">${c.pi_number||'—'}</strong></td>
+        <td>${c.distributor||'—'}</td>
+        <td>$${fmt(c.invoice_amount_usd||0)}</td>
+        <td style="text-align:right;font-weight:700;color:var(--green)">$${fmt(c.collected_amount_usd||0)}</td>
+      </tr>`);
+    const total=recs.reduce((s,c)=>s+(c.collected_amount_usd||0),0);
+    footHTML=`Total Collected: <span style="color:var(--green)">$${fmt(total)}</span>`;
+
+  } else if(key==='outstanding'){
+    const recs=D.cols.filter(c=>(c.invoice_amount_usd||0)>(c.collected_amount_usd||0));
+    titleStr=`Outstanding (A/R) — ${recs.length} records`;
+    headHTML='<tr><th>PI Number</th><th>Distributor</th><th>Invoice Amt</th><th>Collected</th><th style="text-align:right">Outstanding</th></tr>';
+    rows=recs.sort((a,b)=>((b.invoice_amount_usd||0)-(b.collected_amount_usd||0))-((a.invoice_amount_usd||0)-(a.collected_amount_usd||0)))
+      .map(c=>{
+        const out=Math.max(0,(c.invoice_amount_usd||0)-(c.collected_amount_usd||0));
+        return`<tr>
+          <td><strong style="color:var(--amber)">${c.pi_number||'—'}</strong></td>
+          <td>${c.distributor||'—'}</td>
+          <td>$${fmt(c.invoice_amount_usd||0)}</td>
+          <td>$${fmt(c.collected_amount_usd||0)}</td>
+          <td style="text-align:right;font-weight:700;color:var(--amber)">$${fmt(out)}</td>
+        </tr>`;
+      });
+    const total=recs.reduce((s,c)=>s+Math.max(0,(c.invoice_amount_usd||0)-(c.collected_amount_usd||0)),0);
+    footHTML=`Total Outstanding: <span style="color:var(--amber)">$${fmt(total)}</span>`;
+
+  } else if(key==='activepi'){
+    const active=D.piAll.filter(p=>!D.shippedPIs.has(p.pi_number)&&p.status!=='Cancelled');
+    titleStr=`Active PI (Unshipped) — ${active.length} records`;
+    headHTML='<tr><th>PI Number</th><th>Date</th><th>Distributor</th><th>Country</th><th>Status</th><th style="text-align:right">Amount</th></tr>';
+    rows=active.sort((a,b)=>(b.amount_usd||0)-(a.amount_usd||0))
+      .map(p=>`<tr>
+        <td><strong style="color:var(--purple)">${p.pi_number||'—'}</strong></td>
+        <td>${(p.date||'').slice(0,10)||'—'}</td>
+        <td>${p.distributor||'—'}</td>
+        <td>${p.country||'—'}</td>
+        <td>${pill(p.status||'Pending')}</td>
+        <td style="text-align:right;font-weight:700">$${fmt(p.amount_usd||0)}</td>
+      </tr>`);
+    const total=active.reduce((s,p)=>s+(p.amount_usd||0),0);
+    footHTML=`Total Active PI Value: <span style="color:var(--purple)">$${fmt(total)}</span> &nbsp;|&nbsp; ${active.length} PIs`;
+  }
+
+  title.textContent=titleStr;
+  head.innerHTML=headHTML;
+  body.innerHTML=rows.length?rows.join(''):'<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--g400)">No data</td></tr>';
+  footer.innerHTML=footHTML;
+  panel.style.display='block';
+  setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'nearest'}),50);
+}
+
 function renderMonthlyChart(){
   const D=window._mcData; if(!D)return;
   const div=window._mcTab||'all';
@@ -1614,6 +1715,12 @@ function renderMonthlyChart(){
       if(rh>16)bars+='<text x="'+(cx+bw/2+0.5).toFixed(1)+'" y="'+(ry-2).toFixed(1)+'"'
         +' text-anchor="middle" font-size="6.5" fill="'+(isCur?'#1e40af':'#3b82f6')+'" font-weight="600">$'+fmtK(mRev[i])+'</text>';
     }
+    // Goal bar value label
+    if(mGoal[i]>0){
+      const gh=cH*(mGoal[i]/barMax), gy2=pT+cH-gh;
+      if(gh>14)bars+='<text x="'+(cx-bw/2-0.5).toFixed(1)+'" y="'+(gy2-2).toFixed(1)+'"'
+        +' text-anchor="middle" font-size="6" fill="'+(isFut?'#c7d9ef':'#93c5fd')+'" font-weight="600">$'+fmtK(mGoal[i])+'</text>';
+    }
     if(isCur)bars='<rect x="'+(pL+colW*i+1).toFixed(1)+'" y="'+pT+'" width="'+(colW-2).toFixed(1)+'" height="'+cH+'" fill="rgba(59,130,246,0.05)" rx="2"/>'+bars;
   }
   svg+='<g clip-path="url(#mc-cp)">'+bars+'</g>';
@@ -1627,6 +1734,19 @@ function renderMonthlyChart(){
   svg+='<g clip-path="url(#mc-cp)">';
   if(cumGoalArr.length>=2)svg+='<path d="'+gPath+'" fill="none" stroke="#93c5fd" stroke-width="1" stroke-dasharray="3,2.5"/>';
   if(cumRevArr.length>=2)svg+='<path d="'+rPath+'" fill="none" stroke="#1d4ed8" stroke-width="1.1"/>';
+  // Dots on cumulative GOAL line (all 12 months)
+  cumGoalArr.forEach((v,i)=>{
+    const cx=(pL+colW*i+colW/2).toFixed(1);
+    const cy=cumY(v).toFixed(1);
+    const isLast=i===11;
+    svg+='<circle cx="'+cx+'" cy="'+cy+'" r="'+(isLast?2.5:1.5)+'" fill="'+(isLast?'#3b82f6':'#93c5fd')+'" stroke="#fff" stroke-width="0.8" opacity="0.8"/>';
+    // Show goal label at end of each quarter + last month
+    if(isLast||i===2||i===5||i===8){
+      const lx=parseFloat(cx), ly=parseFloat(cy);
+      svg+='<text x="'+(lx+4)+'" y="'+(Math.max(ly-2,pT+7)).toFixed(1)+'"'
+        +' font-size="7" fill="#93c5fd" font-weight="600">$'+fmtK(v)+'</text>';
+    }
+  });
   // Dots on revenue line
   cumRevArr.forEach((v,i)=>{
     const isLast=i===cumRevArr.length-1;
