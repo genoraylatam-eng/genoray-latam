@@ -1092,59 +1092,158 @@ function renderMonthlyChart(){
   const div=window._mcTab||'all';
   const yr=window._mcYr||2026;
   const curMo=window._curMo||new Date().getMonth();
-  const mRev=D[div]?D[div].rev:[...Array(12)].fill(0);
-  const mGoal=D[div]?D[div].goal:[...Array(12)].fill(0);
-  const maxMG=Math.max(...mRev,...mGoal,1);
+  const mRev=D[div]?[...D[div].rev]:[...Array(12)].fill(0);
+  const mGoal=D[div]?[...D[div].goal]:[...Array(12)].fill(0);
+  const annGoal=mGoal.reduce((a,b)=>a+b,0);
   const ytdRev=mRev.slice(0,curMo+1).reduce((a,b)=>a+b,0);
   const ytdGoal=mGoal.slice(0,curMo+1).reduce((a,b)=>a+b,0);
-  const annGoal=mGoal.reduce((a,b)=>a+b,0);
   const pct=annGoal>0?Math.round(ytdRev/annGoal*100):0;
   const pYtd=ytdGoal>0?Math.round(ytdRev/ytdGoal*100):0;
   const divLabel={'all':'전체 (All)','Medical':'Medical','Dental':'Dental'}[div]||div;
   document.getElementById('dash-monthly-title').textContent='Monthly Revenue vs Goal — '+divLabel+' ('+yr+')';
 
-  const el=document.getElementById('monthly-chart');
-  el.innerHTML=
-    // Column chart
-    '<div class="mc-bars">'+MONTHS.map((m,i)=>{
-      const rh=Math.round(mRev[i]/maxMG*100);
-      const gh=Math.round(mGoal[i]/maxMG*100);
-      const isCur=i===curMo;
-      const hasRev=mRev[i]>0;
-      const hasGoal=mGoal[i]>0;
-      const tooltip=m+' Revenue: $'+fmt(mRev[i])+' / Goal: $'+fmt(mGoal[i])+(hasGoal?(' / Ach: '+(Math.round(mRev[i]/mGoal[i]*100))+'%'):'');
-      return '<div class="mc-col">'
-        // Revenue label on top
-        +'<div class="mc-val-top" style="color:'+(hasRev?'var(--blue)':'var(--g300)')+';">'
-        +(hasRev?'<span style="font-size:9px;font-weight:800">$'+fmtK(mRev[i])+'</span>':'')
-        +'</div>'
-        // Bar area
-        +'<div class="mc-bar-wrap" title="'+tooltip+'">'
-        +'<div class="mc-bar-goal" style="height:'+gh+'%"></div>'
-        +'<div class="mc-bar-rev" style="height:'+rh+'%"></div>'
-        +'</div>'
-        // Goal label below month name
-        +'<div class="mc-lbl" style="'+(isCur?'color:var(--blue);font-weight:700':'')+'">'+(isCur?'▶':'')+m+'</div>'
-        +'<div style="font-size:8.5px;color:var(--g400);text-align:center;white-space:nowrap;margin-top:1px">'
-        +(hasGoal?'<span style="color:rgba(59,130,246,.6)">$'+fmtK(mGoal[i])+'</span>':'')
-        +'</div>'
-        +'</div>';
-    }).join('')+'</div>'
-    // Legend + summary
-    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:6px;border-top:1px solid var(--g100)">'
-    +'<div class="mc-legend">'
-    +'<span><div class="dot" style="background:var(--blue)"></div>Revenue (상단 파란 숫자)</span>'
-    +'<span><div class="dot" style="background:rgba(59,130,246,.25)"></div>Goal (하단 회색 숫자)</span>'
-    +'</div>'
-    +'<div style="display:flex;gap:16px;font-size:11px">'
-    +'<span style="color:var(--g500)">YTD Revenue: <strong style="color:var(--blue)">$'+fmt(ytdRev)+'</strong></span>'
-    +'<span style="color:var(--g500)">YTD Goal: <strong style="color:var(--g700)">$'+fmt(ytdGoal)+'</strong></span>'
-    +'<span style="color:var(--g500)">YTD Ach: <strong style="color:'+(pYtd>=100?'var(--green)':pYtd>=70?'var(--amber)':'var(--red)')+'">'+pYtd+'%</strong></span>'
-    +'<span style="color:var(--g500)">Annual Goal: <strong style="color:var(--g700)">$'+fmt(annGoal)+'</strong></span>'
-    +'<span style="color:var(--g500)">Annual Ach: <strong style="color:'+(pct>=100?'var(--green)':pct>=70?'var(--amber)':'var(--red)')+'">'+pct+'%</strong></span>'
-    +'</div>'
+  // ── SVG Chart ──
+  const W=860, H=220;
+  const padL=48, padR=16, padT=30, padB=52;
+  const chartW=W-padL-padR;
+  const chartH=H-padT-padB;
+  const maxVal=Math.max(...mRev,...mGoal,1);
+  const colW=chartW/12;
+  const barW=colW*0.32;
+  const gap=colW*0.06;
+
+  // Cumulative lines
+  let cumRev=0, cumGoal=0;
+  const cumRevPts=[], cumGoalPts=[];
+  for(let i=0;i<=curMo;i++){
+    cumRev+=mRev[i]; cumGoal+=mGoal[i];
+    const x=padL+colW*i+colW/2;
+    const yR=padT+chartH-(cumRev/maxVal)*chartH;
+    const yG=padT+chartH-(cumGoal/maxVal)*chartH;
+    cumRevPts.push([x,yR]);
+    cumGoalPts.push([x,yG]);
+  }
+  const pts2path=pts=>pts.length<2?'':pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+
+  // Y-axis gridlines
+  const nGrids=4;
+  let grids='';
+  for(let i=0;i<=nGrids;i++){
+    const y=padT+chartH*(1-i/nGrids);
+    const val=maxVal*i/nGrids;
+    grids+='<line x1="'+padL+'" y1="'+y.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+y.toFixed(1)+'" stroke="#e5e7eb" stroke-width="1"/>';
+    grids+='<text x="'+(padL-6)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end" font-size="9" fill="#9ca3af">$'+fmtK(val)+'</text>';
+  }
+
+  // Bars
+  let bars='';
+  for(let i=0;i<12;i++){
+    const x=padL+colW*i;
+    const cx=x+colW/2;
+    const isCur=i===curMo;
+    const hasFuture=i>curMo;
+
+    // Goal bar (always, full year planned)
+    const gh=mGoal[i]/maxVal*chartH;
+    const gy=padT+chartH-gh;
+    if(mGoal[i]>0){
+      bars+='<rect x="'+(cx-barW-gap/2).toFixed(1)+'" y="'+gy.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+gh.toFixed(1)+'"'
+        +' fill="'+(hasFuture?'#e5e7eb':'rgba(59,130,246,0.2)')+'" rx="2"/>';
+      // Goal amount label
+      if(mGoal[i]>0 && chartH>40){
+        bars+='<text x="'+(cx-barW/2-gap/2).toFixed(1)+'" y="'+(gy-3).toFixed(1)+'" text-anchor="middle" font-size="8" fill="#9ca3af">$'+fmtK(mGoal[i])+'</text>';
+      }
+    }
+
+    // Revenue bar (only up to current month)
+    if(!hasFuture && mRev[i]>0){
+      const rh=mRev[i]/maxVal*chartH;
+      const ry=padT+chartH-rh;
+      bars+='<rect x="'+(cx+gap/2).toFixed(1)+'" y="'+ry.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+rh.toFixed(1)+'"'
+        +' fill="'+(isCur?'#1d4ed8':'#3b82f6')+'" rx="2"/>';
+      // Revenue amount label
+      bars+='<text x="'+(cx+barW/2+gap/2).toFixed(1)+'" y="'+(ry-3).toFixed(1)+'" text-anchor="middle" font-size="8" font-weight="700" fill="'+(isCur?'#1d4ed8':'#3b82f6')+'">$'+fmtK(mRev[i])+'</text>';
+    } else if(!hasFuture && mGoal[i]>0){
+      // No revenue this month — show dash
+      bars+='<text x="'+(cx+barW/2+gap/2).toFixed(1)+'" y="'+(padT+chartH-4).toFixed(1)+'" text-anchor="middle" font-size="9" fill="#d1d5db">—</text>';
+    }
+
+    // Current month highlight
+    if(isCur){
+      bars+='<rect x="'+(x+2).toFixed(1)+'" y="'+padT+'" width="'+(colW-4).toFixed(1)+'" height="'+chartH+'" fill="rgba(59,130,246,0.04)" rx="2"/>';
+    }
+
+    // Month label
+    bars+='<text x="'+cx.toFixed(1)+'" y="'+(padT+chartH+14)+'" text-anchor="middle" font-size="9" fill="'+(isCur?'#2563eb':'#9ca3af')+'" font-weight="'+(isCur?'700':'400')+'">'+MONTHS[i]+'</text>';
+  }
+
+  // Achievement % labels per month (small, below month name)
+  let achLabels='';
+  for(let i=0;i<=curMo;i++){
+    if(mGoal[i]>0 && mRev[i]>0){
+      const pctM=Math.round(mRev[i]/mGoal[i]*100);
+      const cx=padL+colW*i+colW/2;
+      const col=pctM>=100?'#16a34a':pctM>=70?'#d97706':'#dc2626';
+      achLabels+='<text x="'+cx.toFixed(1)+'" y="'+(padT+chartH+26)+'" text-anchor="middle" font-size="8.5" fill="'+col+'" font-weight="600">'+pctM+'%</text>';
+    }
+  }
+
+  // Cumulative line paths
+  const lineRevPath=pts2path(cumRevPts);
+  const lineGoalPath=pts2path(cumGoalPts);
+  let lines='';
+  if(cumRevPts.length>=2){
+    lines+='<path d="'+lineGoalPath+'" fill="none" stroke="rgba(59,130,246,0.4)" stroke-width="1.5" stroke-dasharray="4,3"/>';
+    lines+='<path d="'+lineRevPath+'" fill="none" stroke="#1d4ed8" stroke-width="2"/>';
+    // Dots
+    cumRevPts.forEach(([x,y],i)=>{
+      lines+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="#1d4ed8"/>';
+    });
+    cumGoalPts.forEach(([x,y],i)=>{
+      lines+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="2.5" fill="rgba(59,130,246,0.5)"/>';
+    });
+    // YTD cumulative label at last point
+    const [lx,ly]=cumRevPts[cumRevPts.length-1];
+    lines+='<text x="'+(lx+6)+'" y="'+(ly+4)+'" font-size="9" fill="#1d4ed8" font-weight="700">YTD $'+fmtK(ytdRev)+'</text>';
+  }
+
+  const svg='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">'
+    +'<defs><clipPath id="chart-clip"><rect x="'+padL+'" y="'+padT+'" width="'+chartW+'" height="'+chartH+'"/></clipPath></defs>'
+    +grids
+    +'<g clip-path="url(#chart-clip)">'+bars+lines+'</g>'
+    // unclipped labels
+    +bars.replace(/<rect[^>]*\/>/g,'')  // just texts outside clip - actually we redraw labels unclipped below
+    +achLabels
+    +'</svg>';
+
+  // Summary strip
+  const pctColor=p=>p>=100?'#16a34a':p>=70?'#d97706':'#dc2626';
+  const summary='<div style="display:flex;gap:0;background:var(--g50);border-radius:0 0 var(--rlg) var(--rlg);border-top:1px solid var(--g100)">'
+    +[['YTD Revenue','$'+fmt(ytdRev),'선적완료 기준','#3b82f6'],
+      ['YTD Goal ('+MONTHS[curMo]+'까지)','$'+fmt(ytdGoal),'누적 월별목표','#6b7280'],
+      ['YTD 달성률',pYtd+'%','vs YTD Goal',pctColor(pYtd)],
+      ['Annual Goal','$'+fmt(annGoal),yr+'년 연간목표','#6b7280'],
+      ['Annual 달성률',pct+'%','vs Annual Goal',pctColor(pct)]
+    ].map(([l,v,s,c])=>'<div style="flex:1;text-align:center;padding:10px 6px;border-right:1px solid var(--g200)">'
+      +'<div style="font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px">'+l+'</div>'
+      +'<div style="font-size:15px;font-weight:800;color:'+c+'">'+v+'</div>'
+      +'<div style="font-size:10px;color:#9ca3af;margin-top:1px">'+s+'</div>'
+    +'</div>').join('')
     +'</div>';
+
+  // Legend
+  const legend='<div style="display:flex;gap:20px;font-size:11px;color:#6b7280;padding:8px 0 4px;align-items:center">'
+    +'<span style="display:flex;align-items:center;gap:5px"><svg width="14" height="10"><rect x="0" y="2" width="14" height="8" rx="2" fill="#3b82f6"/></svg>Revenue (실적)</span>'
+    +'<span style="display:flex;align-items:center;gap:5px"><svg width="14" height="10"><rect x="0" y="2" width="14" height="8" rx="2" fill="rgba(59,130,246,0.2)"/></svg>Goal (목표)</span>'
+    +'<span style="display:flex;align-items:center;gap:5px"><svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="#1d4ed8" stroke-width="2"/><circle cx="10" cy="5" r="2.5" fill="#1d4ed8"/></svg>누적 Revenue (선)</span>'
+    +'<span style="display:flex;align-items:center;gap:5px"><svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="rgba(59,130,246,0.5)" stroke-width="1.5" stroke-dasharray="4,3"/><circle cx="10" cy="5" r="2" fill="rgba(59,130,246,0.5)"/></svg>누적 Goal (점선)</span>'
+    +'<span style="color:#9ca3af;font-size:10px;margin-left:auto">월 이름 아래 % = 해당월 달성률</span>'
+    +'</div>';
+
+  document.getElementById('monthly-chart').innerHTML=legend+'<div style="overflow-x:auto">'+svg+'</div>'+summary;
 }
+
+
 
 function setAchTab(div){
   window._achTab=div;
