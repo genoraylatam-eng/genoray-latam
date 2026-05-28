@@ -1142,9 +1142,13 @@ tr[data-paid="true"] td{opacity:.55}
           style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
           📢 Announcements
         </button>
-        <button id="ntab-messages" onclick="setNotifTab('messages')"
+        <button id="ntab-inbox" onclick="setNotifTab('inbox')"
           style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
-          💬 Messages
+          📥 Inbox
+        </button>
+        <button id="ntab-outbox" onclick="setNotifTab('outbox')"
+          style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
+          📤 Outbox
         </button>
         <button id="ntab-alerts" onclick="setNotifTab('alerts')"
           style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
@@ -1569,7 +1573,7 @@ async function init(){
     if(savedUser) loadUserPermissions(savedUser);
     loadDash();
     loadNotifications();
-    setTimeout(()=>runDelayCheck(true), 5000); // silent check on login
+    setTimeout(()=>runDelayCheck(), 5000); // auto check on login
     setInterval(checkDeleteAlarm, 60000);
     setInterval(loadNotifications, 120000); // refresh every 2 min
   } catch(err){
@@ -4089,7 +4093,8 @@ function fmtEditBadge(r){
 function rowHTML(page,r){
   const isAdmin=sessionStorage.getItem('gl_role')==='admin';
   const delBtn=isAdmin?`<button class="btn btn-danger btn-sm hide-on-view" onclick="delRow('${page}','${r.id}')">Del</button>`:'';
-  const acts=`<td><div class="td-acts"><button class="btn btn-secondary btn-sm hide-on-view" onclick="openForm('${page}','${r.id}')">Edit</button>${delBtn}</div></td>`;
+  const _recLabel=r.pi_number||r.po_number||r.hq_po_number||r.shipment_number||r.collection_id||String(r.id||'');
+  const acts=`<td><div class="td-acts"><button class="btn btn-secondary btn-sm hide-on-view" onclick="openForm('${page}','${r.id}')">Edit</button>${delBtn}<button class="btn btn-secondary btn-sm" onclick="openRecordMessage('${page}','${r.id}','${_recLabel}')" title="Message about this" style="padding:3px 8px;font-size:11px">💬</button></div></td>`;
   const piLink=(num,label)=>num?`<span class="pi-link" onclick="showPIPrint('${num}')">${label||num}</span>`:'-';
 
   // Auto-status computation
@@ -7284,176 +7289,15 @@ function copyWelcomeMsg(){
 }
 
 // ── NOTIFICATIONS & MESSAGING ─────────────────────────────────────────────
-let _notifTab='all', _notifData=[];
 
 // Type styles
-const NOTIF_STYLE={
-  info:    {icon:'ℹ️', bg:'#eff6ff', border:'#bfdbfe', badge:'#3b82f6'},
-  warning: {icon:'⚠️', bg:'#fffbeb', border:'#fcd34d', badge:'#f59e0b'},
-  alert:   {icon:'🚨', bg:'#fef2f2', border:'#fecaca', badge:'#ef4444'},
-  message: {icon:'💬', bg:'#f0fdf4', border:'#bbf7d0', badge:'#10b981'},
-  announcement:{icon:'📢',bg:'#faf5ff',border:'#ddd6fe',badge:'#7c3aed'},
-};
 
-async function loadNotifications(){
-  const me=getAuth();
-  if(!me)return;
-  const {data,error}=await sb.from('notifications')
-    .select('*')
-    .or(`to_user.is.null,to_user.eq.${me}`)
-    .order('created_at',{ascending:false})
-    .limit(100);
-  if(error){console.error('notif load:',error);return;}
-  _notifData=data||[];
-  updateBellBadge();
-  if(activePage==='notifications') renderNotifications();
-}
 
-function updateBellBadge(){
-  const me=getAuth();
-  const badge=document.getElementById('notif-badge');
-  if(!badge)return;
-  const unread=_notifData.filter(n=>!(n.read_by||[]).includes(me));
-  if(unread.length>0){
-    badge.textContent=unread.length>99?'99+':unread.length;
-    badge.style.display='flex';
-  } else {
-    badge.style.display='none';
-  }
-}
 
-function setNotifTab(tab){
-  _notifTab=tab;
-  ['all','unread','announcements','messages','alerts'].forEach(t=>{
-    const btn=document.getElementById('ntab-'+t);
-    if(!btn)return;
-    const active=t===tab;
-    btn.style.borderBottomColor=active?'var(--blue)':'transparent';
-    btn.style.color=active?'var(--blue)':'var(--g500)';
-    btn.style.fontWeight=active?'700':'600';
-  });
-  renderNotifications();
-}
 
-function renderNotifications(){
-  const me=getAuth();
-  const el=document.getElementById('notif-list');
-  if(!el)return;
 
-  let rows=[..._notifData];
-  if(_notifTab==='unread') rows=rows.filter(n=>!(n.read_by||[]).includes(me));
-  else if(_notifTab==='announcements') rows=rows.filter(n=>n.type==='announcement'||(!n.to_user&&n.type!=='message'));
-  else if(_notifTab==='messages') rows=rows.filter(n=>n.type==='message');
-  else if(_notifTab==='alerts') rows=rows.filter(n=>['warning','alert'].includes(n.type));
 
-  if(!rows.length){
-    el.innerHTML='<div style="text-align:center;padding:48px;color:var(--g400);font-size:14px">📭 No notifications</div>';
-    return;
-  }
-
-  el.innerHTML=rows.map(n=>{
-    const st=NOTIF_STYLE[n.type]||NOTIF_STYLE.info;
-    const isRead=(n.read_by||[]).includes(me);
-    const ago=fmtAgo(n.created_at);
-    const isOwn=n.from_user===me;
-    return`<div onclick="markRead('${n.id}')" style="display:flex;gap:14px;padding:14px 16px;background:${isRead?'#fafafa':st.bg};border:1.5px solid ${isRead?'var(--g100)':st.border};border-radius:12px;cursor:pointer;transition:all .15s;${isRead?'opacity:.8':''}">
-      <div style="font-size:24px;flex-shrink:0;margin-top:2px">${st.icon}</div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-weight:${isRead?'600':'800'};font-size:14px;color:var(--g900)">${esc(n.title)}</span>
-          ${!isRead?'<span style="background:'+st.badge+';color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px">NEW</span>':''}
-          ${n.type==='message'&&n.to_user?'<span style="font-size:11px;background:var(--g100);padding:1px 8px;border-radius:8px;color:var(--g500)">→ '+esc(n.to_user)+'</span>':''}
-          ${!n.to_user&&n.type!=='message'?'<span style="font-size:11px;background:#ede9fe;color:#7c3aed;padding:1px 8px;border-radius:8px">All Users</span>':''}
-        </div>
-        ${n.message?`<div style="margin-top:4px;font-size:13px;color:var(--g600);white-space:pre-wrap">${esc(n.message)}</div>`:''}
-        <div style="margin-top:6px;display:flex;gap:12px;font-size:11px;color:var(--g400)">
-          <span>From: <strong>${esc(n.from_user)}</strong></span>
-          <span>${ago}</span>
-          ${n.related_page?`<span style="background:var(--g100);padding:1px 7px;border-radius:6px;cursor:pointer" onclick="event.stopPropagation();navigateTo('${n.related_page}')">→ ${n.related_page.toUpperCase()}</span>`:''}
-          ${isOwn?`<button onclick="event.stopPropagation();deleteNotif('${n.id}')" style="background:none;border:none;cursor:pointer;color:var(--g300);font-size:11px;margin-left:auto">🗑 Delete</button>`:''}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-async function markRead(id){
-  const me=getAuth();
-  const n=_notifData.find(x=>x.id===id);
-  if(!n)return;
-  if((n.read_by||[]).includes(me))return;
-  const {error}=await sb.from('notifications')
-    .update({read_by:sb.rpc?[...n.read_by,me]:[...n.read_by,me]})
-    .eq('id',id);
-  // Use array_append approach
-  await sb.from('notifications')
-    .update({read_by:[...(n.read_by||[]),me]})
-    .eq('id',id);
-  n.read_by=[...(n.read_by||[]),me];
-  updateBellBadge();
-  renderNotifications();
-}
-
-async function deleteNotif(id){
-  if(!confirm('Delete this message?'))return;
-  await sb.from('notifications').delete().eq('id',id);
-  _notifData=_notifData.filter(n=>n.id!==id);
-  renderNotifications();
-  updateBellBadge();
-}
-
-function openNewMessageForm(){
-  const me=getAuth();
-  const role=getRole();
-  const isAdmin=role==='admin';
-
-  // Build recipient options from masterCache.userPerms
-  sb.from('user_permissions').select('username,display_name').eq('is_active',true).then(({data:users})=>{
-    const others=(users||[]).filter(u=>u.username!==me);
-    const recipOpts='<option value="">📢 All Users (Announcement)</option>'+
-      others.map(u=>`<option value="${u.username}">💬 ${u.display_name||u.username} (@${u.username})</option>`).join('');
-
-    const typeOpts=isAdmin
-      ?`<option value="announcement">📢 Announcement</option>
-        <option value="message" selected>💬 Direct Message</option>
-        <option value="info">ℹ️ Info</option>
-        <option value="warning">⚠️ Warning</option>`
-      :`<option value="message" selected>💬 Direct Message</option>`;
-
-    openModal(`
-      <h3 style="margin:0 0 16px;font-size:15px;font-weight:800">✉️ New Message</h3>
-      <div style="display:grid;gap:12px">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div>
-            <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Type</label>
-            <select id="msg-type" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px">
-              ${typeOpts}
-            </select>
-          </div>
-          <div>
-            <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">To</label>
-            <select id="msg-to" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px">
-              ${recipOpts}
-            </select>
-          </div>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Title <span style="color:var(--red)">*</span></label>
-          <input id="msg-title" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="Subject">
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Message</label>
-          <textarea id="msg-body" rows="5" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit" placeholder="Write your message..."></textarea>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
-        <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
-        <button onclick="sendMessage()" style="padding:9px 22px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">📤 Send</button>
-      </div>
-    `,'New Message');
-    setTimeout(()=>document.getElementById('msg-title')?.focus(),80);
-  });
-}
+async 
 
 async function sendMessage(){
   const me=getAuth();
@@ -7473,137 +7317,137 @@ async function sendMessage(){
   await loadNotifications();
 }
 
-function fmtAgo(ts){
-  if(!ts)return'';
-  const mins=Math.floor((Date.now()-new Date(ts))/60000);
-  if(mins<1)return'just now';
-  if(mins<60)return mins+'m ago';
-  if(mins<1440)return Math.floor(mins/60)+'h ago';
-  if(mins<10080)return Math.floor(mins/1440)+'d ago';
-  return new Date(ts).toLocaleDateString('en',{month:'short',day:'numeric'});
-}
 
-// ── AUTO DELAY DETECTION ──────────────────────────────────────────────────
+
+// ── AUTO DELAY DETECTION & MESSAGING ─────────────────────────────────────────
 const DELAY_RULES = {
-  no_action:  { days: 7,  label: 'No Action',         icon: '🚫', stage: 'PI → PO' },
-  po_delay:   { days: 14, label: 'PO → HQ PO Delay',  icon: '⏳', stage: 'PO → HQ PO' },
-  hqpo_delay: { days: 30, label: 'HQ PO → Ship Delay', icon: '⏳', stage: 'HQ PO → Shipment' },
-  col_delay:  { days: 30, label: 'Collection Pending', icon: '💰', stage: 'Shipped → Collected' },
+  no_action:  { days:7,  label:'No Action',          icon:'🚫', stage:'PI → PO',            escalate:1 },
+  po_delay:   { days:14, label:'PO → HQ PO Delay',   icon:'⏳', stage:'PO → HQ PO',         escalate:1 },
+  hqpo_delay: { days:30, label:'HQ PO → Ship Delay', icon:'⏳', stage:'HQ PO → Shipment',   escalate:1 },
+  col_delay:  { days:30, label:'Collection Pending', icon:'💰', stage:'Shipped → Collected', escalate:1 },
 };
 
-async function runDelayCheck(silent=false){
-  const me = getAuth();
-  const isAdmin = getRole()==='admin';
-  if(!me) return;
+// ── DELAY CHECK ───────────────────────────────────────────────────────────────
+async function runDelayCheck(onlyEscalate=false){
+  const me=getAuth(); if(!me)return;
+  showPageLoading('Checking delays...');
 
-  // Load all pipeline data
-  const [piR,poR,hqR,shR,colR,existR] = await Promise.all([
+  const [piR,poR,hqR,shR,colR,notifR] = await Promise.all([
     sb.from('pi').select('pi_number,date,distributor,sales_rep,status').neq('status','Cancelled'),
     sb.from('po').select('pi_number,date'),
     sb.from('hq_po').select('pi_number,date'),
     sb.from('shipments').select('pi_number,date'),
     sb.from('collections').select('pi_number,status'),
-    // Get already-sent delay alerts for today to avoid duplicates
-    sb.from('notifications').select('title,related_id,created_at')
-      .eq('type','alert').gte('created_at', new Date().toISOString().slice(0,10)),
+    sb.from('notifications').select('related_id,created_at,read_by,from_user').eq('type','alert'),
   ]);
 
-  const piRows  = piR.data  || [];
-  const poRows  = poR.data  || [];
-  const hqRows  = hqR.data  || [];
-  const shRows  = shR.data  || [];
-  const colRows = colR.data || [];
-  const sentToday = new Set((existR.data||[]).map(r=>r.related_id));
+  hidePageLoading();
 
-  const poSet   = new Set(poRows.map(r=>r.pi_number));
-  const hqSet   = new Set(hqRows.map(r=>r.pi_number));
-  const shSet   = new Set(shRows.filter(r=>r.date).map(r=>r.pi_number));
-  const colOk   = new Set(colRows.filter(r=>r.status==='Collected').map(r=>r.pi_number));
+  const piRows=piR.data||[], poRows=poR.data||[], hqRows=hqR.data||[];
+  const shRows=shR.data||[], colRows=colR.data||[];
+  const existNotifs=notifR.data||[];
 
-  const today = new Date(); today.setHours(0,0,0,0);
-  const daysDiff = (d) => Math.floor((today - new Date(d)) / 86400000);
+  // Map existing alerts: related_id → {sentAt, responded}
+  const sentMap={};
+  existNotifs.forEach(n=>{
+    if(!n.related_id)return;
+    if(!sentMap[n.related_id]) sentMap[n.related_id]=[];
+    sentMap[n.related_id].push({at:new Date(n.created_at),read:n.read_by&&n.read_by.length>0});
+  });
 
-  const alerts = [];
+  const poSet  =new Set(poRows.map(r=>r.pi_number));
+  const hqSet  =new Set(hqRows.map(r=>r.pi_number));
+  const shSet  =new Set(shRows.filter(r=>r.date).map(r=>r.pi_number));
+  const colOk  =new Set(colRows.filter(r=>r.status==='Collected').map(r=>r.pi_number));
+  const today  =new Date(); today.setHours(0,0,0,0);
+  const dayDiff=(d)=>Math.floor((today-new Date(d))/86400000);
+
+  const toInsert=[];
 
   for(const p of piRows){
-    if(!p.date) continue;
-    const num = p.pi_number;
-    const rep = p.sales_rep || 'unknown';
-    const dist = p.distributor || '';
-    const dPI = daysDiff(p.date);
+    if(!p.date)continue;
+    const num=p.pi_number, rep=p.sales_rep||null, dist=p.distributor||'';
+    const dPI=dayDiff(p.date);
 
-    // No action: no PO, no HQ, no Shipment
-    if(!poSet.has(num) && !hqSet.has(num) && !shSet.has(num)){
-      if(dPI >= DELAY_RULES.no_action.days && !sentToday.has(num+'_no_action')){
-        alerts.push({stage:'no_action', pi:num, rep, dist, days:dPI});
-      }
+    // Determine which stage
+    let stage=null, stageDays=0;
+    if(!poSet.has(num)&&!hqSet.has(num)&&!shSet.has(num)){
+      if(dPI>=DELAY_RULES.no_action.days){stage='no_action';stageDays=dPI;}
+    } else if(poSet.has(num)&&!hqSet.has(num)&&!shSet.has(num)){
+      const pr=poRows.find(r=>r.pi_number===num&&r.date);
+      if(pr){const d=dayDiff(pr.date);if(d>=DELAY_RULES.po_delay.days){stage='po_delay';stageDays=d;}}
+    } else if(hqSet.has(num)&&!shSet.has(num)){
+      const hr=hqRows.find(r=>r.pi_number===num&&r.date);
+      if(hr){const d=dayDiff(hr.date);if(d>=DELAY_RULES.hqpo_delay.days){stage='hqpo_delay';stageDays=d;}}
+    } else if(shSet.has(num)&&!colOk.has(num)){
+      const sr=shRows.find(r=>r.pi_number===num&&r.date);
+      if(sr){const d=dayDiff(sr.date);if(d>=DELAY_RULES.col_delay.days){stage='col_delay';stageDays=d;}}
     }
-    // PO exists but no HQ PO and no Shipment
-    else if(poSet.has(num) && !hqSet.has(num) && !shSet.has(num)){
-      const poRow = poRows.find(r=>r.pi_number===num&&r.date);
-      if(poRow){
-        const d = daysDiff(poRow.date);
-        if(d >= DELAY_RULES.po_delay.days && !sentToday.has(num+'_po_delay')){
-          alerts.push({stage:'po_delay', pi:num, rep, dist, days:d});
-        }
-      }
-    }
-    // HQ PO exists but no Shipment
-    else if(hqSet.has(num) && !shSet.has(num)){
-      const hqRow = hqRows.find(r=>r.pi_number===num&&r.date);
-      if(hqRow){
-        const d = daysDiff(hqRow.date);
-        if(d >= DELAY_RULES.hqpo_delay.days && !sentToday.has(num+'_hqpo_delay')){
-          alerts.push({stage:'hqpo_delay', pi:num, rep, dist, days:d});
-        }
-      }
-    }
-    // Shipped but not collected
-    else if(shSet.has(num) && !colOk.has(num)){
-      const shRow = shRows.find(r=>r.pi_number===num&&r.date);
-      if(shRow){
-        const d = daysDiff(shRow.date);
-        if(d >= DELAY_RULES.col_delay.days && !sentToday.has(num+'_col_delay')){
-          alerts.push({stage:'col_delay', pi:num, rep, dist, days:d});
-        }
+    if(!stage)continue;
+
+    const key=num+'_'+stage;
+    const rule=DELAY_RULES[stage];
+    const prev=sentMap[key]||[];
+
+    if(prev.length===0){
+      // First alert - send now
+      toInsert.push({
+        type:'alert',
+        title:rule.icon+' '+rule.label+' — '+num,
+        message:'Distributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n⚠️ Please reply with reason and action plan within 24 hours.',
+        from_user:'system',
+        to_user:rep,
+        related_page:'pi',
+        related_id:key,
+      });
+    } else {
+      // Check if last alert was >24h ago and unread/no response
+      const lastSent=prev[prev.length-1];
+      const hoursSince=(Date.now()-lastSent.at)/3600000;
+      const hasResponse=prev.some(n=>n.read);
+      if(hoursSince>=24&&!hasResponse){
+        // Escalation
+        toInsert.push({
+          type:'alert',
+          title:'🔴 ESCALATION: '+rule.label+' — '+num,
+          message:'Distributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n🚨 No response received in 24 hours. Immediate action required.\nPlease respond NOW with reason and action plan.',
+          from_user:'system',
+          to_user:rep,
+          related_page:'pi',
+          related_id:key,
+        });
+        // Also alert admin
+        toInsert.push({
+          type:'alert',
+          title:'🔴 Admin Alert: No response — '+num,
+          message:'Sales Rep @'+(rep||'unknown')+' has not responded to delay alert for '+num+' ('+stageDays+'d delayed).',
+          from_user:'system',
+          to_user:null, // send to admin only - filter by role on read
+          related_page:'pi',
+          related_id:key+'_esc',
+        });
       }
     }
   }
 
-  if(!alerts.length){
-    if(!silent) toast('✅ No new delays detected');
+  if(!toInsert.length){
+    toast('✅ All delays already notified — no new alerts needed');
+    await loadNotifications();
     return;
   }
 
-  // Insert alerts as notifications
-  const inserts = alerts.map(a => {
-    const rule = DELAY_RULES[a.stage];
-    // Send to: the sales rep (or admin if no rep)
-    const target = (isAdmin && !a.rep) ? null : a.rep || null;
-    return {
-      type: 'alert',
-      title: rule.icon + ' ' + rule.label + ' — ' + a.pi,
-      message: a.dist + '\nStage: ' + rule.stage + '\nDelayed: ' + a.days + ' days\n\nPlease provide a reason and action plan.',
-      from_user: 'system',
-      to_user: target,
-      related_page: 'pi',
-      related_id: a.pi + '_' + a.stage,
-    };
-  });
-
-  const {error} = await sb.from('notifications').insert(inserts);
-  if(error){ console.error('delay insert:', error); return; }
-
-  toast('⚠️ ' + alerts.length + ' delay alert(s) sent', 'err');
+  const {error}=await sb.from('notifications').insert(toInsert);
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast('⚠️ '+toInsert.length+' delay alert(s) sent!','err');
   await loadNotifications();
 }
 
-// Show delay response form when clicking an alert notification
+// ── DELAY RESPONSE FORM ───────────────────────────────────────────────────────
 function openDelayResponse(notifId, piNumber, stage){
-  const rule = DELAY_RULES[stage] || {};
+  const rule=DELAY_RULES[stage]||{icon:'⚠️',label:'Delay',stage:stage};
   openModal(`
-    <h3 style="margin:0 0 4px;font-size:15px;font-weight:800">${rule.icon||'⚠️'} ${rule.label||'Delay Alert'}</h3>
-    <div style="font-size:12px;color:var(--g500);margin-bottom:16px">PI: <strong>${esc(piNumber)}</strong> · Stage: ${esc(rule.stage||stage)}</div>
+    <h3 style="margin:0 0 4px;font-size:15px;font-weight:800">${rule.icon} ${esc(rule.label)}</h3>
+    <div style="font-size:12px;color:var(--g500);margin-bottom:16px">PI: <strong>${esc(piNumber)}</strong> · Stage: ${esc(rule.stage)}</div>
     <div style="display:grid;gap:12px">
       <div>
         <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Reason for Delay <span style="color:var(--red)">*</span></label>
@@ -7626,31 +7470,267 @@ function openDelayResponse(notifId, piNumber, stage){
   setTimeout(()=>document.getElementById('dr-reason')?.focus(),80);
 }
 
-async function submitDelayResponse(notifId, piNumber, stage){
-  const reason = (document.getElementById('dr-reason')?.value||'').trim();
-  const plan   = (document.getElementById('dr-plan')?.value||'').trim();
-  const date   = document.getElementById('dr-date')?.value||null;
+async function submitDelayResponse(notifId,piNumber,stage){
+  const reason=(document.getElementById('dr-reason')?.value||'').trim();
+  const plan  =(document.getElementById('dr-plan')?.value||'').trim();
+  const date  =document.getElementById('dr-date')?.value||null;
   if(!reason){toast('Please enter a reason','err');return;}
-  if(!plan){toast('Please enter an action plan','err');return;}
-
-  const me = getAuth();
-  const {error} = await sb.from('delay_responses').insert({
-    notification_id: notifId,
-    pi_number: piNumber,
-    stage,
-    reason: reason + (date ? '\n\nExpected resolution: '+date : ''),
-    action_plan: plan,
-    responded_by: me,
+  if(!plan)  {toast('Please enter an action plan','err');return;}
+  const me=getAuth();
+  const{error}=await sb.from('delay_responses').insert({
+    notification_id:notifId, pi_number:piNumber, stage,
+    reason:reason+(date?'\n\nExpected resolution: '+date:''),
+    action_plan:plan, responded_by:me,
   });
   if(error){toast('Error: '+error.message,'err');return;}
-
-  // Mark notification as read
   await markRead(notifId);
+  // Send acknowledgement back to admin
+  await sb.from('notifications').insert({
+    type:'info', from_user:me, to_user:null,
+    title:'✅ Response submitted — '+piNumber,
+    message:'@'+me+' responded to delay alert.\nReason: '+reason+'\nAction Plan: '+plan+(date?'\nExpected: '+date:''),
+    related_page:'pi', related_id:piNumber,
+  });
   closeModal();
   toast('✅ Response submitted — thank you!');
+  await loadNotifications();
 }
 
-// ── STARTUP   ───────────────────────────────────────────────────────────────────
+// ── SEND MESSAGE ABOUT A RECORD (from PI/PO/Shipment etc) ────────────────────
+function openRecordMessage(page, recordId, recordLabel){
+  const me=getAuth();
+  sb.from('user_permissions').select('username,display_name').eq('is_active',true).then(({data:users})=>{
+    const others=(users||[]).filter(u=>u.username!==me);
+    const recipOpts='<option value="">📢 All Users</option>'+
+      others.map(u=>`<option value="${u.username}">→ ${u.display_name||u.username} (@${u.username})</option>`).join('');
+    openModal(`
+      <h3 style="margin:0 0 4px;font-size:15px;font-weight:800">💬 Message about Record</h3>
+      <div style="font-size:12px;color:var(--g400);margin-bottom:14px;background:var(--g50);padding:8px 12px;border-radius:8px;border:1px solid var(--g100)">
+        📎 <strong>${esc(page.toUpperCase())}</strong> — <span style="color:var(--blue);font-weight:700">${esc(recordLabel||recordId)}</span>
+      </div>
+      <div style="display:grid;gap:12px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">To</label>
+          <select id="rm-to" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px">${recipOpts}</select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Question / Comment <span style="color:var(--red)">*</span></label>
+          <textarea id="rm-body" rows="4" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit" placeholder="Ask a question or add a comment about this record..."></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+        <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
+        <button onclick="sendRecordMessage('${esc(page)}','${esc(recordId)}','${esc(recordLabel||recordId)}')" style="padding:9px 22px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">📤 Send</button>
+      </div>
+    `,'Message about Record');
+    setTimeout(()=>document.getElementById('rm-body')?.focus(),80);
+  });
+}
+
+async function sendRecordMessage(page, recordId, recordLabel){
+  const me=getAuth();
+  const to=document.getElementById('rm-to')?.value||null;
+  const body=(document.getElementById('rm-body')?.value||'').trim();
+  if(!body){toast('Please enter a message','err');return;}
+  const{error}=await sb.from('notifications').insert({
+    type:'message',
+    title:'💬 Re: ['+page.toUpperCase()+'] '+recordLabel,
+    message:body,
+    from_user:me, to_user:to||null,
+    related_page:page, related_id:recordId,
+  });
+  if(error){toast('Error: '+error.message,'err');return;}
+  closeModal();
+  toast('✅ Message sent!');
+  await loadNotifications();
+}
+
+// ── MESSAGING ─────────────────────────────────────────────────────────────────
+let _notifTab='all', _notifData=[], _msgView='all'; // all|inbox|outbox
+
+const NOTIF_STYLE={
+  info:        {icon:'ℹ️', bg:'#eff6ff',border:'#bfdbfe'},
+  warning:     {icon:'⚠️', bg:'#fffbeb',border:'#fcd34d'},
+  alert:       {icon:'🚨', bg:'#fef2f2',border:'#fecaca'},
+  message:     {icon:'💬', bg:'#f0fdf4',border:'#bbf7d0'},
+  announcement:{icon:'📢', bg:'#faf5ff',border:'#ddd6fe'},
+};
+
+async function loadNotifications(){
+  const me=getAuth(); if(!me)return;
+  const{data,error}=await sb.from('notifications')
+    .select('*')
+    .or(`to_user.is.null,to_user.eq.${me},from_user.eq.${me}`)
+    .order('created_at',{ascending:false})
+    .limit(200);
+  if(error){console.error('notif:',error);return;}
+  _notifData=data||[];
+  updateBellBadge();
+  if(activePage==='notifications')renderNotifications();
+}
+
+function updateBellBadge(){
+  const me=getAuth();
+  const badge=document.getElementById('notif-badge');
+  if(!badge)return;
+  const unread=_notifData.filter(n=>!(n.read_by||[]).includes(me)&&n.from_user!==me);
+  if(unread.length>0){badge.textContent=unread.length>99?'99+':unread.length;badge.style.display='flex';}
+  else badge.style.display='none';
+}
+
+function setNotifTab(tab){
+  _notifTab=tab;
+  ['all','inbox','outbox','announcements','alerts'].forEach(t=>{
+    const btn=document.getElementById('ntab-'+t);
+    if(!btn)return;
+    const active=t===tab;
+    btn.style.borderBottomColor=active?'var(--blue)':'transparent';
+    btn.style.color=active?'var(--blue)':'var(--g500)';
+    btn.style.fontWeight=active?'700':'600';
+  });
+  renderNotifications();
+}
+
+function renderNotifications(){
+  const me=getAuth();
+  const el=document.getElementById('notif-list');
+  if(!el)return;
+  let rows=[..._notifData];
+  if(_notifTab==='inbox')  rows=rows.filter(n=>n.to_user===me||(n.to_user===null&&n.from_user!==me));
+  if(_notifTab==='outbox') rows=rows.filter(n=>n.from_user===me);
+  if(_notifTab==='announcements') rows=rows.filter(n=>n.to_user===null&&n.type!=='alert');
+  if(_notifTab==='alerts') rows=rows.filter(n=>n.type==='alert');
+
+  if(!rows.length){
+    el.innerHTML='<div style="text-align:center;padding:48px;color:var(--g400);font-size:14px">📭 No messages here</div>';
+    return;
+  }
+  el.innerHTML=rows.map(n=>{
+    const st=NOTIF_STYLE[n.type]||NOTIF_STYLE.info;
+    const isRead=(n.read_by||[]).includes(me);
+    const isOwn=n.from_user===me;
+    const isAlert=n.type==='alert';
+    const ago=fmtAgo(n.created_at);
+    // Parse stage from related_id for alerts
+    const alertStage=isAlert&&n.related_id?n.related_id.split('_').slice(1).join('_'):'';
+    const piNum=isAlert&&n.related_id?n.related_id.split('_')[0]:'';
+
+    return`<div style="display:flex;gap:14px;padding:14px 16px;background:${isRead||isOwn?'#fafafa':st.bg};border:1.5px solid ${isRead||isOwn?'var(--g100)':st.border};border-radius:12px;transition:all .15s;${isRead||isOwn?'opacity:.85':''}">
+      <div style="font-size:22px;flex-shrink:0;margin-top:2px">${st.icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          <span style="font-weight:${isRead||isOwn?'600':'800'};font-size:14px;color:var(--g900);flex:1">${esc(n.title)}</span>
+          ${!isRead&&!isOwn?'<span style="background:#ef4444;color:#fff;font-size:10px;font-weight:800;padding:1px 8px;border-radius:8px;flex-shrink:0">NEW</span>':''}
+          ${isOwn?'<span style="background:var(--g100);color:var(--g500);font-size:10px;padding:1px 8px;border-radius:8px;flex-shrink:0">Sent</span>':''}
+        </div>
+        ${n.message?`<div style="font-size:13px;color:var(--g600);white-space:pre-wrap;margin-bottom:8px">${esc(n.message)}</div>`:''}
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--g400)">
+          <span>From: <strong>${esc(n.from_user==='system'?'🤖 System':n.from_user)}</strong></span>
+          ${n.to_user?`<span>→ <strong>${esc(n.to_user)}</strong></span>`:'<span style="background:#ede9fe;color:#7c3aed;padding:1px 7px;border-radius:6px;font-size:10px">All Users</span>'}
+          <span>${ago}</span>
+          ${n.related_page?`<span onclick="navigateTo('${n.related_page}')" style="background:var(--g100);padding:1px 8px;border-radius:6px;cursor:pointer;color:var(--blue)">→ ${n.related_page.toUpperCase()}</span>`:''}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          ${!isRead&&!isOwn?`<button onclick="markRead('${n.id}')" style="padding:4px 12px;border:1px solid var(--g200);border-radius:6px;background:#fff;font-size:11px;cursor:pointer">✓ Mark read</button>`:''}
+          ${isAlert&&!isOwn&&piNum?`<button onclick="openDelayResponse('${n.id}','${esc(piNum)}','${esc(alertStage)}')" style="padding:4px 14px;border:none;border-radius:6px;background:#f59e0b;color:#fff;font-size:11px;font-weight:700;cursor:pointer">📝 Respond</button>`:''}
+          ${n.related_id&&!isAlert?`<button onclick="openRecordMessage('${n.related_page||'pi'}','${esc(n.related_id)}','${esc(n.title)}')" style="padding:4px 12px;border:1px solid var(--blue);border-radius:6px;background:#eff6ff;color:var(--blue);font-size:11px;cursor:pointer">↩ Reply</button>`:''}
+          <button onclick="deleteNotif('${n.id}','${isOwn}')" style="padding:4px 12px;border:1px solid var(--g200);border-radius:6px;background:#fff;font-size:11px;cursor:pointer;color:var(--g400);margin-left:auto">🗑 Delete</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function markRead(id){
+  const me=getAuth();
+  const n=_notifData.find(x=>x.id===id); if(!n)return;
+  if((n.read_by||[]).includes(me))return;
+  const newReadBy=[...(n.read_by||[]),me];
+  await sb.from('notifications').update({read_by:newReadBy}).eq('id',id);
+  n.read_by=newReadBy;
+  updateBellBadge(); renderNotifications();
+}
+
+async function deleteNotif(id,isOwn){
+  const me=getAuth();
+  if(isOwn==='true'||isOwn===true){
+    if(!confirm('Delete this message?'))return;
+    await sb.from('notifications').delete().eq('id',id);
+    _notifData=_notifData.filter(n=>n.id!==id);
+  } else {
+    // For non-owners, just hide by marking read
+    await markRead(id);
+    return;
+  }
+  renderNotifications(); updateBellBadge();
+}
+
+function fmtAgo(ts){
+  if(!ts)return'';
+  const mins=Math.floor((Date.now()-new Date(ts))/60000);
+  if(mins<1)return'just now';
+  if(mins<60)return mins+'m ago';
+  if(mins<1440)return Math.floor(mins/60)+'h ago';
+  if(mins<10080)return Math.floor(mins/1440)+'d ago';
+  return new Date(ts).toLocaleDateString('en',{month:'short',day:'numeric'});
+}
+
+async function openNewMessageForm(){
+  const me=getAuth();
+  const isAdmin=getRole()==='admin';
+  const{data:users}=await sb.from('user_permissions').select('username,display_name').eq('is_active',true);
+  const others=(users||[]).filter(u=>u.username!==me);
+  const recipOpts='<option value="">📢 All Users (Announcement)</option>'+
+    others.map(u=>`<option value="${u.username}">→ ${u.display_name||u.username} (@${u.username})</option>`).join('');
+  const typeOpts=isAdmin
+    ?`<option value="message">💬 Message</option><option value="announcement">📢 Announcement</option><option value="info">ℹ️ Info</option><option value="warning">⚠️ Warning</option>`
+    :`<option value="message">💬 Message</option>`;
+  openModal(`
+    <h3 style="margin:0 0 16px;font-size:15px;font-weight:800">✉️ New Message</h3>
+    <div style="display:grid;gap:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Type</label>
+          <select id="msg-type" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px">${typeOpts}</select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">To</label>
+          <select id="msg-to" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px">${recipOpts}</select>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Subject <span style="color:var(--red)">*</span></label>
+        <input id="msg-title" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="Message subject">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Message</label>
+        <textarea id="msg-body" rows="5" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit" placeholder="Write your message..."></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
+      <button onclick="sendNewMessage()" style="padding:9px 22px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">📤 Send</button>
+    </div>
+  `,'New Message');
+  setTimeout(()=>document.getElementById('msg-title')?.focus(),80);
+}
+
+async function sendNewMessage(){
+  const me=getAuth();
+  const title=(document.getElementById('msg-title')?.value||'').trim();
+  const body =(document.getElementById('msg-body')?.value||'').trim();
+  const to   =document.getElementById('msg-to')?.value||null;
+  const type =document.getElementById('msg-type')?.value||'message';
+  if(!title){toast('Subject is required','err');return;}
+  const{error}=await sb.from('notifications').insert({
+    type, title, message:body||null, from_user:me, to_user:to||null,
+  });
+  if(error){toast('Error: '+error.message,'err');return;}
+  closeModal(); toast('✅ Message sent!');
+  await loadNotifications();
+}
+
+// ── STARTUP 
 (function(){
   // Check if already logged in (page refresh / returning user)
   const savedUser = getAuth();
