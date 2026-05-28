@@ -1436,10 +1436,10 @@ function formatPayTermDisplay(raw) {
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 const USERS={
-  'chris':  {pw:'Latam@2026',  role:'user'},
-  'weverson':{pw:'Latam@450',  role:'user'},
-  'mitchel': {pw:'ehdPdnjs0114',role:'admin'},
-  'admin':   {pw:'LatamGenoray@450', role:'admin'},
+  'chris':   {pw:'uV8xhsr$ku',     role:'user'},
+  'weverson':{pw:'mmqBv6njp%',     role:'user'},
+  'mitchel': {pw:'ehdPdnjs0114',   role:'admin'},
+  'admin':   {pw:'LatamGenoray@450',role:'admin'},
 };
 
 // ── MASTER CACHE ──────────────────────────────────────────────────────────────
@@ -1549,7 +1549,7 @@ function loadPage(p){
   if(p==='goals')return loadGoals();
   if(p==='help')return loadHelp();
   if(p==='pricing')return loadPricingPage();
-  if(p==='admin')return;
+  if(p==='admin'){loadAdminUsers();loadDeleteRequests();return;}
   loadTable(p);
 }
 
@@ -2081,6 +2081,115 @@ async function autoAddMissingCollections(){
   // Reload collections
   cache._xref=null;
   loadTable('collections');
+}
+
+// ── ADMIN UTILITY FUNCTIONS ──────────────────────────────────────────────────
+async function updateUserPerm(username, field, value){
+  const {error}=await sb.from('user_permissions')
+    .update({[field]:value, updated_at:new Date().toISOString()})
+    .eq('username',username);
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast('✅ Saved');
+  if(username===getAuth()) await loadUserPermissions(username);
+}
+
+async function toggleUserActive(username, isActive){
+  await updateUserPerm(username,'is_active',!isActive);
+  loadAdminUsers();
+}
+
+async function resetUserPassword(username){
+  const upper='ABCDEFGHJKLMNPQRSTUVWXYZ',lower='abcdefghjkmnpqrstuvwxyz',nums='23456789',spec='!@#$%&*';
+  let pw=upper[Math.floor(Math.random()*upper.length)]+nums[Math.floor(Math.random()*nums.length)]+spec[Math.floor(Math.random()*spec.length)];
+  while(pw.length<10) pw+=lower[Math.floor(Math.random()*lower.length)];
+  pw=pw.split('').sort(()=>Math.random()-.5).join('');
+  const {error}=await sb.from('user_permissions').update({password:pw,must_change_password:true}).eq('username',username);
+  if(error){toast('Error: '+error.message,'err');return;}
+  if(USERS[username])USERS[username].pw=pw;
+  openModal(`<div style="text-align:center;padding:8px">
+    <div style="font-size:14px;font-weight:700;margin-bottom:12px">🔑 Temp Password — @${esc(username)}</div>
+    <div style="font-family:monospace;font-size:22px;font-weight:900;letter-spacing:3px;background:#f0fdf4;padding:14px;border-radius:8px;border:2px solid var(--green);color:var(--g900)">${esc(pw)}</div>
+    <div style="font-size:11px;color:var(--g400);margin-top:8px">User must change on next login</div>
+    <button onclick="navigator.clipboard?.writeText('${esc(pw)}');toast('Copied!');closeModal()" style="margin-top:14px;padding:9px 20px;background:var(--green);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">📋 Copy & Close</button>
+  </div>`,'Password Reset');
+}
+
+function loadDeleteRequests(){
+  const el=document.getElementById('admin-delete-requests');
+  if(!el)return;
+  let reqs=[];
+  try{reqs=JSON.parse(localStorage.getItem('gl_delete_requests')||'[]');}catch(e){}
+  if(!reqs.length){
+    el.innerHTML='<div style="padding:28px;text-align:center;color:var(--g400);font-size:12px">✅ No pending requests</div>';
+    return;
+  }
+  el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <tbody>${reqs.map((r,i)=>`<tr style="border-bottom:1px solid var(--g100)">
+      <td style="padding:8px 14px;font-weight:600">${esc(r.label||'')}</td>
+      <td style="padding:8px;color:var(--g500)">${esc(r.table||'')}</td>
+      <td style="padding:8px">${esc(r.requestedBy||'')}</td>
+      <td style="padding:8px">
+        <div style="display:flex;gap:6px">
+          <button onclick="approveDelete(${i})" style="padding:3px 10px;background:#dc2626;color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer">✓ Approve</button>
+          <button onclick="rejectDelete(${i})" style="padding:3px 10px;background:#fff;border:1px solid var(--g200);border-radius:5px;font-size:11px;cursor:pointer">✕ Reject</button>
+        </div>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+async function approveDelete(idx){
+  let reqs=[];
+  try{reqs=JSON.parse(localStorage.getItem('gl_delete_requests')||'[]');}catch(e){}
+  const r=reqs[idx]; if(!r)return;
+  const {error}=await sb.from(r.table).delete().eq('id',r.id);
+  if(error){toast('Delete error: '+error.message,'err');return;}
+  reqs.splice(idx,1);
+  localStorage.setItem('gl_delete_requests',JSON.stringify(reqs));
+  toast('✅ Deleted: '+r.label);
+  loadDeleteRequests();
+  loadTable(activePage);
+}
+
+function rejectDelete(idx){
+  let reqs=[];
+  try{reqs=JSON.parse(localStorage.getItem('gl_delete_requests')||'[]');}catch(e){}
+  reqs.splice(idx,1);
+  localStorage.setItem('gl_delete_requests',JSON.stringify(reqs));
+  toast('Delete request rejected');
+  loadDeleteRequests();
+}
+
+function checkDeleteAlarm(){
+  let reqs=[];
+  try{reqs=JSON.parse(localStorage.getItem('gl_delete_requests')||'[]');}catch(e){}
+  const badge=document.getElementById('admin-delete-badge');
+  const cnt=document.getElementById('admin-delete-count');
+  if(reqs.length>0){
+    if(badge){badge.style.display='flex';badge.style.alignItems='center';badge.style.gap='4px';}
+    if(cnt)cnt.textContent=reqs.length;
+  } else {
+    if(badge)badge.style.display='none';
+  }
+}
+
+function requestDelete(table, id, label){
+  if(canDelete()){
+    if(confirm('Delete "'+label+'"? Cannot be undone.')){
+      sb.from(table).delete().eq('id',id).then(({error})=>{
+        if(error){toast('Delete error: '+error.message,'err');return;}
+        toast('✅ Deleted: '+label);
+        cache._xref=null;
+        loadTable(activePage);
+      });
+    }
+  } else {
+    let reqs=[];
+    try{reqs=JSON.parse(localStorage.getItem('gl_delete_requests')||'[]');}catch(e){}
+    reqs.push({table,id,label,requestedBy:getAuth(),requestedAt:new Date().toISOString()});
+    localStorage.setItem('gl_delete_requests',JSON.stringify(reqs));
+    toast('📨 Delete request sent to admin for: '+label);
+  }
 }
 
 // ── EMAILJS SEND ─────────────────────────────────────────────────────────────
@@ -6581,7 +6690,10 @@ async function loadAdminUsers(){
     const isAdmin=u.role==='admin';
     const bg=i%2===0?'#fff':'#fafafa';
     const dim=!u.is_active?'opacity:.45;':'';
-    const utype=u.user_type||( isAdmin?'admin':'regular');
+    const utype=(u.user_type)||( isAdmin?'admin':'regular');
+    const uemail=u.email||'';
+    const uphone=u.phone||'';
+    const uwa=u.whatsapp||'';
     const [typeBg,typeTx]=(userTypeColor[utype]||'#f1f5f9|#374151').split('|');
 
     // Password display - show masked with reveal toggle
@@ -6616,21 +6728,21 @@ async function loadAdminUsers(){
       <!-- Email -->
       <td style="padding:8px 10px">
         ${isAdmin?`<span style="font-size:11px;color:var(--g400)">—</span>`:
-          `<input type="email" value="${esc(u.email||'')}" placeholder="Add email..."
+          `<input type="email" value="${esc(uemail)}" placeholder="Add email..."
             onblur="updateUserPerm('${u.username}','email',this.value)"
             style="width:100%;padding:4px 7px;border:1px solid var(--g200);border-radius:5px;font-size:11px;box-sizing:border-box">`}
       </td>
       <!-- Phone -->
       <td style="padding:8px 10px">
         ${isAdmin?`<span style="font-size:11px;color:var(--g400)">—</span>`:
-          `<input type="tel" value="${esc(u.phone||'')}" placeholder="+1 234..."
+          `<input type="tel" value="${esc(uphone)}" placeholder="+1 234..."
             onblur="updateUserPerm('${u.username}','phone',this.value)"
             style="width:100%;padding:4px 7px;border:1px solid var(--g200);border-radius:5px;font-size:11px;box-sizing:border-box">`}
       </td>
       <!-- WhatsApp -->
       <td style="padding:8px 10px">
         ${isAdmin?`<span style="font-size:11px;color:var(--g400)">—</span>`:
-          `<input type="tel" value="${esc(u.whatsapp||'')}" placeholder="Same as phone"
+          `<input type="tel" value="${esc(uwa)}" placeholder="Same as phone"
             onblur="updateUserPerm('${u.username}','whatsapp',this.value)"
             style="width:100%;padding:4px 7px;border:1px solid var(--g200);border-radius:5px;font-size:11px;box-sizing:border-box">`}
       </td>
