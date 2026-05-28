@@ -1039,6 +1039,7 @@ tr[data-paid="true"] td{opacity:.55}
             <th class="sortable" onclick="sortTbl('distributors','contact_person')">Contact</th>
             <th>Email</th>
             <th>Address</th>
+            <th>Last Edited</th>
             <th>Actions</th>
           </tr></thead>
           <tbody id="distributors-tbody"></tbody>
@@ -1064,6 +1065,7 @@ tr[data-paid="true"] td{opacity:.55}
             <th class="sortable" onclick="sortTbl('products','code')">Code</th>
             <th class="sortable" onclick="sortTbl('products','product_name')">Product Name</th>
             <th class="sortable" onclick="sortTbl('products','unit_price_usd')">Unit Price (USD)</th>
+            <th>Last Edited</th>
             <th>Actions</th>
           </tr></thead>
           <tbody id="products-tbody"></tbody>
@@ -3542,7 +3544,7 @@ function renderGoals(){
     thead.innerHTML=`<tr>
       <th>Year</th><th>Country</th><th>Distributor</th>
       <th style="color:var(--blue)">Medical</th><th style="color:var(--green)">Dental</th><th>Combined Total</th>
-      <th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Actions</th></tr>`;
+      <th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Last Edited</th><th>Actions</th></tr>`;
     if(!Object.keys(grouped).length){tbody.innerHTML='<tr><td colspan="11"><div class="empty-state">No records</div></td></tr>';return;}
     tbody.innerHTML=Object.values(grouped).map(g=>{
       const medAmt=(g.medical?.target_amount_usd||0)+(g.other?.target_amount_usd||0);
@@ -3976,6 +3978,20 @@ function renderTbl(page,rows){
   tbody.innerHTML=rows.map(r=>rowHTML(page,r)).join('');
 }
 
+function fmtEditBadge(r){
+  if(!r.updated_by)return '<span style="font-size:10px;color:var(--g300)">—</span>';
+  const d=r.updated_at?new Date(r.updated_at):null;
+  let ago='';
+  if(d){
+    const mins=Math.floor((Date.now()-d)/60000);
+    if(mins<1)ago='just now';
+    else if(mins<60)ago=mins+'m ago';
+    else if(mins<1440)ago=Math.floor(mins/60)+'h ago';
+    else ago=Math.floor(mins/1440)+'d ago';
+  }
+  return '<span style="font-size:10px;color:var(--g500);white-space:nowrap">✏️ '+r.updated_by+(ago?' · <span style=\'color:var(--g400)\'>'+ago+'</span>':'')+'</span>';
+}
+
 function rowHTML(page,r){
   const isAdmin=sessionStorage.getItem('gl_role')==='admin';
   const delBtn=isAdmin?`<button class="btn btn-danger btn-sm" onclick="delRow('${page}','${r.id}')">Del</button>`:'';
@@ -4098,17 +4114,17 @@ function rowHTML(page,r){
 
   if(page==='distributors'){
     const divPill=r.division==='Medical'?'<span class="pill p-blue">Medical</span>':r.division==='Dental'?'<span class="pill p-green">Dental</span>':'<span class="pill p-gray">—</span>';
-    return`<tr><td><strong>${r.company_name}</strong><br><span style="font-size:10px;color:var(--g400)">${r.code||''}</span></td><td>${r.country||'-'}</td><td>${divPill}</td><td>${r.contact_person||'-'}</td><td>${r.email||'-'}</td><td style="max-width:180px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.address||'-'}</td>${acts}</tr>`;
+    return`<tr><td><strong>${r.company_name}</strong><br><span style="font-size:10px;color:var(--g400)">${r.code||''}</span></td><td>${r.country||'-'}</td><td>${divPill}</td><td>${r.contact_person||'-'}</td><td>${r.email||'-'}</td><td style="max-width:180px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.address||'-'}</td><td>${fmtEditBadge(r)}</td>${acts}</tr>`;
   }
 
-  if(page==='products')return`<tr><td><strong>${r.code}</strong></td><td>${r.product_name}</td><td>$${fmt(r.unit_price_usd)}</td>${acts}</tr>`;
+  if(page==='products')return`<tr><td><strong>${r.code}</strong></td><td>${r.product_name}</td><td>$${fmt(r.unit_price_usd)}</td><td>${fmtEditBadge(r)}</td>${acts}</tr>`;
 
   if(page==='goals'){
     const q1=(r.jan_usd||0)+(r.feb_usd||0)+(r.mar_usd||0);
     const q2=(r.apr_usd||0)+(r.may_usd||0)+(r.jun_usd||0);
     const q3=(r.jul_usd||0)+(r.aug_usd||0)+(r.sep_usd||0);
     const q4=(r.oct_usd||0)+(r.nov_usd||0)+(r.dec_usd||0);
-    return`<tr><td>${r.year}</td><td>${r.country||'-'}</td><td>${r.distributor||'-'}</td><td>${r.division||'-'}</td><td><strong>$${fmt(r.target_amount_usd)}</strong></td><td>$${fmt(q1)}</td><td>$${fmt(q2)}</td><td>$${fmt(q3)}</td><td>$${fmt(q4)}</td>${acts}</tr>`;
+    return`<tr><td>${r.year}</td><td>${r.country||'-'}</td><td>${r.distributor||'-'}</td><td>${r.division||'-'}</td><td><strong>$${fmt(r.target_amount_usd)}</strong></td><td>$${fmt(q1)}</td><td>$${fmt(q2)}</td><td>$${fmt(q3)}</td><td>$${fmt(q4)}</td><td>${fmtEditBadge(r)}</td>${acts}</tr>`;
   }
 }
 
