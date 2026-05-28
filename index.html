@@ -1442,6 +1442,45 @@ const USERS={
   'admin':   {pw:'LatamGenoray@450', role:'admin'},
 };
 
+// ── MASTER CACHE ──────────────────────────────────────────────────────────────
+
+// ── STATUS DISPLAY ────────────────────────────────────────────────────────────
+function setStatus(msg,isErr=false){
+  const el=document.getElementById('conn-status');
+  if(el){el.textContent=msg; el.style.color=isErr?'var(--red)':'var(--green)';}
+}
+function showPageLoading(msg='Loading...'){
+  const el=document.getElementById('page-loading');
+  if(el){el.textContent=msg;el.style.display='block';}
+}
+function hidePageLoading(){
+  const el=document.getElementById('page-loading');
+  if(el)el.style.display='none';
+}
+
+// ── INIT (runs after login) ───────────────────────────────────────────────────
+async function init(){
+  try {
+    setStatus('Connecting...');
+    const [r1,r2]=await Promise.all([
+      sb.from('distributors').select('*').order('company_name'),
+      sb.from('products').select('*').order('product_name')
+    ]);
+    if(r1.error) throw new Error('Distributors: '+r1.error.message);
+    if(r2.error) throw new Error('Products: '+r2.error.message);
+    masterCache.distributors=r1.data||[];
+    masterCache.products=r2.data||[];
+    setStatus('Connected');
+    const savedUser=getAuth();
+    if(savedUser) loadUserPermissions(savedUser);
+    loadDash();
+    setInterval(checkDeleteAlarm, 60000);
+  } catch(err){
+    setStatus('Connection failed: '+err.message, true);
+    console.error('init() error:',err);
+  }
+}
+
 function doLogin(){
   const u=document.getElementById('lu').value.trim().toLowerCase();
   const p=document.getElementById('lp').value;
@@ -1477,7 +1516,8 @@ function doLogin(){
 
 
 // ── STATE ────────────────────────────────────────────────────────────────────
-let activePage='dashboard',formState={table:'',id:null,page:''},cache={},masterCache={distributors:[],products:[]};
+let activePage='dashboard',formState={table:'',id:null,page:''},cache={_xref:null},masterCache={distributors:[],products:[],userPerms:[]};
+const today=new Date(); today.setHours(0,0,0,0);
 let piFS={id:null,items:[],ed:{},seller:'korea'};
 const TBL={hqpo:'hq_po'};
 const tbl=p=>TBL[p]||p;
@@ -2086,7 +2126,7 @@ async function checkSalesRepAlerts(userPerms){
     const piDate=p.date?new Date(p.date):null;
     const days=piDate?Math.floor((today-piDate)/(1000*86400)):0;
     return{...p,days};
-  }).filter(p=>p.days>0)
+  }).filter(p=>p.days>=15)  // ← Only 15+ days No Action
     .sort((a,b)=>b.days-a.days);
 
   if(!noActionPIs.length)return;
