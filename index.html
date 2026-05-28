@@ -58,6 +58,9 @@ body{display:flex;height:100vh;background:var(--g100);color:var(--g900);font-siz
 #content{flex:1;overflow-y:auto;padding:24px}
 .page{display:none}.page.active{display:block}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+/* Hide-completed toggle */
+.hide-done tr[data-done='true']{display:none}
+tr[data-done='true'] td{opacity:.5}
 .btn{padding:8px 16px;border-radius:var(--rsm);border:none;cursor:pointer;font-size:13px;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:#1d4ed8}
 .btn-secondary{background:var(--white);color:var(--g700);border:1px solid var(--g300)}.btn-secondary:hover{background:var(--g50)}
@@ -828,10 +831,11 @@ tr[data-paid="true"] td{opacity:.55}
           <span class="panel-title">Proforma Invoice (PI)</span><button class="sh-btn" onclick="showStatusHelp('pi',this)" title="Show auto status rules">?</button>
           <div class="panel-acts">
             <div class="search-box"><span>🔍</span><input id="pi-search" placeholder="Search..." oninput="filterTbl('pi')"></div>
+            <button id="pi-done-toggle" onclick="toggleDoneRows('pi')" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:600;cursor:pointer">👁 Show Completed</button>
             <button class="btn btn-primary" onclick="openPI()">+ New PI</button>
           </div>
         </div>
-        <div class="tbl-wrap"><table>
+        <div class="tbl-wrap"><table id="pi-table"
           <thead><tr>
             <th class="sortable" onclick="sortTbl('pi','pi_number')">PI No.</th>
             <th class="sortable" onclick="sortTbl('pi','date')">Date</th>
@@ -856,10 +860,11 @@ tr[data-paid="true"] td{opacity:.55}
           <span class="panel-title">Purchase Order (PO)</span><button class="sh-btn" onclick="showStatusHelp('po',this)" title="Show auto status rules">?</button>
           <div class="panel-acts">
             <div class="search-box"><span>🔍</span><input id="po-search" placeholder="Search..." oninput="filterTbl('po')"></div>
+            <button id="po-done-toggle" onclick="toggleDoneRows('po')" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:600;cursor:pointer">👁 Show Completed</button>
             <button class="btn btn-primary" onclick="openForm('po')">+ New PO</button>
           </div>
         </div>
-        <div class="tbl-wrap"><table>
+        <div class="tbl-wrap"><table id="po-table"
           <thead><tr>
             <th class="sortable" onclick="sortTbl('po','po_number')">PO No.</th>
             <th class="sortable" onclick="sortTbl('po','date')">Date</th>
@@ -882,10 +887,11 @@ tr[data-paid="true"] td{opacity:.55}
           <span class="panel-title">HQ Purchase Order</span><button class="sh-btn" onclick="showStatusHelp('hqpo',this)" title="Show auto status rules">?</button>
           <div class="panel-acts">
             <div class="search-box"><span>🔍</span><input id="hqpo-search" placeholder="Search..." oninput="filterTbl('hqpo')"></div>
+            <button id="hqpo-done-toggle" onclick="toggleDoneRows('hqpo')" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:600;cursor:pointer">👁 Show Delivered</button>
             <button class="btn btn-primary" onclick="openForm('hqpo')">+ New HQ PO</button>
           </div>
         </div>
-        <div class="tbl-wrap"><table>
+        <div class="tbl-wrap"><table id="hqpo-table"
           <thead><tr>
             <th class="sortable" onclick="sortTbl('hqpo','hq_po_number')">HQ PO No.</th>
             <th class="sortable" onclick="sortTbl('hqpo','issue_date')">Issue Date</th>
@@ -913,10 +919,11 @@ tr[data-paid="true"] td{opacity:.55}
           <span class="panel-title">Shipments</span><button class="sh-btn" onclick="showStatusHelp('shipments',this)" title="Show auto status rules">?</button>
           <div class="panel-acts">
             <div class="search-box"><span>🔍</span><input id="shipments-search" placeholder="Search..." oninput="filterTbl('shipments')"></div>
+            <button id="shipments-done-toggle" onclick="toggleDoneRows('shipments')" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:600;cursor:pointer">👁 Show Completed</button>
             <button class="btn btn-primary" onclick="openForm('shipments')">+ New Shipment</button>
           </div>
         </div>
-        <div class="tbl-wrap"><table>
+        <div class="tbl-wrap"><table id="shipments-table"
           <thead><tr>
             <th class="sortable" onclick="sortTbl('shipments','shipment_number')">No.</th>
             <th class="sortable" onclick="sortTbl('shipments','date')">Date</th>
@@ -940,6 +947,16 @@ tr[data-paid="true"] td{opacity:.55}
 
     <!-- COLLECTIONS -->
     <div id="page-collections" class="page">
+      <!-- Missing Collections Alert -->
+      <div id="col-missing-banner" style="display:none;background:linear-gradient(90deg,#fffbeb,#fef3c7);border:1.5px solid #fcd34d;border-radius:var(--rlg);padding:12px 18px;margin-bottom:12px;display:none;align-items:center;gap:12px">
+        <span style="font-size:20px">⚠️</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:#92400e" id="col-missing-title">Shipped PIs with no Collections record</div>
+          <div style="font-size:11px;color:#b45309;margin-top:2px" id="col-missing-list"></div>
+        </div>
+        <button onclick="autoAddMissingCollections()" style="padding:7px 14px;background:#f59e0b;color:#fff;border:none;border-radius:var(--rsm);font-size:12px;font-weight:700;cursor:pointer">+ Add All Now</button>
+        <button onclick="document.getElementById('col-missing-banner').style.display='none'" style="padding:7px 10px;background:transparent;border:none;color:#92400e;cursor:pointer;font-size:16px">✕</button>
+      </div>
       <!-- Overdue Summary Panel -->
       <div id="col-overdue-panel" style="display:none;background:linear-gradient(135deg,#fff5f5 0%,#fff1f2 100%);border:1.5px solid #fca5a5;border-radius:var(--rlg);box-shadow:0 4px 16px rgba(239,68,68,.12);margin-bottom:14px;overflow:hidden">
         <div style="display:flex;align-items:center;gap:10px;padding:11px 18px;background:linear-gradient(90deg,#dc2626,#ef4444)">
@@ -1962,6 +1979,127 @@ function renderProductsGrouped(prods){
 
   if(!html)html='<div style="padding:40px;text-align:center;color:var(--g400)">No products found</div>';
   container.innerHTML=html;
+}
+
+// ── MISSING COLLECTIONS CHECK ────────────────────────────────────────────────
+async function checkMissingCollections(){
+  const banner=document.getElementById('col-missing-banner');
+  const titleEl=document.getElementById('col-missing-title');
+  const listEl=document.getElementById('col-missing-list');
+  if(!banner)return;
+
+  const {data:ships=[]}=await sb.from('shipments').select('pi_number,date,amount_usd').not('date','is',null);
+  const {data:cols=[]}=await sb.from('collections').select('pi_number');
+  const {data:piRows=[]}=await sb.from('pi').select('pi_number,payment_terms,amount_usd,distributor,country');
+
+  const colPiSet=new Set((cols||[]).map(c=>c.pi_number));
+  const piMap={};(piRows||[]).forEach(p=>piMap[p.pi_number]=p);
+
+  const missing=(ships||[]).filter(s=>{
+    if(colPiSet.has(s.pi_number))return false;
+    const terms=((piMap[s.pi_number]||{}).payment_terms||'').toLowerCase();
+    // Skip "100% TT before shipment" — already paid before ship so no A/R
+    if(terms.includes('before shipment')||terms.includes('tt before'))return false;
+    return true;
+  });
+
+  if(missing.length>0){
+    if(titleEl)titleEl.textContent=`⚠️ ${missing.length} shipped PI${missing.length>1?'s':''} have no Collections record`;
+    if(listEl)listEl.textContent=missing.map(m=>m.pi_number).join(' · ');
+    banner.style.display='flex';
+    window._missingCollections=missing.map(m=>piMap[m.pi_number]||{pi_number:m.pi_number});
+  } else {
+    banner.style.display='none';
+  }
+}
+
+async function autoAddMissingCollections(){
+  const missing=window._missingCollections||[];
+  if(!missing.length)return;
+  let created=0;
+  for(const pi of missing){
+    await autoCreateCollection(pi.pi_number, pi.amount_usd||0);
+    created++;
+  }
+  toast(`✅ Created ${created} Collections records`);
+  document.getElementById('col-missing-banner').style.display='none';
+  // Reload collections
+  cache._xref=null;
+  loadTable('collections');
+}
+
+// ── AUTO-CREATE COLLECTIONS ON SHIPMENT ──────────────────────────────────────
+async function autoCreateCollection(piNumber, shipAmount){
+  // 1. Check if collection already exists
+  const {data:existing}=await sb.from('collections')
+    .select('id').eq('pi_number',piNumber).limit(1);
+  if(existing&&existing.length>0)return; // already has collection record
+
+  // 2. Get PI info
+  const {data:piData}=await sb.from('pi')
+    .select('pi_number,amount_usd,payment_terms,distributor,country').eq('pi_number',piNumber).single();
+  if(!piData)return;
+
+  const terms=(piData.payment_terms||'').toLowerCase();
+  const isPrepaid=terms.includes('before shipment')||terms.includes('tt before');
+  const invoiceAmt=parseFloat(piData.amount_usd||shipAmount||0);
+
+  // 3. Create collection record
+  const payload={
+    pi_number:piNumber,
+    distributor:piData.distributor||'',
+    country:piData.country||'',
+    invoice_amount_usd:invoiceAmt,
+    collected_amount_usd:isPrepaid?invoiceAmt:0,
+    status:isPrepaid?'Collected':'Pending',
+    notes:isPrepaid?'Auto-created: 100% TT before shipment — fully paid':'Auto-created on shipment'
+  };
+
+  const {error}=await sb.from('collections').insert(payload);
+  if(!error){
+    const msg=isPrepaid
+      ?'✅ Collections: auto-marked as Collected (TT before shipment)'
+      :'📋 Collections: new Pending record created for '+piNumber;
+    toast(msg,'ok');
+    // Invalidate xref cache
+    cache._xref=null;
+  }
+}
+
+// ── HIDE COMPLETED TOGGLE ─────────────────────────────────────────────────────
+const _doneState={pi:false, po:false, hqpo:false, shipments:false};
+const _doneLabel={pi:'Completed', po:'Completed', hqpo:'Delivered', shipments:'Completed'};
+
+function toggleDoneRows(page){
+  _doneState[page]=!_doneState[page];
+  applyDoneFilter(page);
+}
+
+function applyDoneFilter(page){
+  const show=_doneState[page];
+  const tbl=document.getElementById(page+'-table');
+  const btn=document.getElementById(page+'-done-toggle');
+  if(tbl){
+    if(show) tbl.classList.remove('hide-done');
+    else tbl.classList.add('hide-done');
+  }
+  if(btn){
+    const label=_doneLabel[page]||'Completed';
+    btn.textContent=show?'🙈 Hide '+label:'👁 Show '+label;
+    btn.style.background=show?'var(--g200)':'#fff';
+    btn.style.color=show?'var(--g700)':'var(--g600)';
+  }
+  // Update title count
+  const tbody=document.getElementById(page+'-tbody');
+  if(!tbody)return;
+  const allRows=tbody.querySelectorAll('tr');
+  const doneRows=tbody.querySelectorAll('tr[data-done="true"]');
+  const showing=show?allRows.length:allRows.length-doneRows.length;
+  const panelTitle=document.querySelector('#page-'+page+' .panel-title');
+  if(panelTitle){
+    const pageName={'pi':'PI Management','po':'PO Management','hqpo':'HQ PO','shipments':'Shipments'}[page]||page;
+    panelTitle.textContent=pageName+(doneRows.length>0&&!show?' ('+showing+' active · '+doneRows.length+' hidden)':'');
+  }
 }
 
 let _colShowPaid=false;
@@ -3316,8 +3454,13 @@ async function loadTable(page){
     cache.products_data=data||[];
     renderProductsGrouped(cache.products_data);
   }
-  // Render overdue panel for collections
+  // Apply hide-done filter for PI/PO/HQ PO/Shipments
+  if(['pi','po','hqpo','shipments'].includes(page)){
+    setTimeout(()=>applyDoneFilter(page), 60);
+  }
+  // Render overdue panel + missing collections check
   if(page==='collections'){
+    checkMissingCollections();
     // Apply current paid filter state
     setTimeout(()=>{
       const tbl=document.getElementById('collections-table');
@@ -3391,7 +3534,7 @@ function rowHTML(page,r){
   const xref=cache._xref||{pi:[],po:[],hq:[],sh:[],col:[],piDueMap:{}};
   const st=autoStatus(page,r,xref);
 
-  if(page==='pi')return`<tr>
+  if(page==='pi')return`<tr${st.status==='Completed'?' data-done="true"':''}>
     <td>${piLink(r.pi_number,r.pi_number)}</td>
     <td>${r.date||'-'}</td>
     <td>${r.distributor||'-'}</td>
@@ -3407,7 +3550,7 @@ function rowHTML(page,r){
       ${isAdmin?`<button class="btn btn-danger btn-sm" onclick="delRow('pi','${r.id}')">Del</button>`:''}
     </div></td></tr>`;
 
-  if(page==='po')return`<tr>
+  if(page==='po')return`<tr${st.status==='Completed'?' data-done="true"':''}>
     <td><strong>${r.po_number}</strong></td>
     <td>${r.date||'-'}</td>
     <td>${r.distributor||'-'}</td>
@@ -3417,7 +3560,7 @@ function rowHTML(page,r){
     <td>${pillAuto(st,'po')}</td>
     ${acts}</tr>`;
 
-  if(page==='hqpo')return`<tr>
+  if(page==='hqpo')return`<tr${(st.deliveryStatus==='Delivered'||st.shipStatus==='Completed')?' data-done="true"':''}>
     <td><strong>${r.hq_po_number}</strong></td>
     <td>${r.issue_date||'-'}</td>
     <td>${piLink(r.pi_number,r.pi_number)}</td>
@@ -4376,6 +4519,10 @@ async function saveForm(){
   toast('Saved!','ok');closeForm();loadPage(activePage);
   if(formState.page==='distributors')masterCache.distributors=(await sb.from('distributors').select('*').order('company_name')).data||[];
   if(formState.page==='products')masterCache.products=(await sb.from('products').select('*').order('product_name')).data||[];
+  // Auto-create Collections when a Shipment is saved
+  if(formState.page==='shipments'&&data.pi_number){
+    await autoCreateCollection(data.pi_number, data.amount_usd||0);
+  }
 }
 
 async function delRow(page,id){
