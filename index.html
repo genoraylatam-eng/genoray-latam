@@ -14,6 +14,7 @@
 <title>Genoray LATAM | Sales Management</title>
 <!-- v6.1 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
 :root{
   --navy:#0f2744;--blue:#2563eb;--blue2:#3b82f6;--blue-pale:#dbeafe;
@@ -1368,6 +1369,12 @@ tr[data-paid="true"] td{opacity:.55}
 const {createClient}=supabase;
 const sb=createClient('https://cqvtqcnjmmfvvynsgmei.supabase.co','sb_publishable_pCAcvd2jsuIx_1hcksk9NQ_UVlUqK8S');
 
+// ── EMAILJS CONFIG ────────────────────────────────────────────────────────────
+const EMAILJS_SERVICE  = 'service_g9bn6ff';
+const EMAILJS_TEMPLATE = 'lzhgapk';
+const EMAILJS_KEY      = '37yTnuJZVizqIMq7u';
+(function(){if(typeof emailjs!=='undefined')emailjs.init({publicKey:EMAILJS_KEY});})();
+
 // ── AUTH STORAGE (uses both session + local storage for reliability) ──────────
 function getAuth(){ return sessionStorage.getItem('gl_auth')||localStorage.getItem('gl_auth')||null; }
 function getRole(){ return sessionStorage.getItem('gl_role')||localStorage.getItem('gl_role')||'user'; }
@@ -2033,6 +2040,30 @@ async function autoAddMissingCollections(){
   loadTable('collections');
 }
 
+// ── EMAILJS SEND ─────────────────────────────────────────────────────────────
+async function sendEmailAlert(toEmail, repName, piCount, piListText){
+  if(!toEmail){
+    toast('⚠️ No email address for this user — add in Admin panel','err');
+    return false;
+  }
+  try{
+    if(typeof emailjs==='undefined'){
+      toast('EmailJS not loaded','err'); return false;
+    }
+    await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+      to_email: toEmail,
+      rep_name: repName,
+      pi_count: String(piCount),
+      pi_list:  piListText,
+    }, {publicKey: EMAILJS_KEY});
+    toast('✅ Alert email sent to '+toEmail);
+    return true;
+  } catch(err){
+    toast('Email error: '+(err?.text||err?.message||JSON.stringify(err)),'err');
+    return false;
+  }
+}
+
 // ── SALES REP DAILY ALERTS ────────────────────────────────────────────────────
 async function checkSalesRepAlerts(userPerms){
   if(!userPerms)return;
@@ -2121,6 +2152,12 @@ function showSalesRepAlertPanel(pis, userPerms, alertMsg){
 
   // Auto-dismiss after 30 seconds
   setTimeout(()=>{const p=document.getElementById('sales-rep-alert-panel');if(p)p.remove();},30000);
+
+  // Auto-send email if user has notify_email enabled and email address set
+  if(userPerms.notify_email!==false && userPerms.email){
+    const piListText=pis.slice(0,10).map(p=>`• ${p.pi_number} (${p.days}d no action) — $${Number(p.amount_usd||0).toLocaleString('en')} — ${p.distributor||''}`).join('\n');
+    sendEmailAlert(userPerms.email, userPerms.display_name||userPerms.username, pis.length, piListText);
+  }
 }
 
 function closeAllPanels(){
@@ -6566,12 +6603,43 @@ async function loadAdminUsers(){
       </td>
       <!-- Actions -->
       <td style="padding:6px 14px;text-align:center">${isAdmin?'':
-        `<button onclick="toggleUserActive('${u.username}',${u.is_active})" style="padding:3px 7px;border:1px solid var(--g200);border-radius:4px;font-size:10px;cursor:pointer;background:#fff">${u.is_active?'Deact':'Activ'}</button>`}
+        `<div style="display:flex;gap:4px;flex-direction:column">
+          <button onclick="toggleUserActive('${u.username}',${u.is_active})" style="padding:3px 7px;border:1px solid var(--g200);border-radius:4px;font-size:10px;cursor:pointer;background:#fff">${u.is_active?'Deact':'Activ'}</button>
+          ${utype==='sales_rep'?`<button onclick="adminSendAlert('${u.username}')" style="padding:3px 7px;border:1px solid #2563eb;border-radius:4px;font-size:10px;cursor:pointer;color:#2563eb;background:#eff6ff">📧 Alert</button>`:''}
+        </div>`}
       </td>
     </tr>`;
   });
   html+='</tbody></table></div>';
   grid.innerHTML=html;
+}
+
+async function adminSendAlert(username){
+  // Fetch latest PI alert data for this user
+  const {data:piRows=[]}=await sb.from('pi').select('pi_number,date,amount_usd,distributor,notes').eq('sales_rep',username);
+  const xr=cache._xref||await loadXRef();
+  const today=new Date(); today.setHours(0,0,0,0);
+
+  const noAction=piRows.filter(p=>{
+    const hasSh=xr.sh.some(s=>s.pi_number===p.pi_number&&s.date);
+    const hasHQ=xr.hq.some(h=>h.pi_number===p.pi_number);
+    const hasPO=xr.po.some(po=>po.pi_number===p.pi_number);
+    return !hasSh&&!hasHQ&&!hasPO;
+  }).map(p=>{
+    const d=p.date?new Date(p.date):null;
+    const days=d?Math.floor((today-d)/(1000*86400)):0;
+    return{...p,days};
+  }).filter(p=>p.days>0);
+
+  if(!noAction.length){toast('No No-Action PIs for @'+username);return;}
+
+  // Get user contact
+  const {data:u}=await sb.from('user_permissions').select('email,display_name,notify_email').eq('username',username).single();
+  if(!u?.email){toast('⚠️ No email set for @'+username+'. Add in the table above.','err');return;}
+  if(u.notify_email===false){toast('⚠️ Email notifications disabled for @'+username,'err');return;}
+
+  const piListText=noAction.slice(0,10).map(p=>`• ${p.pi_number} (${p.days}d no action) — $${Number(p.amount_usd||0).toLocaleString('en')} — ${p.distributor||''}`).join('\n');
+  await sendEmailAlert(u.email, u.display_name||username, noAction.length, piListText);
 }
 
 function togglePwView(username, pw){
