@@ -7442,9 +7442,29 @@ async function runDelayCheck(onlyEscalate=false){
     return;
   }
 
-  const {error}=await sb.from('notifications').insert(toInsert);
-  if(error){toast('Error: '+error.message,'err');return;}
-  toast('⚠️ '+toInsert.length+' delay alert(s) sent!','err');
+  // Insert new alerts only, skip duplicates (same related_id already in DB)
+  const existIds=new Set((notifR.data||[]).map(n=>n.related_id).filter(Boolean));
+  const fresh=toInsert.filter(n=>!existIds.has(n.related_id));
+  const resend=toInsert.filter(n=>existIds.has(n.related_id));
+
+  let inserted=0;
+  if(fresh.length){
+    const{error}=await sb.from('notifications').insert(fresh);
+    if(error){toast('Error: '+error.message,'err');}
+    else inserted=fresh.length;
+  }
+  // For resends: update existing (mark unread, update message)
+  for(const n of resend){
+    await sb.from('notifications')
+      .update({message:n.message, read_by:[], title:n.title})
+      .eq('related_id',n.related_id).eq('type','alert');
+  }
+
+  const parts=[];
+  if(inserted) parts.push(inserted+' new alert(s)');
+  if(resend.length) parts.push(resend.length+' resent (no response)');
+  if(!parts.length){toast('✅ All delays already notified');await loadNotifications();return;}
+  toast('⚠️ '+parts.join(', '),'err');
   await loadNotifications();
 }
 
@@ -7619,40 +7639,138 @@ function renderNotifications(){
     el.innerHTML='<div style="text-align:center;padding:48px;color:var(--g400);font-size:14px">📭 No messages here</div>';
     return;
   }
-  el.innerHTML=rows.map(n=>{
-    const st=NOTIF_STYLE[n.type]||NOTIF_STYLE.info;
-    const isRead=(n.read_by||[]).includes(me);
-    const isOwn=n.from_user===me;
-    const isAlert=n.type==='alert';
-    const ago=fmtAgo(n.created_at);
-    // Parse stage from related_id for alerts
-    const alertStage=isAlert&&n.related_id?n.related_id.split('_').slice(1).join('_'):'';
-    const piNum=isAlert&&n.related_id?n.related_id.split('_')[0]:'';
 
-    return`<div style="display:flex;gap:14px;padding:14px 16px;background:${isRead||isOwn?'#fafafa':st.bg};border:1.5px solid ${isRead||isOwn?'var(--g100)':st.border};border-radius:12px;transition:all .15s;${isRead||isOwn?'opacity:.85':''}">
-      <div style="font-size:22px;flex-shrink:0;margin-top:2px">${st.icon}</div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:4px">
-          <span style="font-weight:${isRead||isOwn?'600':'800'};font-size:14px;color:var(--g900);flex:1">${esc(n.title)}</span>
-          ${!isRead&&!isOwn?'<span style="background:#ef4444;color:#fff;font-size:10px;font-weight:800;padding:1px 8px;border-radius:8px;flex-shrink:0">NEW</span>':''}
-          ${isOwn?'<span style="background:var(--g100);color:var(--g500);font-size:10px;padding:1px 8px;border-radius:8px;flex-shrink:0">Sent</span>':''}
+  // Group alerts by recipient + related_id (dedup same case)
+  // For non-alerts: show as compact list
+  const alertGroups={}; // key: to_user → [{n, isEsc}]
+  const others=[];
+
+  rows.forEach(n=>{
+    if(n.type==='alert'){
+      const key=n.to_user||'ALL';
+      if(!alertGroups[key]) alertGroups[key]=[];
+      alertGroups[key].push(n);
+    } else {
+      others.push(n);
+    }
+  });
+
+  let html='';
+
+  // Render alert groups by recipient
+  Object.entries(alertGroups).forEach(([recip, alerts])=>{
+    const unreadCount=alerts.filter(n=>!(n.read_by||[]).includes(me)&&n.from_user!==me).length;
+    const groupKey='ag_'+recip.replace(/[^a-z0-9]/gi,'_');
+    html+=`<div style="border:1.5px solid ${unreadCount?'#fecaca':'var(--g100)'};border-radius:12px;overflow:hidden;margin-bottom:4px">
+      <div onclick="toggleAlertGroup('${groupKey}')" style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:${unreadCount?'#fef2f2':'#fafafa'};cursor:pointer;user-select:none">
+        <span style="font-size:16px">⚠️</span>
+        <div style="flex:1">
+          <span style="font-weight:700;font-size:13px;color:var(--g900)">Delay Alerts → @${esc(recip)}</span>
+          <span style="font-size:11px;color:var(--g500);margin-left:8px">${alerts.length} case${alerts.length>1?'s':''}</span>
         </div>
-        ${n.message?`<div style="font-size:13px;color:var(--g600);white-space:pre-wrap;margin-bottom:8px">${esc(n.message)}</div>`:''}
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--g400)">
-          <span>From: <strong>${esc(n.from_user==='system'?'🤖 System':n.from_user)}</strong></span>
-          ${n.to_user?`<span>→ <strong>${esc(n.to_user)}</strong></span>`:'<span style="background:#ede9fe;color:#7c3aed;padding:1px 7px;border-radius:6px;font-size:10px">All Users</span>'}
-          <span>${ago}</span>
-          ${n.related_page?`<span onclick="navigateTo('${n.related_page}')" style="background:var(--g100);padding:1px 8px;border-radius:6px;cursor:pointer;color:var(--blue)">→ ${n.related_page.toUpperCase()}</span>`:''}
-        </div>
-        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-          ${!isRead&&!isOwn?`<button onclick="markRead('${n.id}')" style="padding:4px 12px;border:1px solid var(--g200);border-radius:6px;background:#fff;font-size:11px;cursor:pointer">✓ Mark read</button>`:''}
-          ${isAlert&&!isOwn&&piNum?`<button onclick="openDelayResponse('${n.id}','${esc(piNum)}','${esc(alertStage)}')" style="padding:4px 14px;border:none;border-radius:6px;background:#f59e0b;color:#fff;font-size:11px;font-weight:700;cursor:pointer">📝 Respond</button>`:''}
-          ${n.related_id&&!isAlert?`<button onclick="openRecordMessage('${n.related_page||'pi'}','${esc(n.related_id)}','${esc(n.title)}')" style="padding:4px 12px;border:1px solid var(--blue);border-radius:6px;background:#eff6ff;color:var(--blue);font-size:11px;cursor:pointer">↩ Reply</button>`:''}
-          <button onclick="deleteNotif('${n.id}','${isOwn}')" style="padding:4px 12px;border:1px solid var(--g200);border-radius:6px;background:#fff;font-size:11px;cursor:pointer;color:var(--g400);margin-left:auto">🗑 Delete</button>
+        ${unreadCount?`<span style="background:#ef4444;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:8px">${unreadCount} NEW</span>`:''}
+        <span id="${groupKey}_arrow" style="font-size:12px;color:var(--g400)">▼</span>
+      </div>
+      <div id="${groupKey}" style="display:block">
+        ${alerts.map(n=>{
+          const isRead=(n.read_by||[]).includes(me);
+          const isEsc=n.title.startsWith('🔴');
+          const ago=fmtAgo(n.created_at);
+          const st=NOTIF_STYLE[n.type]||NOTIF_STYLE.info;
+          const alertStage=n.related_id?n.related_id.split('_').slice(1).join('_'):'';
+          const piNum=n.related_id?n.related_id.split('_').slice(0,-alertStage.split('_').length).join('_'):'';
+          // Parse PI number properly
+          const stageKeys=['no_action','hqpo_delay','col_delay','po_delay'];
+          let piNumber=piNum, stage=alertStage;
+          for(const sk of stageKeys){
+            if((n.related_id||'').endsWith('_'+sk)){
+              piNumber=(n.related_id||'').slice(0,-(sk.length+1));
+              stage=sk; break;
+            }
+          }
+          return`<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;border-top:1px solid var(--g100);background:${isRead?'#fff':st.bg};${isEsc?'border-left:3px solid #ef4444;':''}">
+            <span style="font-size:14px;flex-shrink:0">${isEsc?'🔴':st.icon}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:${isRead?'500':'700'};color:var(--g900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                ${esc(n.title)}
+                ${isEsc?'<span style="font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;font-weight:700">RESENT</span>':''}
+              </div>
+              <div style="font-size:11px;color:var(--g400)">${ago} ${n.message?(n.message.split('\n')[2]||''):''}
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              ${!isRead?`<button onclick="markRead('${n.id}');event.stopPropagation()" style="padding:3px 8px;border:1px solid var(--g200);border-radius:5px;background:#fff;font-size:10px;cursor:pointer">✓</button>`:''}
+              ${piNumber&&!isEsc?`<button onclick="openDelayResponse('${n.id}','${esc(piNumber)}','${esc(stage)}');event.stopPropagation()" style="padding:3px 10px;border:none;border-radius:5px;background:#f59e0b;color:#fff;font-size:10px;font-weight:700;cursor:pointer">📝 Respond</button>`:''}
+              <button onclick="deleteNotif('${n.id}','false');event.stopPropagation()" style="padding:3px 6px;border:1px solid var(--g100);border-radius:5px;background:#fff;font-size:10px;cursor:pointer;color:var(--g300)">🗑</button>
+            </div>
+          </div>`;
+        }).join('')}
+        <div style="padding:6px 16px;background:#fafafa;border-top:1px solid var(--g100);display:flex;gap:8px">
+          <button onclick="markAllRead('${recip}');event.stopPropagation()" style="padding:4px 12px;border:1px solid var(--g200);border-radius:6px;background:#fff;font-size:11px;cursor:pointer">✓ Mark all read</button>
+          <button onclick="deleteAllAlerts('${recip}');event.stopPropagation()" style="padding:4px 12px;border:1px solid var(--g100);border-radius:6px;background:#fff;font-size:11px;cursor:pointer;color:var(--g400)">🗑 Clear all</button>
         </div>
       </div>
     </div>`;
-  }).join('');
+  });
+
+  // Render non-alert messages compactly
+  others.forEach(n=>{
+    const isRead=(n.read_by||[]).includes(me);
+    const isOwn=n.from_user===me;
+    const st=NOTIF_STYLE[n.type]||NOTIF_STYLE.info;
+    const ago=fmtAgo(n.created_at);
+    html+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${isRead||isOwn?'#fafafa':st.bg};border:1.5px solid ${isRead||isOwn?'var(--g100)':st.border};border-radius:10px">
+      <span style="font-size:18px;flex-shrink:0">${st.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:${isRead||isOwn?'500':'700'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(n.title)}</div>
+        <div style="font-size:11px;color:var(--g400);margin-top:1px">
+          ${isOwn?'Sent':'From'}: <strong>${esc(n.from_user==='system'?'System':n.from_user)}</strong>
+          ${n.to_user?` → <strong>${esc(n.to_user)}</strong>`:'<span style="color:#7c3aed"> (All)</span>'}
+          · ${ago}
+          ${n.related_page?`· <span onclick="navigateTo('${n.related_page}')" style="color:var(--blue);cursor:pointer">${n.related_page.toUpperCase()}</span>`:''}
+        </div>
+        ${n.message&&n.message.length>0?`<div style="font-size:12px;color:var(--g600);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:600px">${esc(n.message)}</div>`:''}
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+        ${!isRead&&!isOwn?'<span style="width:8px;height:8px;background:#ef4444;border-radius:50%;display:inline-block"></span>':''}
+        ${!isOwn&&n.related_id?`<button onclick="openRecordMessage('${n.related_page||'pi'}','${esc(n.related_id)}','${esc(n.title)}')" style="padding:3px 8px;border:1px solid var(--blue);border-radius:5px;background:#eff6ff;color:var(--blue);font-size:10px;cursor:pointer">↩</button>`:''}
+        <button onclick="deleteNotif('${n.id}','${isOwn}')" style="padding:3px 6px;border:1px solid var(--g100);border-radius:5px;background:#fff;font-size:10px;cursor:pointer;color:var(--g300)">🗑</button>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML=html||'<div style="text-align:center;padding:48px;color:var(--g400)">📭 No messages</div>';
+}
+
+function toggleAlertGroup(key){
+  const el=document.getElementById(key);
+  const arrow=document.getElementById(key+'_arrow');
+  if(!el)return;
+  const isOpen=el.style.display!=='none';
+  el.style.display=isOpen?'none':'block';
+  if(arrow)arrow.textContent=isOpen?'▶':'▼';
+}
+
+async function markAllRead(toUser){
+  const me=getAuth();
+  const toMark=_notifData.filter(n=>n.to_user===toUser&&!(n.read_by||[]).includes(me));
+  for(const n of toMark){
+    const nr=[...(n.read_by||[]),me];
+    await sb.from('notifications').update({read_by:nr}).eq('id',n.id);
+    n.read_by=nr;
+  }
+  updateBellBadge(); renderNotifications();
+}
+
+async function deleteAllAlerts(toUser){
+  if(!confirm('Delete all alerts for @'+toUser+'?'))return;
+  const ids=_notifData.filter(n=>n.to_user===toUser&&n.type==='alert').map(n=>n.id);
+  for(const id of ids){
+    await sb.from('notifications').delete().eq('id',id);
+  }
+  _notifData=_notifData.filter(n=>!(n.type==='alert'&&n.to_user===toUser));
+  updateBellBadge(); renderNotifications();
+  toast('✅ Cleared all alerts for @'+toUser);
 }
 
 async function markRead(id){
