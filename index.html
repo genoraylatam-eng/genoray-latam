@@ -4448,347 +4448,258 @@ function closeStatusHelp(){
 const MANUAL_SECTIONS = [
   {
     id:'gs', icon:'🚀', title:'Getting Started',
-    sub:'Login, accounts, and first steps',
+    sub:'Login, accounts, and navigation',
     content:`
       <div class="hs-h3">System Overview</div>
-      <p class="hs-p">Genoray LATAM Sales Management is a web-based system for managing the full sales lifecycle — from Proforma Invoice (PI) issuance through PO, HQ PO, shipment, and payment collection.</p>
-      <p class="hs-p">All data is stored in the cloud (Supabase database) and accessible from any device with internet access.</p>
-      <div class="hs-info">✅ <strong>Revenue basis:</strong> All revenue figures are based on <strong>Shipment Date</strong> (J column in the original Shipment sheet), not PI issue date.</div>
-
-      <div class="hs-h3">Accessing the System</div>
-      <p class="hs-p">Open a browser and go to: <strong style="color:var(--blue)">genoray-latam.vercel.app</strong></p>
-      <p class="hs-p">Works on all devices: PC, Mac, iPhone, Galaxy, and any modern browser.</p>
-
-      <div class="hs-h3">Login Accounts</div>
-      <table class="hs-table">
-        <tr><th>Username</th><th>Role</th><th>Access Level</th></tr>
-        <tr><td><strong>mitchel</strong></td><td>Admin</td><td>Full access — can delete records, see all data</td></tr>
-        <tr><td><strong>admin</strong></td><td>Admin</td><td>Full access</td></tr>
-        <tr><td><strong>chris</strong></td><td>User</td><td>View and create/edit — no delete</td></tr>
-        <tr><td><strong>weverson</strong></td><td>User</td><td>View and create/edit — no delete</td></tr>
-      </table>
-      <div class="hs-warn">⚠️ <strong>Security:</strong> Do not share your password. The session automatically logs out after 60 minutes of inactivity.</div>
-
-      <div class="hs-h3">Navigation</div>
+      <p class="hs-p">Genoray LATAM Sales Management is a web-based system for managing the full sales lifecycle — from Proforma Invoice through shipment and collection. Access it from any browser at <strong>genoray-latam.vercel.app</strong>.</p>
+      <div class="hs-h3">Login</div>
+      <p class="hs-p">Enter your username and password. The system supports two roles:</p>
       <ul class="hs-ul">
-        <li><strong>Overview:</strong> Dashboard, Pipeline & Backlog, Report</li>
-        <li><strong>Sales:</strong> PI, PO, HQ PO, Shipments, Collections</li>
-        <li><strong>Master Data:</strong> Distributors, Products, Annual Goals</li>
-        <li><strong>Help:</strong> This user manual (bottom of sidebar)</li>
+        <li><strong>Admin</strong> — full access to all data and settings (shown as orange ADMIN badge)</li>
+        <li><strong>User</strong> — view and enter data, no delete access</li>
       </ul>
-      <div class="hs-tip">💡 On mobile, use the <strong>bottom navigation bar</strong> for quick access to Dashboard, Pipeline, PI, Shipments, and Manual. Tap ☰ for the full menu.</div>
+      <p class="hs-p">Sessions are maintained via localStorage so you stay logged in between browser refreshes. Auto-logout after 60 minutes of inactivity.</p>
+      <div class="hs-h3">Navigation</div>
+      <p class="hs-p">Use the left sidebar to navigate between sections. On mobile, tap the hamburger menu (☰) or use the bottom navigation bar. The year badge (e.g. <strong>2026</strong>) in the top bar shows the active data year.</p>
+      <div class="hs-h3">Page Sections</div>
+      <ul class="hs-ul">
+        <li><strong>Overview:</strong> Dashboard · Pipeline & Backlog · Report</li>
+        <li><strong>Sales:</strong> PI · PO · HQ PO · Shipments · Collections</li>
+        <li><strong>Master Data:</strong> Distributors · Products · Annual Goals · Pricing</li>
+      </ul>
     `
   },
   {
     id:'dash', icon:'📊', title:'Dashboard',
-    sub:'KPIs, monthly chart, goal achievement',
+    sub:'KPI cards, revenue charts, and country analysis',
     content:`
-      <div class="hs-h3">Overview</div>
-      <p class="hs-p">The Dashboard gives a real-time snapshot of the current year's sales performance. All figures are based on <strong>shipment date</strong> — a PI is only counted as revenue after it is shipped.</p>
-
-      <div class="hs-h3">KPI Cards (Top Row)</div>
-      <table class="hs-table">
-        <tr><th>Card</th><th>What It Shows</th></tr>
-        <tr><td><strong>Revenue (Shipped)</strong></td><td>Total value of all completed shipments this year</td></tr>
-        <tr><td><strong>Goal Achievement</strong></td><td>YTD revenue ÷ annual goal × 100</td></tr>
-        <tr><td><strong>Collected</strong></td><td>Total cash actually received (from Collections)</td></tr>
-        <tr><td><strong>Outstanding (A/R)</strong></td><td>Invoice total minus collected — unpaid balance</td></tr>
-        <tr><td><strong>Active PI</strong></td><td>PIs issued but not yet shipped</td></tr>
-      </table>
-
+      <div class="hs-h3">KPI Cards</div>
+      <p class="hs-p">Five cards at the top show key metrics for the selected year. <strong>Click any card to see the detailed breakdown:</strong></p>
+      <ul class="hs-ul">
+        <li><strong>📈 Revenue</strong> — click to see all shipment records sorted by date</li>
+        <li><strong>🎯 Goal Achievement</strong> — shows achievement % vs annual target</li>
+        <li><strong>✅ Collected</strong> — click to see all paid collection records</li>
+        <li><strong>⏳ Outstanding (A/R)</strong> — click to see unpaid invoices sorted by amount</li>
+        <li><strong>📋 Active PI</strong> — click to see all unshipped PIs with status</li>
+      </ul>
       <div class="hs-h3">Monthly Revenue vs Goal Chart</div>
+      <p class="hs-p">Dual-axis SVG chart showing monthly revenue bars and cumulative revenue/goal lines. Controls:</p>
       <ul class="hs-ul">
-        <li><strong>Light blue bar (left):</strong> Monthly goal target — all 12 months shown</li>
-        <li><strong>Dark blue bar (right):</strong> Actual revenue (shipped) — past months only</li>
-        <li><strong>Solid line:</strong> Cumulative revenue (right axis scale)</li>
-        <li><strong>Dashed line:</strong> Cumulative goal projection (right axis scale)</li>
-        <li><strong>% below month name:</strong> That month's achievement rate (🟢≥100% 🟡≥70% 🔴below 70%)</li>
+        <li><strong>Single Year / Compare Years</strong> — toggle single vs multi-year view</li>
+        <li><strong>All / Medical / Dental</strong> — filter by division</li>
+        <li>Year dropdown (2026, 2025, etc.)</li>
+        <li>Cumulative goal line shows dots and quarterly labels ($xxxK)</li>
+        <li>Goal bar labels show monthly target amounts</li>
       </ul>
-      <div class="hs-tip">💡 Use the <strong>All / Medical / Dental</strong> tabs to filter by division. Use <strong>Single Year / Compare Years</strong> to compare up to 3 years of revenue.</div>
-
       <div class="hs-h3">Goal Achievement by Country</div>
-      <p class="hs-p">Each country with revenue activity is shown as a card with three progress bars:</p>
-      <ul class="hs-ul">
-        <li><strong>vs Annual:</strong> YTD revenue against the full-year target</li>
-        <li><strong>vs YTD Goal:</strong> Revenue against the cumulative monthly targets up to the selected month</li>
-        <li><strong>vs Monthly Goal:</strong> Revenue in the selected month against that month's target</li>
-      </ul>
-      <p class="hs-p">Countries with <strong>zero revenue</strong> are grouped at the bottom in the "No Progress" section — not shown as individual cards to keep the view clean.</p>
-      <p class="hs-p">Use the <strong>All / Medical / Dental</strong> tabs and the <strong>month selector</strong> to drill into specific segments.</p>
-
-      <div class="hs-h3">Monthly Shipment Detail</div>
-      <p class="hs-p">Below the country cards, a table shows all shipments completed in the selected month, grouped by country — including Distributor, PI number, Models, Quantity, Amount, and Ship Date.</p>
-
-      <div class="hs-h3">Sales by Country & Division / Rep</div>
-      <p class="hs-p">Horizontal bar charts showing revenue breakdown. Bar width = relative size compared to the top performer. Each bar shows the actual dollar amount and percentage of total revenue.</p>
+      <p class="hs-p">Shows each country's YTD revenue vs monthly/annual goal. Use the <strong>All / Medical / Dental</strong> tabs and the <strong>View month</strong> selector to drill into any month.</p>
+      <div class="hs-h3">Sales by Country / Division / Rep</div>
+      <p class="hs-p">Horizontal bar charts showing relative revenue share. Division chart includes Medical, Dental, and Both categories.</p>
     `
   },
   {
     id:'pipeline', icon:'🔄', title:'Pipeline & Backlog',
-    sub:'Track PI progress from issue to shipment',
+    sub:'Track active PIs from creation to collection',
     content:`
       <div class="hs-h3">Overview</div>
-      <p class="hs-p">The Pipeline & Backlog page shows every PI and its current progress through the sales process — helping you spot deals that are stalling.</p>
-
-      <div class="hs-h3">Status Categories</div>
-      <table class="hs-table">
-        <tr><th>Status</th><th>Meaning</th><th>Alert</th></tr>
-        <tr><td><span class="hs-badge" style="background:var(--red-pale);color:var(--red)">🔴 Backlog</span></td><td>No PO or HQ PO linked yet</td><td>Orange warning at 30+ days, red at 60+ days</td></tr>
-        <tr><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">🔵 In Progress</span></td><td>PO or HQ PO linked, not yet shipped</td><td>—</td></tr>
-        <tr><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">✅ Shipped</span></td><td>Shipment with a date exists</td><td>—</td></tr>
-      </table>
-
-      <div class="hs-h3">Summary Stats Bar</div>
-      <p class="hs-p">At the top you'll see the count and total value for each status category at a glance.</p>
-
-      <div class="hs-h3">Filtering & Sorting</div>
+      <p class="hs-p">Pipeline & Backlog shows all active PIs that have not yet been fully collected. It gives a consolidated view of the sales funnel across PI → PO → HQ PO → Shipment → Collection stages.</p>
+      <div class="hs-h3">Status Stages</div>
       <ul class="hs-ul">
-        <li>Use the <strong>status dropdown</strong> to filter to a specific stage</li>
-        <li>Use the <strong>search box</strong> to find a specific distributor, country, or PI number</li>
-        <li>Click any <strong>column header</strong> to sort ascending/descending</li>
-        <li>Click a <strong>PI number</strong> to open its printable Proforma Invoice</li>
+        <li><strong>Pending</strong> — PI issued, no PO yet</li>
+        <li><strong>In Progress</strong> — PO or HQ PO created</li>
+        <li><strong>Shipped</strong> — shipment recorded</li>
+        <li><strong>Completed</strong> — fully collected</li>
       </ul>
-      <div class="hs-tip">💡 The "Days Since PI" column helps prioritize follow-up. Sort by this column (descending) to see the oldest unshipped deals first.</div>
+      <div class="hs-h3">Auto Status</div>
+      <p class="hs-p">Status is calculated automatically from cross-referenced data — you never need to set it manually. Click the <strong>?</strong> button on any table header to see the exact rules.</p>
     `
   },
   {
     id:'report', icon:'📈', title:'Report',
-    sub:'Year-over-year comparison and analysis',
+    sub:'Multi-year comparison, division analysis, model performance',
     content:`
-      <div class="hs-h3">Overview</div>
-      <p class="hs-p">The Report page provides structured comparison between years and divisions to analyze sales performance from multiple angles.</p>
-
-      <div class="hs-h3">Filters</div>
+      <div class="hs-h3">Year Comparison</div>
+      <p class="hs-p">Select up to three years for comparison:</p>
       <ul class="hs-ul">
-        <li><strong>Year A / Year B:</strong> Select two years to compare</li>
-        <li><strong>Division:</strong> All, Medical, or Dental</li>
+        <li><strong>Year A</strong> (blue) — primary year, default 2026</li>
+        <li><strong>Year B</strong> (green) — comparison year, default 2025</li>
+        <li><strong>Year C</strong> (amber) — optional third year, default 2024</li>
       </ul>
-
-      <div class="hs-h3">Summary Cards</div>
-      <p class="hs-p">Shows Year A and Year B total revenue, their respective goal achievement rates, and the YoY (Year over Year) growth rate.</p>
-
-      <div class="hs-h3">Quarterly Comparison</div>
-      <p class="hs-p">Q1–Q4 revenue vs goal for both years, with achievement % and YoY change for each quarter.</p>
-
-      <div class="hs-h3">Monthly Comparison</div>
-      <p class="hs-p">Month-by-month table showing Revenue, Goal, Ach%, and YoY for both years. Color coding: 🟢 ≥100% 🟡 ≥70% 🔴 below target.</p>
-
-      <div class="hs-h3">Country Comparison</div>
-      <p class="hs-p">Revenue by country for Year A vs Year B with YoY growth.</p>
-
-      <div class="hs-h3">Distributor Performance (Year A)</div>
-      <p class="hs-p">Each distributor with a goal target shows their revenue, goal, and achievement %. Sorted by annual target (largest first).</p>
+      <p class="hs-p">Year C columns appear automatically when selected. All tables update instantly.</p>
+      <div class="hs-h3">Division Filter</div>
+      <p class="hs-p">Three tabs at top-left: <strong>All / Medical / Dental</strong>. Distributors with "Both" division appear in both Medical and Dental tabs.</p>
+      <div class="hs-h3">Revenue Cards</div>
+      <p class="hs-p"><strong>Click any Revenue card</strong> to expand a detailed shipment table showing all records for that year — sorted by date with PI number, distributor, country, model, quantity, and amount.</p>
+      <div class="hs-h3">Tables</div>
+      <ul class="hs-ul">
+        <li><strong>Quarterly</strong> — Q1–Q4 revenue, goal, achievement%, YoY growth</li>
+        <li><strong>Monthly</strong> — same breakdown by month</li>
+        <li><strong>Country</strong> — revenue by country across selected years</li>
+        <li><strong>Distributor Performance</strong> — Year A revenue vs target by distributor</li>
+        <li><strong>Model Performance</strong> — compact table showing revenue, qty, share% for all shipped models. Shows Year A vs B vs C columns. Division-filter aware.</li>
+      </ul>
+      <div class="hs-h3">Column Headers</div>
+      <p class="hs-p">All column headers automatically update to show the actual selected years (e.g. "Rev 2026 vs Rev 2025") rather than generic "Year A / Year B" labels.</p>
     `
   },
   {
     id:'pi', icon:'📋', title:'PI Management',
-    sub:'Create, edit, and print Proforma Invoices',
+    sub:'Create, manage, and print Proforma Invoices',
     content:`
-      <div class="hs-h3">Overview</div>
-      <p class="hs-p">The PI (Proforma Invoice) is the starting point of every sale. All other documents (PO, HQ PO, Shipment) reference the PI number.</p>
-
-      <div class="hs-h3">Creating a New PI</div>
-      <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Click <strong>+ New PI</strong> in the top right of the PI Management page</div></div>
-      <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Select <strong>Seller</strong>: Genoray Korea or Genoray America — this determines the company info and banking details on the printed PI</div></div>
-      <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Type the <strong>Distributor</strong> name — a dropdown will appear. Select the correct distributor to auto-fill Country, Address, Contact, and Email</div></div>
-      <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Select <strong>Payment Terms</strong> using the quick-select buttons, or type freely in the text box</div></div>
-      <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">Add <strong>Line Items</strong>: type a model name (auto-completes from Products list), enter quantity — unit price fills automatically. Add discount % per line if needed.</div></div>
-      <div class="hs-step"><div class="hs-step-num">6</div><div class="hs-step-text">Enter <strong>Freight</strong> and <strong>Additional Discount</strong> if applicable — Grand Total updates automatically</div></div>
-      <div class="hs-step"><div class="hs-step-num">7</div><div class="hs-step-text">Enter the <strong>Sales Rep</strong> name (internal only — not printed on PI)</div></div>
-      <div class="hs-step"><div class="hs-step-num">8</div><div class="hs-step-text">Click <strong>Save PI</strong></div></div>
-
-      <div class="hs-h3">Printing / PDF Export</div>
-      <p class="hs-p">Click the <strong>🖨️ button</strong> next to any PI, or click the PI number anywhere in the system. A professional print preview opens. Click <strong>"Print / PDF"</strong> and select "Save as PDF" in your browser's print dialog.</p>
-      <div class="hs-tip">💡 The PI print view includes all buyer info, line items, banking details (IBK for Korea / BOA for America), and signature lines — ready to send to the distributor.</div>
-
-      <div class="hs-h3">PI Number Format</div>
-      <p class="hs-p">Leave blank to auto-generate, or enter manually using the convention: <strong>PI-[DIST CODE]-[YYMMDD]-[SEQ]</strong> (e.g., PI-LM-0443-01)</p>
-
-      <div class="hs-h3">Status ⚙ (Auto-calculated)</div>
-      <table class="hs-table">
-        <tr><th>Condition</th><th>Auto Status</th></tr>
-        <tr><td>Shipment with ship date exists</td><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">Completed</span></td></tr>
-        <tr><td>HQ PO linked</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">In Progress</span></td></tr>
-        <tr><td>PO linked (no HQ PO yet)</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">In Progress</span></td></tr>
-        <tr><td>No linked documents</td><td><span class="hs-badge" style="background:var(--amber-pale);color:var(--amber)">Pending</span></td></tr>
-        <tr><td>Manually cancelled</td><td><span class="hs-badge" style="background:var(--g100);color:var(--g500)">Cancelled</span></td></tr>
-      </table>
+      <div class="hs-h3">Creating a PI</div>
+      <p class="hs-p">Click <strong>+ New PI</strong>. Key fields:</p>
+      <ul class="hs-ul">
+        <li><strong>PI Number</strong> — auto-generated from distributor code + date</li>
+        <li><strong>Seller</strong> — Genoray Korea or Genoray America</li>
+        <li><strong>Distributor</strong> — select from master list (auto-fills country)</li>
+        <li><strong>Payment Terms</strong> — preset buttons or custom entry</li>
+        <li><strong>Products</strong> — add line items with model, qty, unit price</li>
+      </ul>
+      <div class="hs-h3">Printing a PI</div>
+      <p class="hs-p">Click the PI number link in the table to open the print preview. The print form includes:</p>
+      <ul class="hs-ul">
+        <li>Genoray company header (Korea or America) with full banking details</li>
+        <li>IBK banking info (Korea) or BOA (America)</li>
+        <li>Product line items with totals</li>
+        <li>Signature section</li>
+      </ul>
+      <p class="hs-p">Click <strong>🖨️ Print / Save PDF</strong> to export as PDF.</p>
+      <div class="hs-h3">Auto Status Rules</div>
+      <p class="hs-p">PI status is calculated automatically: <em>Shipped</em> if shipment exists · <em>In Progress</em> if HQ PO or PO exists · <em>Pending</em> if no linked records · <em>Cancelled</em> if manually set.</p>
     `
   },
   {
     id:'po', icon:'📦', title:'PO Management',
-    sub:'Record distributor purchase orders',
+    sub:'Purchase orders from distributors',
     content:`
-      <div class="hs-h3">Overview</div>
-      <p class="hs-p">Record the distributor's Purchase Order (PO) that they send in response to the PI.</p>
-
-      <div class="hs-h3">Creating a New PO</div>
-      <p class="hs-p">Click <strong>+ New PO</strong>. At the top of the form, select the linked PI from the dropdown — all open (unshipped) PIs are listed. Selecting a PI automatically fills:</p>
-      <ul class="hs-ul">
-        <li>PI Number, Distributor, Country, Amount</li>
-        <li>Suggested PO Number (editable)</li>
-      </ul>
-      <div class="hs-tip">💡 The PI selector only shows PIs that have not yet been shipped, so you won't accidentally link to a completed deal.</div>
-
-      <div class="hs-h3">Status ⚙ (Auto-calculated)</div>
-      <table class="hs-table">
-        <tr><th>Condition</th><th>Auto Status</th></tr>
-        <tr><td>Linked PI has a completed shipment</td><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">Completed</span></td></tr>
-        <tr><td>HQ PO exists for this PI</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">In Progress</span></td></tr>
-        <tr><td>Default</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">In Progress</span></td></tr>
-      </table>
+      <div class="hs-h3">Creating a PO</div>
+      <p class="hs-p">Click <strong>+ New PO</strong>. Select a PI from the dropdown — distributor, country, and amount auto-fill. Enter the distributor's PO number and date.</p>
+      <div class="hs-h3">Auto Status</div>
+      <p class="hs-p">PO status is auto-calculated: <em>Completed</em> if shipment exists · <em>In Progress</em> if HQ PO linked · <em>Pending</em> otherwise.</p>
     `
   },
   {
     id:'hqpo', icon:'🏭', title:'HQ PO',
-    sub:'Genoray Korea / America purchase orders',
+    sub:'Purchase orders to Genoray headquarters',
     content:`
-      <div class="hs-h3">Overview</div>
-      <p class="hs-p">The HQ PO is the purchase order issued by Genoray's headquarters (Korea or America) to the factory, once a distributor's PO is confirmed. This triggers production and shipment.</p>
-
-      <div class="hs-h3">Creating a New HQ PO</div>
-      <p class="hs-p">Click <strong>+ New HQ PO</strong>. Select the linked PI from the dropdown — the form auto-fills:</p>
-      <ul class="hs-ul">
-        <li>PI Number, linked PO Number, Distributor, Country</li>
-        <li>Models and Quantity from the PI</li>
-        <li>PI Total amount</li>
-        <li>Owner (from Sales Rep field on the PI)</li>
-        <li>Suggested HQ PO Number (editable)</li>
-      </ul>
-
-      <div class="hs-h3">HQ PO Number Format</div>
-      <p class="hs-p">Example: <strong>LM-0441</strong>, <strong>LM-0443-01</strong>, <strong>GAI-260101</strong>. These are assigned by HQ and should match the number received from Genoray Korea/America exactly.</p>
-
-      <div class="hs-h3">Status ⚙ (Auto-calculated — two fields)</div>
-      <table class="hs-table">
-        <tr><th>Field</th><th>Condition</th><th>Auto Value</th></tr>
-        <tr><td rowspan="3"><strong>Delivery</strong></td><td>Today is past ETA of linked shipment</td><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">Delivered</span></td></tr>
-        <tr><td>Shipment has a ship date set</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">In Transit</span></td></tr>
-        <tr><td>No shipment date yet</td><td><span class="hs-badge" style="background:var(--amber-pale);color:var(--amber)">Preparing</span></td></tr>
-        <tr><td rowspan="2"><strong>Ship</strong></td><td>Linked shipment has a date</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">Shipped</span></td></tr>
-        <tr><td>No shipment date</td><td><span class="hs-badge" style="background:var(--amber-pale);color:var(--amber)">Pending</span></td></tr>
-      </table>
+      <div class="hs-h3">Creating an HQ PO</div>
+      <p class="hs-p">Click <strong>+ New HQ PO</strong>. HQ PO numbers follow the format <strong>LM-XXXX</strong>. Select the linked PI and PO. Enter ETD (estimated departure) and ETA (estimated arrival).</p>
+      <div class="hs-h3">Auto Status</div>
+      <p class="hs-p">Status is calculated from ETD/ETA dates: <em>Delivered</em> if past ETA · <em>In Transit</em> if between ETD and ETA · <em>Preparing</em> if before ETD.</p>
     `
   },
   {
     id:'shipments', icon:'🚢', title:'Shipments',
     sub:'Record shipments and track delivery',
     content:`
-      <div class="hs-h3">Overview</div>
-      <p class="hs-p">The Shipments page records the physical movement of goods. The <strong>Shipment Date</strong> is the most important field — it is the official revenue recognition date used across all reports and dashboards.</p>
-
-      <div class="hs-h3">Creating a New Shipment</div>
-      <p class="hs-p">Click <strong>+ New Shipment</strong>. Select the linked PI from the dropdown — the form auto-fills:</p>
+      <div class="hs-h3">Creating a Shipment</div>
+      <p class="hs-p">Click <strong>+ New Shipment</strong>. Select a PI — all related info auto-fills. Enter:</p>
       <ul class="hs-ul">
-        <li>PI Number, Distributor, Country, Amount, Models</li>
-        <li>Linked HQ PO Number</li>
-        <li>Auto-generated Shipment Number (editable)</li>
+        <li><strong>Shipment Date</strong> — use YYYY-MM-DD format. This determines which year's revenue it counts toward.</li>
+        <li><strong>Models & Quantity</strong> — separate multiple models with commas</li>
+        <li><strong>Amount (USD)</strong> — shipment value</li>
       </ul>
-      <p class="hs-p">Then enter: <strong>Shipment Date, ETD</strong> (Estimated Time of Departure), <strong>ETA</strong> (Estimated Time of Arrival), <strong>BL Number</strong> (Bill of Lading).</p>
-
-      <div class="hs-info">📌 <strong>Revenue Rule:</strong> A PI only counts as revenue once a Shipment record has a Shipment Date entered. Until then, the PI stays as "unshipped" in all reports.</div>
-
-      <div class="hs-h3">Status ⚙ (Auto-calculated)</div>
-      <table class="hs-table">
-        <tr><th>Condition (checked in order)</th><th>Auto Status</th></tr>
-        <tr><td>Payment fully collected</td><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">Completed</span></td></tr>
-        <tr><td>Today is past ETA</td><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">Arrived</span></td></tr>
-        <tr><td>Today is between ETD and ETA</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">In Transit</span></td></tr>
-        <tr><td>Ship date entered, ETA not reached</td><td><span class="hs-badge" style="background:var(--blue-pale);color:var(--blue)">Shipped</span></td></tr>
-        <tr><td>No ship date entered</td><td><span class="hs-badge" style="background:var(--amber-pale);color:var(--amber)">Preparing</span></td></tr>
-      </table>
+      <div class="hs-h3">Revenue Year</div>
+      <p class="hs-p">Revenue is counted by shipment date. To record 2025 shipments, enter dates starting with 2025- (e.g. 2025-06-15).</p>
+      <div class="hs-h3">Auto Status</div>
+      <p class="hs-p"><em>Completed</em> if fully collected · <em>Arrived</em> if past ETA · <em>In Transit</em> if between ETD and ETA.</p>
     `
   },
   {
     id:'collections', icon:'💰', title:'Collections',
-    sub:'Track payments and outstanding balances',
+    sub:'Track invoices, payments, due dates, and overdue alerts',
     content:`
-      <div class="hs-h3">Overview</div>
-      <p class="hs-p">Collections tracks payment receipts against each PI. One collection record per PI — update the "Collected Amount" as payments come in.</p>
-
-      <div class="hs-h3">Key Fields</div>
-      <table class="hs-table">
-        <tr><th>Field</th><th>Description</th></tr>
-        <tr><td><strong>Invoice Amount</strong></td><td>Total amount billed to the distributor (= PI grand total)</td></tr>
-        <tr><td><strong>Collected Amount</strong></td><td>Cash actually received to date</td></tr>
-        <tr><td><strong>Outstanding</strong></td><td>Auto-calculated: Invoice − Collected</td></tr>
-        <tr><td><strong>Collection Date</strong></td><td>Date of most recent payment received</td></tr>
-      </table>
-
-      <div class="hs-h3">Status ⚙ (Auto-calculated)</div>
-      <table class="hs-table">
-        <tr><th>Condition</th><th>Auto Status</th></tr>
-        <tr><td>Collected ≥ Invoice Amount</td><td><span class="hs-badge" style="background:var(--green-pale);color:var(--green)">Collected</span></td></tr>
-        <tr><td>0 &lt; Collected &lt; Invoice</td><td><span class="hs-badge" style="background:var(--amber-pale);color:var(--amber)">Partial</span></td></tr>
-        <tr><td>Collected = 0</td><td><span class="hs-badge" style="background:var(--amber-pale);color:var(--amber)">Pending</span></td></tr>
-      </table>
-      <div class="hs-tip">💡 The Dashboard "Collected" and "Outstanding" KPI cards pull directly from this table. Keep collected amounts updated for accurate cash flow visibility.</div>
+      <div class="hs-h3">Overdue Alert Panel</div>
+      <p class="hs-p">A red alert panel at the top of Collections automatically appears when any outstanding invoice is past its due date. Shows: PI number, distributor, country, outstanding amount, due date, and days overdue.</p>
+      <div class="hs-h3">Due Date Calculation</div>
+      <p class="hs-p">Due dates are automatically calculated from the PI's payment terms + shipment date:</p>
+      <ul class="hs-ul">
+        <li><em>100% TT before shipment</em> → no outstanding expected</li>
+        <li><em>50/50 (60d B/L)</em> → shipment date + 60 days</li>
+        <li><em>60d / 90d</em> → shipment date + 60/90 days</li>
+        <li>Default → +60 days</li>
+      </ul>
+      <div class="hs-h3">Days Column Color Coding</div>
+      <ul class="hs-ul">
+        <li>🔴 <strong>Red "OD Xd"</strong> — overdue (past due date)</li>
+        <li>🟠 <strong>Orange "Xd left"</strong> — due within 14 days</li>
+        <li>⚫ <strong>Gray "Xd"</strong> — more than 14 days remaining</li>
+        <li>🟢 <strong>"✓ Paid"</strong> — fully collected</li>
+      </ul>
+      <div class="hs-h3">Show / Hide Paid Records</div>
+      <p class="hs-p">By default, fully paid records are hidden. Click <strong>Show Paid</strong> to reveal them (shown at reduced opacity). The button turns green when paid records are visible. The panel title shows how many paid records are hidden.</p>
+      <div class="hs-h3">Auto Status</div>
+      <p class="hs-p"><em>Collected</em> if collected ≥ invoice · <em>Partial</em> if some collected · <em>Pending</em> if nothing collected.</p>
     `
   },
   {
     id:'master', icon:'🗂️', title:'Master Data',
-    sub:'Distributors, Products, and Annual Goals',
+    sub:'Distributors, Products, Annual Goals, and Pricing',
     content:`
       <div class="hs-h3">Distributors</div>
-      <p class="hs-p">The master list of all distributors. Used for auto-complete when creating PIs, POs, and Shipments.</p>
+      <p class="hs-p">Manage the distributor master list. Division options:</p>
       <ul class="hs-ul">
-        <li><strong>Division:</strong> Medical or Dental — used for division-level charts and goal tracking</li>
-        <li><strong>Address / Contact / Email:</strong> Auto-fills into PI forms and print views</li>
-        <li>Filter by Division using the dropdown at the top</li>
+        <li><strong>🏥 Medical only</strong> — C-Arm, Mammography products only</li>
+        <li><strong>🦷 Dental only</strong> — CBCT, Panoramic, Portable products only</li>
+        <li><strong>🏥+🦷 Both</strong> — handles both Medical and Dental (shown with gradient badge). Appears in both Medical and Dental filters throughout the system.</li>
       </ul>
+      <p class="hs-p">Distributors that handle both divisions are stored as a <strong>single record</strong> with Division = "Both" — no more -M / -D suffixes needed.</p>
 
       <div class="hs-h3">Products</div>
-      <p class="hs-p">The product catalog used for auto-complete in PI line items. When you type a model name in the PI form, matching products appear. Selecting one auto-fills the unit price.</p>
+      <p class="hs-p">Full product catalog (27 models) organized by Division and Category. View modes:</p>
+      <ul class="hs-ul">
+        <li><strong>All / 🏥 Medical / 🦷 Dental</strong> tabs</li>
+        <li>Left column: Main Products with price</li>
+        <li>Right column: Options / Accessories (gray background)</li>
+      </ul>
+      <p class="hs-p">When adding a new product, fill in three required sections:</p>
+      <ul class="hs-ul">
+        <li><strong>① Classification</strong> — Division, Category, Type (Product or Option). Code is auto-generated.</li>
+        <li><strong>② Product Info</strong> — Model Name (required) and Description (required)</li>
+        <li><strong>③ Pricing</strong> — Unit Price (optional, can set later)</li>
+      </ul>
 
       <div class="hs-h3">Annual Goals</div>
-      <p class="hs-p">Sales targets per distributor per year, with monthly breakdowns. These feed into all goal achievement calculations across Dashboard, Pipeline, and Report.</p>
+      <p class="hs-p">Set monthly sales targets by distributor and division. To enter <strong>2025 goals</strong>, set the Year field to 2025. Goals appear in Dashboard and Report achievement calculations.</p>
+
+      <div class="hs-h3">Pricing</div>
+      <p class="hs-p">Four tabs:</p>
       <ul class="hs-ul">
-        <li><strong>M+D Combined view:</strong> Shows Medical and Dental targets side by side for distributors with both divisions, plus a combined total</li>
-        <li><strong>Split by Division view:</strong> Shows each entry individually</li>
-        <li><strong>New Goal form:</strong> Enter monthly targets (Jan–Dec) and optionally add model-level quantity/price targets. The Annual Total auto-calculates from monthly entries.</li>
+        <li><strong>📋 TP Reference</strong> — read-only GAI 2026 Ex-Factory prices for all 88 models. Columns: LATAM Price (SA = what LATAM pays GAI), Brazil, Mexico, LATAM Ref, Min Price, and GAI US TP (reference only). Filter by All / Medical / Dental.</li>
+        <li><strong>🏢 Distributor Prices</strong> — select a distributor, then choose Medical / Dental / All tab to see all models in a bulk-entry table. Enter offer prices directly in the table — only rows with prices entered will be saved. Live margin% and Min Price warning appear as you type. Click <strong>💾 Save All Changes</strong> to save in one batch.</li>
+        <li><strong>⚖️ Compare</strong> — select 2–3 distributors side by side. Shows offer prices for the same models with margin% and highlights the lowest price in green.</li>
+        <li><strong>🕐 History</strong> — automatic log of all price changes with old/new price and % change.</li>
       </ul>
-      <div class="hs-tip">💡 Small distributors with no model-level breakdown: just enter the monthly amount targets — no model detail required.</div>
+      <p class="hs-p">To <strong>export a PDF price list</strong>: select a distributor → click <strong>📄 Export Price List</strong> → choose sender (Korea/America), division, year, and valid-until date → Generate PDF. Only models with offer prices are included in the export. Created date is automatic.</p>
     `
   },
   {
-    id:'mobile', icon:'📱', title:'Mobile App Installation',
-    sub:'Add to home screen on iPhone and Galaxy',
+    id:'mobile', icon:'📱', title:'Mobile App',
+    sub:'Add to home screen for app-like experience',
     content:`
-      <div class="hs-h3">iPhone (iOS — Safari)</div>
-      <div class="hs-warn">⚠️ Must use <strong>Safari</strong> — Chrome on iPhone does not support home screen installation.</div>
-      <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Open <strong>Safari</strong> and go to <strong>genoray-latam.vercel.app</strong></div></div>
-      <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Log in with your account</div></div>
-      <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Tap the <strong>Share button ⬆️</strong> at the bottom of the screen</div></div>
-      <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Scroll down and tap <strong>"Add to Home Screen"</strong></div></div>
-      <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">Confirm the name <strong>"Genoray LATAM"</strong> and tap <strong>"Add"</strong> (top right)</div></div>
-      <div class="hs-step"><div class="hs-step-num">6</div><div class="hs-step-text">The icon appears on your home screen. Tap it to launch <strong>full screen</strong> — no browser address bar</div></div>
-
-      <div class="hs-h3">Galaxy / Android (Chrome)</div>
-      <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Open <strong>Chrome</strong> and go to <strong>genoray-latam.vercel.app</strong></div></div>
-      <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Log in with your account</div></div>
-      <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Tap the <strong>three-dot menu ⋮</strong> (top right)</div></div>
-      <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Tap <strong>"Add to Home screen"</strong></div></div>
-      <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">Confirm name and tap <strong>"Add"</strong></div></div>
-      <div class="hs-step"><div class="hs-step-num">6</div><div class="hs-step-text">The icon appears on your home screen — tap to launch like a native app</div></div>
-
-      <div class="hs-h3">After Installation</div>
-      <table class="hs-table">
-        <tr><th>Feature</th><th>Details</th></tr>
-        <tr><td>Full screen</td><td>No browser bar — feels like a real app</td></tr>
-        <tr><td>Bottom nav bar</td><td>Quick access: Dashboard · Pipeline · PI · Shipments · Manual</td></tr>
-        <tr><td>Auto logout</td><td>Session expires after 60 minutes of inactivity</td></tr>
-        <tr><td>Offline use</td><td>❌ Requires internet — data is in the cloud</td></tr>
-      </table>
-
-      <div class="hs-h3">Troubleshooting</div>
+      <div class="hs-h3">iOS (iPhone / iPad)</div>
+      <ol class="hs-ul">
+        <li>Open <strong>genoray-latam.vercel.app</strong> in Safari</li>
+        <li>Tap the <strong>Share</strong> button (□↑)</li>
+        <li>Tap <strong>Add to Home Screen</strong></li>
+        <li>Tap <strong>Add</strong></li>
+      </ol>
+      <div class="hs-h3">Android</div>
+      <ol class="hs-ul">
+        <li>Open the URL in Chrome</li>
+        <li>Tap the three-dot menu (⋮)</li>
+        <li>Tap <strong>Add to Home screen</strong></li>
+      </ol>
+      <p class="hs-p">The app launches full-screen with a bottom navigation bar for quick access to Dashboard, Pipeline, PI, Shipments, and User Manual.</p>
+      <div class="hs-h3">Tips</div>
       <ul class="hs-ul">
-        <li><strong>"Add to Home Screen" missing on iPhone?</strong> → Make sure you are using Safari, not Chrome or other browser</li>
-        <li><strong>App not loading?</strong> → Check internet connection (Wi-Fi or mobile data required)</li>
-        <li><strong>Forgot password?</strong> → Contact the system administrator (Mitchel)</li>
+        <li>All features work on mobile — tables scroll horizontally</li>
+        <li>PI print works best on desktop/tablet</li>
+        <li>Price List PDF export requires popup permission in browser</li>
       </ul>
     `
   }
-];
+];;
 
 function loadHelp(){
   showPageLoading('Loading Manual...');
