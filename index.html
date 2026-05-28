@@ -58,6 +58,7 @@ body{display:flex;height:100vh;background:var(--g100);color:var(--g900);font-siz
 #content{flex:1;overflow-y:auto;padding:24px}
 .page{display:none}.page.active{display:block}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes slideUp{from{transform:translateY(100px);opacity:0}to{transform:translateY(0);opacity:1}}
 /* Hide-completed toggle */
 .hide-done tr[data-done='true']{display:none}
 tr[data-done='true'] td{opacity:.5}
@@ -2030,6 +2031,100 @@ async function autoAddMissingCollections(){
   // Reload collections
   cache._xref=null;
   loadTable('collections');
+}
+
+// ── SALES REP DAILY ALERTS ────────────────────────────────────────────────────
+async function checkSalesRepAlerts(userPerms){
+  if(!userPerms)return;
+  const username=userPerms.username||getAuth();
+  if(!username)return;
+
+  // Get PIs assigned to this rep
+  const {data:piRows=[]}=await sb.from('pi').select('pi_number,date,amount_usd,distributor,notes').eq('sales_rep',username);
+  if(!piRows||!piRows.length)return;
+
+  const xr=cache._xref||await loadXRef();
+  const today=new Date(); today.setHours(0,0,0,0);
+
+  const noActionPIs=piRows.filter(p=>{
+    const hasSh=xr.sh.some(s=>s.pi_number===p.pi_number&&s.date);
+    const hasHQ=xr.hq.some(h=>h.pi_number===p.pi_number);
+    const hasPO=xr.po.some(po=>po.pi_number===p.pi_number);
+    return !hasSh&&!hasHQ&&!hasPO;
+  }).map(p=>{
+    const piDate=p.date?new Date(p.date):null;
+    const days=piDate?Math.floor((today-piDate)/(1000*86400)):0;
+    return{...p,days};
+  }).filter(p=>p.days>0)
+    .sort((a,b)=>b.days-a.days);
+
+  if(!noActionPIs.length)return;
+
+  // Check if already notified today (localStorage throttle)
+  const lastKey=`gl_alert_${username}`;
+  const lastNotified=localStorage.getItem(lastKey);
+  const todayStr=today.toISOString().slice(0,10);
+  if(lastNotified===todayStr)return; // Already shown today
+
+  localStorage.setItem(lastKey,todayStr);
+
+  // Build notification
+  const total=noActionPIs.length;
+  const oldest=noActionPIs[0];
+  const alertMsg=`📋 Daily PI Alert — ${total} PI${total>1?'s':''} need action\n\n`+
+    noActionPIs.slice(0,5).map(p=>`• ${p.pi_number} (${p.days}d) — $${Number(p.amount_usd||0).toLocaleString()} — ${p.distributor||''}`).join('\n')+
+    (total>5?`\n...and ${total-5} more`:'')+
+    `\n\nLogin: https://genoray-latam.vercel.app`;
+
+  // Show in-app notification toast + panel
+  showSalesRepAlertPanel(noActionPIs, userPerms, alertMsg);
+}
+
+function showSalesRepAlertPanel(pis, userPerms, alertMsg){
+  const panel=document.createElement('div');
+  panel.id='sales-rep-alert-panel';
+  panel.style.cssText=`position:fixed;bottom:20px;right:20px;width:360px;background:#1e293b;border-radius:12px;
+    box-shadow:0 8px 32px rgba(0,0,0,.4);z-index:9999;overflow:hidden;animation:slideUp .3s ease`;
+
+  const email=userPerms.email||'';
+  const wa=userPerms.whatsapp||userPerms.phone||'';
+  const waMsg=encodeURIComponent(alertMsg);
+  const waUrl=wa?`https://wa.me/${wa.replace(/\D/g,'')}?text=${waMsg}`:'';
+
+  panel.innerHTML=`
+    <div style="background:linear-gradient(90deg,#dc2626,#ef4444);padding:12px 16px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:18px">🔔</span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:700;color:#fff">${pis.length} PI${pis.length>1?'s':''} Need Attention</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.7)">Today's alert · ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
+      </div>
+      <button onclick="document.getElementById('sales-rep-alert-panel').remove()" 
+        style="background:none;border:none;color:#fff;cursor:pointer;font-size:18px;padding:0">✕</button>
+    </div>
+    <div style="padding:12px 16px;max-height:200px;overflow-y:auto">
+      ${pis.slice(0,5).map(p=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#fff">${esc(p.pi_number)}</div>
+            <div style="font-size:10px;color:#94a3b8">${p.days}d no action · $${Number(p.amount_usd||0).toLocaleString()}</div>
+          </div>
+          <button onclick="closeAllPanels();navigateTo('pi')" style="padding:3px 8px;background:#3b82f6;color:#fff;border:none;border-radius:5px;font-size:10px;cursor:pointer">View</button>
+        </div>`).join('')}
+    </div>
+    <div style="padding:10px 16px;display:flex;gap:6px;border-top:1px solid rgba(255,255,255,.1)">
+      ${waUrl?`<a href="${waUrl}" target="_blank" style="flex:1;padding:7px;background:#25d366;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;text-align:center;text-decoration:none;cursor:pointer">💬 WhatsApp</a>`:''}
+      ${email?`<a href="mailto:${esc(email)}?subject=PI+Alert&body=${encodeURIComponent(alertMsg)}" style="flex:1;padding:7px;background:#2563eb;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;text-align:center;text-decoration:none">📧 Email</a>`:''}
+      <button onclick="document.getElementById('sales-rep-alert-panel').remove()" style="flex:1;padding:7px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:7px;font-size:11px;cursor:pointer">Dismiss</button>
+    </div>`;
+
+  document.body.appendChild(panel);
+
+  // Auto-dismiss after 30 seconds
+  setTimeout(()=>{const p=document.getElementById('sales-rep-alert-panel');if(p)p.remove();},30000);
+}
+
+function closeAllPanels(){
+  document.getElementById('sales-rep-alert-panel')?.remove();
 }
 
 // ── PI STATUS PILL & DIALOG ───────────────────────────────────────────────────
@@ -6248,10 +6343,14 @@ async function loadUserPermissions(username){
     _userPerms={role:'user',can_export:true,can_delete:false,username};
     SECTIONS.forEach(s=>_userPerms['perm_'+s.key]='view');
   }
-  // Cache all users for Sales Rep dropdown
-  sb.from('user_permissions').select('username,display_name,role').eq('is_active',true)
+  // Cache all users for Sales Rep dropdown + contact info
+  sb.from('user_permissions').select('username,display_name,role,user_type,email,phone,whatsapp').eq('is_active',true)
     .then(({data})=>{ if(data)masterCache.userPerms=data; });
   applyPermissions();
+  // Sales Rep: check for No Action PIs after load
+  if(_userPerms&&(_userPerms.user_type==='sales_rep'||_userPerms.role!=='admin')){
+    setTimeout(()=>checkSalesRepAlerts(_userPerms), 2000);
+  }
 }
 
 // ── Apply permissions to UI ──────────────────────────────────────────────────
@@ -6536,56 +6635,58 @@ function setStatus(msg, isErr){
   sc.innerHTML='<div style="grid-column:1/-1;padding:20px;text-align:center;color:'+col+';font-size:13px;font-weight:600">'+(isErr?'⚠️ ':'⏳ ')+msg+'</div>';
 }
 
-function showWelcomeMessage(username, displayName, tempPwd){
+function showWelcomeMessage(username, displayName, tempPwd, userType='regular'){
   const loginUrl='https://genoray-latam.vercel.app';
-  const msgText=`🌐 Genoray LATAM Sales Management
+  const roleLabel = userType==='sales_rep'?'Sales Representative':userType==='admin'?'Admin':'User';
+  const msgText=`🌐 Genoray LATAM Sales Management\n\nHi ${displayName}!\n\nYour ${roleLabel} account has been created:\n\n👤 Username: ${username}\n🔑 Temp Password: ${tempPwd}\n🔗 Login: ${loginUrl}\n\n⚠️ You will be asked to:\n  1. Set a new password\n${userType==='sales_rep'?'  2. Enter your email & WhatsApp for notifications\n\n':'  \n\n'}Please change your password on first login.\nPassword rules: 8+ chars · Uppercase · Number · Special char`;
 
-Hi ${displayName}!
-
-Your account has been created:
-👤 Username: ${username}
-🔑 Temp Password: ${tempPwd}
-🔗 Login URL: ${loginUrl}
-
-⚠️ Please change your password on your first login.
-
-Requirements: 8+ chars · Uppercase · Number · Special char (!@#$...)`;
-
-  const qrUrl=`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(loginUrl)}&color=1e3a8a&bgcolor=ffffff&qzone=2&margin=0`;
+  const qrUrl=`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(loginUrl)}&color=1e3a8a&bgcolor=ffffff&qzone=2`;
 
   openModal(`
     <div style="text-align:center;padding:4px 0 12px">
-      <div style="font-size:24px;margin-bottom:6px">✅</div>
-      <div style="font-size:15px;font-weight:800;color:var(--g900)">User Created!</div>
-      <div style="font-size:12px;color:var(--g500);margin-top:3px">Share login credentials with @${esc(username)}</div>
+      <div style="font-size:28px;margin-bottom:6px">✅</div>
+      <div style="font-size:15px;font-weight:800;color:var(--g900)">User Created Successfully</div>
+      <div style="font-size:12px;color:var(--g500);margin-top:3px">Share login info with <strong>${esc(displayName)}</strong></div>
     </div>
-    <div style="display:grid;grid-template-columns:160px 1fr;gap:16px;align-items:start">
-      <!-- QR Code -->
+
+    <div style="display:grid;grid-template-columns:180px 1fr;gap:16px;align-items:start;margin-bottom:14px">
       <div style="text-align:center">
-        <img src="${qrUrl}" alt="QR Code" style="width:160px;height:160px;border:2px solid var(--g100);border-radius:10px;display:block">
-        <div style="font-size:10px;color:var(--g400);margin-top:5px">Scan to open login page</div>
+        <img src="${qrUrl}" alt="QR" style="width:180px;height:180px;border:2px solid var(--g100);border-radius:10px;display:block">
+        <div style="font-size:10px;color:var(--g400);margin-top:5px">📱 Scan to open login</div>
       </div>
-      <!-- Credentials -->
       <div style="background:var(--g50);border-radius:10px;padding:14px 16px;border:1px solid var(--g200)">
         <div style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Credentials</div>
-        <div style="margin-bottom:8px"><div style="font-size:10px;color:var(--g400)">Login URL</div><div style="font-size:12px;font-weight:600;color:var(--blue)">${loginUrl}</div></div>
-        <div style="margin-bottom:8px"><div style="font-size:10px;color:var(--g400)">Username</div><div style="font-size:14px;font-weight:800;font-family:monospace;color:var(--g900)">${esc(username)}</div></div>
-        <div><div style="font-size:10px;color:var(--g400)">Temp Password</div><div style="font-size:18px;font-weight:900;font-family:monospace;letter-spacing:2px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;border:1px dashed #fca5a5">${esc(tempPwd)}</div></div>
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;color:var(--g400)">Role</div>
+          <div style="font-size:12px;font-weight:700;color:var(--g700)">${roleLabel}</div>
+        </div>
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;color:var(--g400)">Login URL</div>
+          <div style="font-size:11px;font-weight:600;color:var(--blue);word-break:break-all">${loginUrl}</div>
+        </div>
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;color:var(--g400)">Username</div>
+          <div style="font-size:16px;font-weight:800;font-family:monospace;color:var(--g900)">${esc(username)}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--g400)">Temp Password</div>
+          <div style="font-size:20px;font-weight:900;font-family:monospace;letter-spacing:2px;color:#dc2626;background:#fef2f2;padding:8px 10px;border-radius:6px;border:1px dashed #fca5a5;margin-top:2px">${esc(tempPwd)}</div>
+        </div>
       </div>
     </div>
-    <!-- Message to copy -->
-    <div style="margin-top:14px">
-      <div style="font-size:11px;font-weight:700;color:var(--g600);margin-bottom:6px">📋 Ready-to-send Message (KakaoTalk / WhatsApp / Email)</div>
-      <textarea id="welcome-msg" readonly style="width:100%;height:130px;padding:10px 12px;border:1.5px solid var(--g200);border-radius:8px;font-size:12px;line-height:1.6;resize:none;background:#fafafa;box-sizing:border-box;font-family:inherit">${msgText}</textarea>
+
+    <div>
+      <div style="font-size:11px;font-weight:700;color:var(--g600);margin-bottom:6px">📋 Send via KakaoTalk / WhatsApp / Email</div>
+      <textarea id="welcome-msg" readonly style="width:100%;height:140px;padding:10px 12px;border:1.5px solid var(--g200);border-radius:8px;font-size:12px;line-height:1.6;resize:none;background:#fafafa;box-sizing:border-box;font-family:inherit">${msgText}</textarea>
     </div>
-    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;flex-wrap:wrap">
-      <button onclick="copyWelcomeMsg()" style="padding:9px 16px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px">📋 Copy Message</button>
-      <button onclick="downloadQR('${esc(username)}')" style="padding:9px 16px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px">⬇️ Save QR</button>
+
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;justify-content:flex-end">
+      <button onclick="copyWelcomeMsg()" style="padding:9px 16px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;font-weight:600;cursor:pointer">📋 Copy Message</button>
+      <button onclick="downloadQR('${esc(username)}')" style="padding:9px 16px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;font-weight:600;cursor:pointer">⬇️ Save QR</button>
       <button onclick="closeModal()" style="padding:9px 20px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">Done</button>
     </div>
   `,'New User Created');
 }
-
 function copyWelcomeMsg(){
   const ta=document.getElementById('welcome-msg');
   if(!ta)return;
@@ -6716,7 +6817,8 @@ function validatePassword(pw){
 function openAddUserForm(){
   openModal(`
     <h3 style="margin:0 0 16px;font-size:15px;font-weight:800">➕ Add New User</h3>
-    <div style="display:grid;gap:13px">
+    <div style="display:grid;gap:12px">
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div>
           <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px"><span style="color:var(--red)">*</span> Username (login ID)</label>
@@ -6729,6 +6831,7 @@ function openAddUserForm(){
             style="width:100%;padding:8px 11px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="e.g. Carlos Rodriguez">
         </div>
       </div>
+
       <div>
         <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px"><span style="color:var(--red)">*</span> Temporary Password</label>
         <div style="display:flex;gap:8px;align-items:center">
@@ -6743,21 +6846,25 @@ function openAddUserForm(){
         <div style="font-size:10px;color:var(--g400);margin-top:3px">Min 8 chars · Uppercase · Number · Special char (!@#$%^&*...)</div>
         <div id="nu-pw-err" style="color:var(--red);font-size:11px;margin-top:3px;min-height:14px"></div>
       </div>
-      <div>
-        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:6px">Role</label>
-        <div style="display:flex;gap:8px">
-          <label id="role-user-lbl" style="flex:1;cursor:pointer;padding:10px 14px;border:1.5px solid var(--blue);border-radius:8px;background:#eff6ff;display:flex;align-items:center;gap:8px" onclick="setNuRole('user')">
-            <input type="radio" name="nu-role" value="user" checked style="accent-color:var(--blue)">
-            <div><div style="font-size:13px;font-weight:700;color:var(--blue)">👤 User</div><div style="font-size:10px;color:var(--g400)">Limited access</div></div>
-          </label>
-          <label id="role-admin-lbl" style="flex:1;cursor:pointer;padding:10px 14px;border:1.5px solid var(--g200);border-radius:8px;background:#fff;display:flex;align-items:center;gap:8px" onclick="setNuRole('admin')">
-            <input type="radio" name="nu-role" value="admin" style="accent-color:var(--g600)">
-            <div><div style="font-size:13px;font-weight:700">⚙️ Admin</div><div style="font-size:10px;color:var(--g400)">Full access</div></div>
-          </label>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Role</label>
+          <select id="nu-role" onchange="onNuRoleChange()" style="width:100%;padding:8px 11px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px">
+            <option value="user">👤 User (general)</option>
+            <option value="sales_rep">📊 Sales Rep</option>
+            <option value="admin">⚙️ Admin</option>
+          </select>
+        </div>
+        <div id="nu-email-wrap">
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Email <span style="font-size:10px;font-weight:400;color:var(--g400)">(for Sales Rep alerts)</span></label>
+          <input id="nu-email" type="email" autocomplete="off"
+            style="width:100%;padding:8px 11px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="user@company.com">
         </div>
       </div>
+
       <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;font-size:11px;color:#92400e">
-        ⚠️ User must change password on first login. Share credentials securely via the generated message.
+        ⚠️ User must change password on first login. Share credentials via the generated QR message.
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
@@ -6765,7 +6872,6 @@ function openAddUserForm(){
       <button type="button" onclick="saveNewUser()" style="padding:9px 22px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">➕ Add User</button>
     </div>
   `,'Add New User');
-  // Clear fields after modal opens
   setTimeout(()=>{
     const u=document.getElementById('nu-username');
     const p=document.getElementById('nu-password');
@@ -6776,6 +6882,11 @@ function openAddUserForm(){
   },50);
 }
 
+function onNuRoleChange(){
+  const role=document.getElementById('nu-role')?.value;
+  const emailWrap=document.getElementById('nu-email-wrap');
+  if(emailWrap) emailWrap.style.display=role==='sales_rep'?'block':'none';
+}
 function toggleNuPwVis(){
   const inp=document.getElementById('nu-password');
   const eye=document.getElementById('nu-eye');
@@ -6813,7 +6924,8 @@ async function saveNewUser(){
   const username=(document.getElementById('nu-username')?.value||'').trim().toLowerCase();
   const pw=document.getElementById('nu-password')?.value||'';
   const display=document.getElementById('nu-display')?.value||'';
-  const role=document.querySelector('input[name="nu-role"]:checked')?.value||'user';
+  const role=document.getElementById('nu-role')?.value||'user';
+  const email=document.getElementById('nu-email')?.value||'';
   const errEl=document.getElementById('nu-pw-err');
 
   if(!username){toast('Username required','err');return;}
@@ -6821,25 +6933,30 @@ async function saveNewUser(){
   if(pwErr){if(errEl)errEl.textContent=pwErr;toast(pwErr,'err');return;}
   if(errEl)errEl.textContent='';
 
-  // Save to user_permissions with password
+  // Determine user_type from role selector
+  const userType = role === 'admin' ? 'admin' : role === 'sales_rep' ? 'sales_rep' : 'regular';
+  const actualRole = role === 'admin' ? 'admin' : 'user';
+
   const {error}=await sb.from('user_permissions').insert({
-    username,display_name:display||username,role,password:pw,must_change_password:true,
-    perm_dashboard:'view',perm_pipeline:'view',perm_report:'view',
-    perm_pi:'view',perm_po:'view',perm_hqpo:'view',perm_shipments:'view',
-    perm_collections:'view',perm_distributors:'view',perm_products:'view',
-    perm_goals:'view',perm_pricing:'none',
-    can_export:true,can_delete:false
+    username, display_name:display||username, role:actualRole, user_type:userType,
+    password:pw, must_change_password:true,
+    email: email||null,
+    perm_dashboard:'view', perm_pipeline:'view', perm_report:'view',
+    perm_pi: role==='sales_rep'?'edit':'view',
+    perm_po: role==='sales_rep'?'edit':'view',
+    perm_hqpo: role==='sales_rep'?'edit':'view',
+    perm_shipments: role==='sales_rep'?'edit':'view',
+    perm_collections:'view', perm_distributors:'view',
+    perm_products:'view', perm_goals:'view', perm_pricing:'none',
+    can_export:true, can_delete:false
   });
   if(error){toast('Error: '+error.message,'err');return;}
 
-  // Also add to runtime USERS so they can log in immediately
-  USERS[username]={pw,role};
-
+  USERS[username]={pw, role:actualRole};
   closeModal();
-  showWelcomeMessage(username, display||username, pw);
+  showWelcomeMessage(username, display||username, pw, userType);
   loadAdminUsers();
 }
-
 async function resetUserPassword(username){
   // Generate new temp password
   const upper='ABCDEFGHJKLMNPQRSTUVWXYZ',lower='abcdefghjkmnpqrstuvwxyz',nums='23456789',spec='!@#$%&*';
@@ -6862,31 +6979,84 @@ async function resetUserPassword(username){
 
 // ── First-login password change flow ──────────────────────────────────────────
 function showPasswordChangeScreen(username){
-  document.getElementById('login-screen').classList.remove('hidden');
-  document.getElementById('login-screen').innerHTML=`
-    <div class="login-box" style="max-width:420px">
-      <div style="text-align:center;margin-bottom:24px">
-        <div style="font-size:32px;margin-bottom:8px">🔒</div>
-        <h2 style="font-size:18px;font-weight:800;color:var(--g900);margin:0">Set Your New Password</h2>
-        <p style="font-size:12px;color:var(--g500);margin-top:6px">Your temporary password must be changed before continuing</p>
-      </div>
-      <div style="display:grid;gap:12px">
-        <div>
-          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">New Password</label>
-          <input id="chpw-new" type="password" style="width:100%;padding:9px 12px;border:1.5px solid var(--g200);border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="Min 8 chars · Uppercase · Number · Special char" oninput="checkPwStrength(this.value)">
-          <div id="chpw-strength" style="margin-top:5px;height:4px;border-radius:2px;background:var(--g200);overflow:hidden"><div id="chpw-bar" style="height:100%;width:0;border-radius:2px;transition:all .3s"></div></div>
-          <div id="chpw-hint" style="font-size:10px;color:var(--g400);margin-top:3px">Enter a strong password</div>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Confirm Password</label>
-          <input id="chpw-confirm" type="password" style="width:100%;padding:9px 12px;border:1.5px solid var(--g200);border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="Re-enter password">
-        </div>
-        <div id="chpw-err" style="color:var(--red);font-size:12px"></div>
-        <button onclick="submitPasswordChange('${username}')" style="padding:11px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">✅ Set Password & Continue</button>
-      </div>
-    </div>`;
+  // Check if Sales Rep to show extra contact fields
+  sb.from('user_permissions').select('user_type,display_name').eq('username',username).single()
+    .then(({data})=>{
+      const isSalesRep = data?.user_type === 'sales_rep';
+      const displayName = data?.display_name || username;
+      _showPwChangeUI(username, displayName, isSalesRep);
+    })
+    .catch(()=> _showPwChangeUI(username, username, false));
 }
 
+function _showPwChangeUI(username, displayName, isSalesRep){
+  const loginScreen = document.getElementById('login-screen');
+  loginScreen.classList.remove('hidden');
+  loginScreen.innerHTML=`
+    <div class="login-box" style="max-width:460px">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:36px;margin-bottom:8px">🔐</div>
+        <h2 style="font-size:18px;font-weight:800;color:var(--g900);margin:0">Welcome, ${esc(displayName)}!</h2>
+        <p style="font-size:12px;color:var(--g500);margin-top:6px">Set your permanent password to continue${isSalesRep?' · We\'ll also collect your contact info for notifications':''}</p>
+      </div>
+
+      <!-- Password section -->
+      <div style="background:var(--g50);border-radius:10px;padding:16px;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--g500);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">① New Password</div>
+        <div style="display:grid;gap:10px">
+          <div>
+            <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">New Password</label>
+            <input id="chpw-new" type="password" autocomplete="new-password"
+              style="width:100%;padding:9px 12px;border:1.5px solid var(--g200);border-radius:8px;font-size:13px;box-sizing:border-box" 
+              placeholder="Min 8 chars · Uppercase · Number · Special char" oninput="checkPwStrength(this.value)">
+            <div id="chpw-strength" style="margin-top:5px;height:4px;border-radius:2px;background:var(--g200);overflow:hidden"><div id="chpw-bar" style="height:100%;width:0;border-radius:2px;transition:all .3s"></div></div>
+            <div id="chpw-hint" style="font-size:10px;color:var(--g400);margin-top:3px">Enter a strong password</div>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Confirm Password</label>
+            <input id="chpw-confirm" type="password" autocomplete="new-password"
+              style="width:100%;padding:9px 12px;border:1.5px solid var(--g200);border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="Re-enter password">
+          </div>
+        </div>
+      </div>
+
+      ${isSalesRep ? `
+      <!-- Contact info for Sales Reps -->
+      <div style="background:#f0fdf4;border-radius:10px;padding:16px;margin-bottom:14px;border:1px solid #bbf7d0">
+        <div style="font-size:11px;font-weight:700;color:#065f46;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">② Contact Info <span style="font-size:10px;font-weight:400;color:#16a34a">(for No-Action alerts)</span></div>
+        <div style="display:grid;gap:10px">
+          <div>
+            <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">📧 Email Address</label>
+            <input id="chpw-email" type="email" style="width:100%;padding:9px 12px;border:1.5px solid var(--g200);border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="you@company.com">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div>
+              <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">📱 Phone (with country code)</label>
+              <input id="chpw-phone" type="tel" style="width:100%;padding:9px 12px;border:1.5px solid var(--g200);border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="+1 234 567 8900">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">💬 WhatsApp <span style="font-size:10px;font-weight:400;color:var(--g400)">(if different)</span></label>
+              <input id="chpw-wa" type="tel" style="width:100%;padding:9px 12px;border:1.5px solid var(--g200);border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="Same as phone">
+            </div>
+          </div>
+          <div style="display:flex;gap:14px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
+              <input type="checkbox" id="chpw-notify-email" checked style="accent-color:var(--green)"> Email alerts
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
+              <input type="checkbox" id="chpw-notify-wa" style="accent-color:var(--green)"> WhatsApp alerts
+            </label>
+          </div>
+        </div>
+      </div>` : ''}
+
+      <div id="chpw-err" style="color:var(--red);font-size:12px;margin-bottom:10px;min-height:16px"></div>
+      <button onclick="submitPasswordChange('${esc(username)}',${isSalesRep})"
+        style="width:100%;padding:12px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
+        ✅ ${isSalesRep ? 'Save & Continue' : 'Set Password & Continue'}
+      </button>
+    </div>`;
+}
 function checkPwStrength(pw){
   const bar=document.getElementById('chpw-bar');
   const hint=document.getElementById('chpw-hint');
@@ -6899,20 +7069,40 @@ function checkPwStrength(pw){
   if(hint){hint.textContent=labels[Math.max(0,score-1)]||labels[0];hint.style.color=colors[Math.max(0,score-1)]||colors[0];}
 }
 
-async function submitPasswordChange(username){
+async function submitPasswordChange(username, isSalesRep=false){
   const newPw=document.getElementById('chpw-new')?.value||'';
   const confirm=document.getElementById('chpw-confirm')?.value||'';
   const errEl=document.getElementById('chpw-err');
   const pwErr=validatePassword(newPw);
   if(pwErr){if(errEl)errEl.textContent=pwErr;return;}
   if(newPw!==confirm){if(errEl)errEl.textContent='Passwords do not match';return;}
-  const {error}=await sb.from('user_permissions').update({password:newPw,must_change_password:false}).eq('username',username);
+
+  const updatePayload={password:newPw, must_change_password:false};
+
+  // Collect contact info for Sales Reps
+  if(isSalesRep){
+    const email=document.getElementById('chpw-email')?.value||'';
+    const phone=document.getElementById('chpw-phone')?.value||'';
+    const wa=document.getElementById('chpw-wa')?.value||phone||'';
+    const notifyEmail=document.getElementById('chpw-notify-email')?.checked!==false;
+    const notifyWa=document.getElementById('chpw-notify-wa')?.checked||false;
+    if(email)updatePayload.email=email;
+    if(phone)updatePayload.phone=phone;
+    if(wa)updatePayload.whatsapp=wa||phone;
+    updatePayload.notify_email=notifyEmail;
+    updatePayload.notify_whatsapp=notifyWa;
+  }
+
+  const {error}=await sb.from('user_permissions').update(updatePayload).eq('username',username);
   if(error){if(errEl)errEl.textContent='Error saving: '+error.message;return;}
+
   USERS[username]&&(USERS[username].pw=newPw);
   toast('✅ Password updated! Welcome '+username);
   document.getElementById('login-screen').classList.add('hidden');
+  loadUserPermissions(username);
   init();
 }
+
 </script>
 
 <!-- Mobile Bottom Navigation -->
