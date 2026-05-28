@@ -1072,6 +1072,45 @@ tr[data-paid="true"] td{opacity:.55}
         </table></div>
       </div></div><!-- end hidden table -->
     
+    <!-- ANNUAL GOALS -->
+    <div id="page-goals" class="page">
+      <div class="page-header">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <h1 class="page-title">Annual Goals</h1>
+          <select id="goals-year" onchange="renderGoals()" style="padding:5px 10px;border:1.5px solid var(--g200);border-radius:var(--rsm);font-size:13px;font-weight:600;background:#fff">
+            <option value="">All Years</option>
+            <option value="2025">2025</option>
+            <option value="2026" selected>2026</option>
+            <option value="2027">2027</option>
+          </select>
+          <select id="goals-div" onchange="renderGoals()" style="padding:5px 10px;border:1.5px solid var(--g200);border-radius:var(--rsm);font-size:13px;background:#fff">
+            <option value="">All Divisions</option>
+            <option value="Medical">Medical</option>
+            <option value="Dental">Dental</option>
+          </select>
+          <input id="goals-search" oninput="renderGoals()" placeholder="Search..." style="padding:5px 10px;border:1.5px solid var(--g200);border-radius:var(--rsm);font-size:13px;width:160px">
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="display:flex;gap:4px;background:var(--g100);border-radius:var(--rsm);padding:3px">
+            <button onclick="setGoalView('combined')" id="gv-combined" style="padding:5px 12px;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;background:var(--blue);color:#fff">Combined</button>
+            <button onclick="setGoalView('split')" id="gv-split" style="padding:5px 12px;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--g600)">Split</button>
+          </div>
+          <button class="btn btn-primary btn-sm hide-on-view" onclick="openGoalForm()">+ Add Goal</button>
+        </div>
+      </div>
+
+      <!-- Stat Cards -->
+      <div id="goals-stat-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;padding:0 24px 16px"></div>
+
+      <!-- Table -->
+      <div style="padding:0 24px 24px;overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead id="goals-thead"></thead>
+          <tbody id="goals-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- PRICING -->
     <div id="page-pricing" class="page">
 
