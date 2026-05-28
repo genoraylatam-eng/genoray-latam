@@ -7323,10 +7323,9 @@ async function sendMessage(){
 
 // ── AUTO DELAY DETECTION & MESSAGING ─────────────────────────────────────────
 const DELAY_RULES = {
-  no_action:  { days:7,  label:'No Action',          icon:'🚫', stage:'PI → PO',            escalate:1 },
-  po_delay:   { days:14, label:'PO → HQ PO Delay',   icon:'⏳', stage:'PO → HQ PO',         escalate:1 },
-  hqpo_delay: { days:30, label:'HQ PO → Ship Delay', icon:'⏳', stage:'HQ PO → Shipment',   escalate:1 },
-  col_delay:  { days:30, label:'Collection Pending', icon:'💰', stage:'Shipped → Collected', escalate:1 },
+  no_action:  { days:7,  label:'No Action',              icon:'🚫', stage:'No movement on PI (no PO/HQPO/Shipment)', escalate:1 },
+  hqpo_delay: { days:30, label:'Awaiting Shipment',      icon:'⏳', stage:'PI has activity but no Shipment yet',     escalate:1 },
+  col_delay:  { days:30, label:'Collection Pending',     icon:'💰', stage:'Shipped but not yet collected',           escalate:1 },
 };
 
 // ── DELAY CHECK ───────────────────────────────────────────────────────────────
@@ -7371,17 +7370,22 @@ async function runDelayCheck(onlyEscalate=false){
     const num=p.pi_number, rep=p.sales_rep||null, dist=p.distributor||'';
     const dPI=dayDiff(p.date);
 
-    // Determine which stage
+    // Has ANY downstream activity (PO, HQ PO, or Shipment)?
+    const hasAnyActivity=poSet.has(num)||hqSet.has(num)||shSet.has(num);
+
     let stage=null, stageDays=0;
-    if(!poSet.has(num)&&!hqSet.has(num)&&!shSet.has(num)){
+
+    // Rule 1: NO ACTIVITY AT ALL — PI → nothing (7+ days)
+    // This fires regardless of whether PO/HQPO path is taken
+    if(!hasAnyActivity){
       if(dPI>=DELAY_RULES.no_action.days){stage='no_action';stageDays=dPI;}
-    } else if(poSet.has(num)&&!hqSet.has(num)&&!shSet.has(num)){
-      const pr=poRows.find(r=>r.pi_number===num&&r.date);
-      if(pr){const d=dayDiff(pr.date);if(d>=DELAY_RULES.po_delay.days){stage='po_delay';stageDays=d;}}
-    } else if(hqSet.has(num)&&!shSet.has(num)){
-      const hr=hqRows.find(r=>r.pi_number===num&&r.date);
-      if(hr){const d=dayDiff(hr.date);if(d>=DELAY_RULES.hqpo_delay.days){stage='hqpo_delay';stageDays=d;}}
-    } else if(shSet.has(num)&&!colOk.has(num)){
+    }
+    // Rule 2: Has PO or HQ PO, but NO Shipment after 30 days from PI date
+    else if(hasAnyActivity&&!shSet.has(num)){
+      if(dPI>=DELAY_RULES.hqpo_delay.days){stage='hqpo_delay';stageDays=dPI;}
+    }
+    // Rule 3: Shipped but not collected after 30+ days
+    else if(shSet.has(num)&&!colOk.has(num)){
       const sr=shRows.find(r=>r.pi_number===num&&r.date);
       if(sr){const d=dayDiff(sr.date);if(d>=DELAY_RULES.col_delay.days){stage='col_delay';stageDays=d;}}
     }
