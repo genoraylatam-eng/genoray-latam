@@ -1374,7 +1374,7 @@ const sb=createClient('https://cqvtqcnjmmfvvynsgmei.supabase.co','sb_publishable
 
 // ── EMAILJS CONFIG ────────────────────────────────────────────────────────────
 const EMAILJS_SERVICE  = 'service_g9bn6ff';
-const EMAILJS_TEMPLATE = 'lzhgapk';
+const EMAILJS_TEMPLATE = 'template_qq63v08';
 const EMAILJS_KEY      = '37yTnuJZVizqIMq7u';
 window.addEventListener('load',function(){if(typeof emailjs!=='undefined'){emailjs.init({publicKey:EMAILJS_KEY});console.log('[EmailJS] Initialized ✅');}else{console.warn('[EmailJS] SDK not loaded!');}});
 
@@ -2222,9 +2222,10 @@ async function sendEmailAlert(toEmail, repName, piCount, piListText){
     toast('✅ Email sent to '+toEmail);
     return true;
   } catch(err){
-    console.error('[EmailJS] ❌ Full error:', JSON.stringify(err));
-    const errMsg = err?.text||err?.message||err?.status||JSON.stringify(err);
-    toast('❌ Error: '+errMsg,'err');
+    const errMsg = err?.text||err?.message||(err?.status?'Status '+err.status:'')||JSON.stringify(err)||'Unknown error';
+    console.error('[EmailJS] ❌ Error:', errMsg, err);
+    window._lastEmailError = errMsg;
+    toast('❌ '+errMsg,'err');
     return false;
   }
 }
@@ -6915,7 +6916,7 @@ async function runTestEmail(){
   if(resEl){
     resEl.innerHTML=ok
       ?'<span style="color:var(--green);font-weight:700">✅ Email sent to '+esc(email)+'<br><small style="font-weight:400">Check your inbox and spam folder</small></span>'
-      :'<span style="color:var(--red);font-weight:700">❌ Send failed — see browser console (F12) for details</span>';
+      :'<span style="color:var(--red);font-weight:700">❌ Failed: '+(window._lastEmailError||'Unknown error')+'</span><br><span style="font-size:11px;color:var(--g500)">EmailJS dashboard → Email History 탭에서 상세 확인</span>';
   }
 }
 
