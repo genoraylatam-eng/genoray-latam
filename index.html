@@ -6828,6 +6828,147 @@ function togglePwView(username, pw){
 
 
 
+// ── ADD USER & PASSWORD MANAGEMENT ───────────────────────────────────────────
+function validatePassword(pw){
+  if(pw.length<8)return'Min 8 characters required';
+  if(!/[A-Z]/.test(pw))return'Must include an uppercase letter';
+  if(!/[0-9]/.test(pw))return'Must include a number';
+  if(!/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(pw))return'Must include a special character';
+  return null;
+}
+
+function genTempPwd(){
+  const u='ABCDEFGHJKLMNPQRSTUVWXYZ',l='abcdefghjkmnpqrstuvwxyz',n='23456789',s='!@#$%&*';
+  let pw=u[Math.floor(Math.random()*u.length)]+n[Math.floor(Math.random()*n.length)]+s[Math.floor(Math.random()*s.length)];
+  while(pw.length<10) pw+=l[Math.floor(Math.random()*l.length)];
+  pw=pw.split('').sort(()=>Math.random()-.5).join('');
+  const el=document.getElementById('nu-password');
+  if(el){el.value=pw;el.style.background='#f0fdf4';el.style.borderColor='var(--green)';}
+}
+
+function toggleNuPwVis(){
+  const inp=document.getElementById('nu-password');
+  const eye=document.getElementById('nu-eye');
+  if(!inp)return;
+  inp.type=inp.type==='password'?'text':'password';
+  if(eye)eye.textContent=inp.type==='password'?'👁':'🙈';
+}
+
+function onNuRoleChange(){
+  const role=document.getElementById('nu-role')?.value;
+  const emailWrap=document.getElementById('nu-email-wrap');
+  if(emailWrap)emailWrap.style.display=role==='sales_rep'?'block':'none';
+}
+
+function openAddUserForm(){
+  openModal(`
+    <h3 style="margin:0 0 16px;font-size:15px;font-weight:800">➕ Add New User</h3>
+    <div style="display:grid;gap:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px"><span style="color:var(--red)">*</span> Username</label>
+          <input id="nu-username" autocomplete="off" style="width:100%;padding:8px 11px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="e.g. carlos">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Display Name</label>
+          <input id="nu-display" autocomplete="off" style="width:100%;padding:8px 11px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="e.g. Carlos Rodriguez">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px"><span style="color:var(--red)">*</span> Temporary Password</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="position:relative;flex:1">
+            <input id="nu-password" type="text" autocomplete="new-password"
+              style="width:100%;padding:8px 36px 8px 11px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;font-family:monospace;box-sizing:border-box" placeholder="Enter or generate">
+            <button type="button" onclick="toggleNuPwVis()" id="nu-eye"
+              style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;font-size:16px">👁</button>
+          </div>
+          <button type="button" onclick="genTempPwd()" style="padding:8px 14px;background:var(--g100);border:1px solid var(--g200);border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">🎲 Generate</button>
+        </div>
+        <div style="font-size:10px;color:var(--g400);margin-top:3px">Min 8 chars · Uppercase · Number · Special char (!@#$%^&*...)</div>
+        <div id="nu-pw-err" style="color:var(--red);font-size:11px;margin-top:3px;min-height:14px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Role</label>
+          <select id="nu-role" onchange="onNuRoleChange()" style="width:100%;padding:8px 11px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px">
+            <option value="user">👤 User (general)</option>
+            <option value="sales_rep">📊 Sales Rep</option>
+            <option value="admin">⚙️ Admin</option>
+          </select>
+        </div>
+        <div id="nu-email-wrap" style="display:none">
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Email <span style="font-size:10px;font-weight:400;color:var(--g400)">(for alerts)</span></label>
+          <input id="nu-email" type="email" autocomplete="off" style="width:100%;padding:8px 11px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="user@company.com">
+        </div>
+      </div>
+      <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;font-size:11px;color:#92400e">
+        ⚠️ User must change password on first login. Share credentials via the QR message.
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+      <button type="button" onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
+      <button type="button" onclick="saveNewUser()" style="padding:9px 22px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">➕ Add User</button>
+    </div>
+  `,'Add New User');
+  setTimeout(()=>{
+    const u=document.getElementById('nu-username');
+    const p=document.getElementById('nu-password');
+    const d=document.getElementById('nu-display');
+    if(u){u.value='';u.focus();}
+    if(p)p.value='';
+    if(d)d.value='';
+  },50);
+}
+
+async function saveNewUser(){
+  const username=(document.getElementById('nu-username')?.value||'').trim().toLowerCase();
+  const pw=document.getElementById('nu-password')?.value||'';
+  const display=document.getElementById('nu-display')?.value||'';
+  const role=document.getElementById('nu-role')?.value||'user';
+  const email=document.getElementById('nu-email')?.value||'';
+  const errEl=document.getElementById('nu-pw-err');
+  if(!username){toast('Username required','err');return;}
+  const pwErr=validatePassword(pw);
+  if(pwErr){if(errEl)errEl.textContent=pwErr;toast(pwErr,'err');return;}
+  if(errEl)errEl.textContent='';
+  const userType=role==='admin'?'admin':role==='sales_rep'?'sales_rep':'regular';
+  const actualRole=role==='admin'?'admin':'user';
+  const {error}=await sb.from('user_permissions').insert({
+    username, display_name:display||username, role:actualRole, user_type:userType,
+    password:pw, must_change_password:true,
+    email:email||null,
+    perm_dashboard:'view',perm_pipeline:'view',perm_report:'view',
+    perm_pi:role==='sales_rep'?'edit':'view',
+    perm_po:role==='sales_rep'?'edit':'view',
+    perm_hqpo:role==='sales_rep'?'edit':'view',
+    perm_shipments:role==='sales_rep'?'edit':'view',
+    perm_collections:'view',perm_distributors:'view',
+    perm_products:'view',perm_goals:'view',perm_pricing:'none',
+    can_export:true,can_delete:false
+  });
+  if(error){toast('Error: '+error.message,'err');return;}
+  USERS[username]={pw,role:actualRole};
+  closeModal();
+  showWelcomeMessage(username, display||username, pw, userType);
+  loadAdminUsers();
+}
+
+function showWelcomeMessage(username, displayName, tempPwd, userType='regular'){
+  const loginUrl='https://genoray-latam.vercel.app';
+  const roleLabel=userType==='sales_rep'?'Sales Representative':userType==='admin'?'Admin':'User';
+  const msgText='🌐 Genoray LATAM Sales Management\n\nHi '+displayName+'!\n\nYour '+roleLabel+' account is ready:\n\n👤 Username: '+username+'\n🔑 Temp Password: '+tempPwd+'\n🔗 Login: '+loginUrl+'\n\n⚠️ Change your password on first login.\nRules: 8+ chars · Uppercase · Number · Special char';
+  const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=180x180&data='+encodeURIComponent(loginUrl)+'&color=1e3a8a&bgcolor=ffffff&qzone=2';
+  openModal('<div style="text-align:center;padding:4px 0 12px"><div style="font-size:26px;margin-bottom:6px">✅</div><div style="font-size:15px;font-weight:800">User Created</div><div style="font-size:12px;color:var(--g500);margin-top:3px">Share credentials with <strong>'+esc(displayName)+'</strong></div></div><div style="display:grid;grid-template-columns:180px 1fr;gap:16px;align-items:start;margin-bottom:14px"><div style="text-align:center"><img src="'+qrUrl+'" style="width:180px;height:180px;border:2px solid var(--g100);border-radius:10px"><div style="font-size:10px;color:var(--g400);margin-top:5px">📱 Scan to open login</div></div><div style="background:var(--g50);border-radius:10px;padding:14px;border:1px solid var(--g200)"><div style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;margin-bottom:10px">Credentials</div><div style="margin-bottom:8px"><div style="font-size:10px;color:var(--g400)">Role</div><div style="font-size:12px;font-weight:700">'+roleLabel+'</div></div><div style="margin-bottom:8px"><div style="font-size:10px;color:var(--g400)">Username</div><div style="font-size:16px;font-weight:800;font-family:monospace">'+esc(username)+'</div></div><div><div style="font-size:10px;color:var(--g400)">Temp Password</div><div style="font-size:18px;font-weight:900;font-family:monospace;letter-spacing:2px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;border:1px dashed #fca5a5;margin-top:2px">'+esc(tempPwd)+'</div></div></div></div><div><div style="font-size:11px;font-weight:700;color:var(--g600);margin-bottom:6px">📋 Send via WhatsApp / Email</div><textarea id="welcome-msg" readonly style="width:100%;height:120px;padding:10px;border:1.5px solid var(--g200);border-radius:8px;font-size:12px;line-height:1.6;resize:none;background:#fafafa;box-sizing:border-box;font-family:inherit">'+msgText+'</textarea></div><div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end"><button onclick="copyWelcomeMsg()" style="padding:9px 16px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;font-weight:600;cursor:pointer">📋 Copy</button><button onclick="closeModal()" style="padding:9px 20px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">Done</button></div>','New User Created');
+}
+
+function copyWelcomeMsg(){
+  const ta=document.getElementById('welcome-msg');
+  if(!ta)return;
+  navigator.clipboard?.writeText(ta.value).then(()=>toast('✅ Copied! Paste in WhatsApp or Email'));
+  ta.select();
+}
+
 // ── STARTUP ───────────────────────────────────────────────────────────────────
 (function(){
   // Check if already logged in (page refresh / returning user)
