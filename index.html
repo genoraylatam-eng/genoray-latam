@@ -6386,32 +6386,8 @@ function updateBottomNav(page){
 
 
 
-</script>
 
-<!-- Mobile Bottom Navigation -->
-<div id="bottom-nav">
-  <button class="bn-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
-    <span class="bn-icon">📊</span><span class="bn-label">Dashboard</span>
-  </button>
-  <button class="bn-item" data-page="pipeline" onclick="navigateTo('pipeline')">
-    <span class="bn-icon">🔄</span><span class="bn-label">Pipeline</span>
-  </button>
-  <button class="bn-item" data-page="pi" onclick="navigateTo('pi')">
-    <span class="bn-icon">📋</span><span class="bn-label">PI</span>
-  </button>
-  <button class="bn-item" data-page="shipments" onclick="navigateTo('shipments')">
-    <span class="bn-icon">🚢</span><span class="bn-label">Shipments</span>
-  </button>
-  <button class="bn-item" data-page="help" onclick="navigateTo('help')">
-    <span class="bn-icon">📖</span><span class="bn-label">Manual</span>
-  </button>
-  <button class="bn-item" onclick="toggleSidebar()">
-    <span class="bn-icon">☰</span><span class="bn-label">More</span>
-  </button>
-</div>
-
-</body>
-</html>// ── Add / Edit User + Password Management ────────────────────────────────────
+// ── Add / Edit User + Password Management ────────────────────────────────────
 function validatePassword(pw){
   if(pw.length<8)return'Password must be at least 8 characters';
   if(!/[A-Z]/.test(pw))return'Must include at least one uppercase letter';
@@ -6496,7 +6472,6 @@ function setNuRole(role){
   const al=document.getElementById('role-admin-lbl');
   if(ul){ul.style.borderColor=role==='user'?'var(--blue)':'var(--g200)';ul.style.background=role==='user'?'#eff6ff':'#fff';}
   if(al){al.style.borderColor=role==='admin'?'#f59e0b':'var(--g200)';al.style.background=role==='admin'?'#fffbeb':'#fff';}
-}
 }
 
 function genTempPwd(){
@@ -6621,5 +6596,29 @@ async function submitPasswordChange(username){
   document.getElementById('login-screen').classList.add('hidden');
   init();
 }
+</script>
 
+<!-- Mobile Bottom Navigation -->
+<div id="bottom-nav">
+  <button class="bn-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
+    <span class="bn-icon">📊</span><span class="bn-label">Dashboard</span>
+  </button>
+  <button class="bn-item" data-page="pipeline" onclick="navigateTo('pipeline')">
+    <span class="bn-icon">🔄</span><span class="bn-label">Pipeline</span>
+  </button>
+  <button class="bn-item" data-page="pi" onclick="navigateTo('pi')">
+    <span class="bn-icon">📋</span><span class="bn-label">PI</span>
+  </button>
+  <button class="bn-item" data-page="shipments" onclick="navigateTo('shipments')">
+    <span class="bn-icon">🚢</span><span class="bn-label">Shipments</span>
+  </button>
+  <button class="bn-item" data-page="help" onclick="navigateTo('help')">
+    <span class="bn-icon">📖</span><span class="bn-label">Manual</span>
+  </button>
+  <button class="bn-item" onclick="toggleSidebar()">
+    <span class="bn-icon">☰</span><span class="bn-label">More</span>
+  </button>
+</div>
 
+</body>
+</html>
