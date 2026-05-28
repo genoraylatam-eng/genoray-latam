@@ -834,7 +834,7 @@ tr[data-paid="true"] td{opacity:.55}
           <div class="panel-acts">
             <div class="search-box"><span>🔍</span><input id="pi-search" placeholder="Search..." oninput="filterTbl('pi')"></div>
             <button id="pi-done-toggle" onclick="toggleDoneRows('pi')" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:600;cursor:pointer">👁 Show Completed</button>
-            <button class="btn btn-primary" onclick="openPI()">+ New PI</button>
+            <button class="btn btn-primary hide-on-view" onclick="openPI()">+ New PI</button>
           </div>
         </div>
         <div class="tbl-wrap"><table id="pi-table"
@@ -863,7 +863,7 @@ tr[data-paid="true"] td{opacity:.55}
           <div class="panel-acts">
             <div class="search-box"><span>🔍</span><input id="po-search" placeholder="Search..." oninput="filterTbl('po')"></div>
             <button id="po-done-toggle" onclick="toggleDoneRows('po')" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:600;cursor:pointer">👁 Show Completed</button>
-            <button class="btn btn-primary" onclick="openForm('po')">+ New PO</button>
+            <button class="btn btn-primary hide-on-view" onclick="openForm('po')">+ New PO</button>
           </div>
         </div>
         <div class="tbl-wrap"><table id="po-table"
@@ -891,7 +891,7 @@ tr[data-paid="true"] td{opacity:.55}
           <div class="panel-acts">
             <div class="search-box"><span>🔍</span><input id="hqpo-search" placeholder="Search..." oninput="filterTbl('hqpo')"></div>
             <button id="hqpo-done-toggle" onclick="toggleDoneRows('hqpo')" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:600;cursor:pointer">👁 Show Delivered</button>
-            <button class="btn btn-primary" onclick="openForm('hqpo')">+ New HQ PO</button>
+            <button class="btn btn-primary hide-on-view" onclick="openForm('hqpo')">+ New HQ PO</button>
           </div>
         </div>
         <div class="tbl-wrap"><table id="hqpo-table"
@@ -924,7 +924,7 @@ tr[data-paid="true"] td{opacity:.55}
           <div class="panel-acts">
             <div class="search-box"><span>🔍</span><input id="shipments-search" placeholder="Search..." oninput="filterTbl('shipments')"></div>
             <button id="shipments-done-toggle" onclick="toggleDoneRows('shipments')" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:600;cursor:pointer">👁 Show Completed</button>
-            <button class="btn btn-primary" onclick="openForm('shipments')">+ New Shipment</button>
+            <button class="btn btn-primary hide-on-view" onclick="openForm('shipments')">+ New Shipment</button>
           </div>
         </div>
         <div class="tbl-wrap"><table id="shipments-table"
@@ -991,7 +991,7 @@ tr[data-paid="true"] td{opacity:.55}
             <button id="col-paid-toggle" onclick="togglePaidRows()" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px">
               <span id="col-paid-icon">👁</span> <span id="col-paid-label">Show Paid</span>
             </button>
-            <button class="btn btn-primary" onclick="openForm('collections')">+ New Collection</button>
+            <button class="btn btn-primary hide-on-view" onclick="openForm('collections')">+ New Collection</button>
           </div>
         </div>
         <div class="tbl-wrap"><table id="collections-table">
@@ -1028,7 +1028,7 @@ tr[data-paid="true"] td{opacity:.55}
               <option value="Dental">🦷 Dental</option>
               <option value="Both">🏥+🦷 Both</option>
             </select>
-            <button class="btn btn-primary" onclick="openForm('distributors')">+ Add Distributor</button>
+            <button class="btn btn-primary hide-on-view" onclick="openForm('distributors')">+ Add Distributor</button>
           </div>
         </div>
         <div class="tbl-wrap"><table>
@@ -1055,7 +1055,7 @@ tr[data-paid="true"] td{opacity:.55}
         <button id="pdiv-med" onclick="setProdDiv('medical')" style="padding:7px 18px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:700;cursor:pointer">🏥 Medical</button>
         <button id="pdiv-den" onclick="setProdDiv('dental')" style="padding:7px 18px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:700;cursor:pointer">🦷 Dental</button>
         <div style="flex:1"></div>
-        <button class="btn btn-primary" onclick="openForm('products')">+ Add Product</button>
+        <button class="btn btn-primary hide-on-view" onclick="openForm('products')">+ Add Product</button>
       </div>
       <!-- Products grouped display -->
       <div id="products-grouped"></div>
@@ -3647,6 +3647,7 @@ async function delGoalRow(id){
 
 // ── GOAL FORM ────────────────────────────────────────────────────────────────
 function openGoalForm(id=null, prefillDist='', prefillDiv='', prefillCountry='', prefillYear=''){
+  if(!guardEdit('goals'))return;
   goalFS={id,items:[],ed:{}};
   document.getElementById('goal-modal-title').textContent=id?'Edit Annual Goal':'New Annual Goal';
   if(id){
@@ -4033,8 +4034,8 @@ function fmtEditBadge(r){
 
 function rowHTML(page,r){
   const isAdmin=sessionStorage.getItem('gl_role')==='admin';
-  const delBtn=isAdmin?`<button class="btn btn-danger btn-sm" onclick="delRow('${page}','${r.id}')">Del</button>`:'';
-  const acts=`<td><div class="td-acts"><button class="btn btn-secondary btn-sm" onclick="openForm('${page}','${r.id}')">Edit</button>${delBtn}</div></td>`;
+  const delBtn=isAdmin?`<button class="btn btn-danger btn-sm hide-on-view" onclick="delRow('${page}','${r.id}')">Del</button>`:'';
+  const acts=`<td><div class="td-acts"><button class="btn btn-secondary btn-sm hide-on-view" onclick="openForm('${page}','${r.id}')">Edit</button>${delBtn}</div></td>`;
   const piLink=(num,label)=>num?`<span class="pi-link" onclick="showPIPrint('${num}')">${label||num}</span>`:'-';
 
   // Auto-status computation
@@ -4252,6 +4253,7 @@ const PAYMENT_PRESETS=[
 ];
 
 function openPI(id=null){
+  if(!guardEdit('pi'))return;
   piFS={id,items:[],ed:{},seller:'korea'};
   document.getElementById('pi-modal-title').textContent=id?'Edit PI':'New Proforma Invoice';
   if(id){
@@ -6762,9 +6764,10 @@ function applyPermissions(){
       var perm=_userPerms['perm_'+s.key]||'view';
       if(perm!=='edit'){
         var sel='#page-'+s.key;
+        rules.push(sel+' .hide-on-view{display:none!important}');
         rules.push(sel+' .btn-add{display:none!important}');
         rules.push(sel+' .btn-edit{display:none!important}');
-        rules.push(sel+' .hide-on-view{display:none!important}');
+
       }
     });
     permStyle.textContent=rules.join(' ');
