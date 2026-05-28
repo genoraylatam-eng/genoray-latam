@@ -7519,7 +7519,9 @@ async function submitDelayResponse(notifId,piNumber,stage){
   });
   closeModal();
   toast('✅ Response submitted — thank you!');
+  // Reload both notifications and responses
   await loadNotifications();
+  renderNotifications();
 }
 
 // ── SEND MESSAGE ABOUT A RECORD (from PI/PO/Shipment etc) ────────────────────
@@ -7572,7 +7574,7 @@ async function sendRecordMessage(page, recordId, recordLabel){
 }
 
 // ── MESSAGING ─────────────────────────────────────────────────────────────────
-let _notifTab='all', _notifData=[], _msgView='all'; // all|inbox|outbox
+let _notifTab='all', _notifData=[], _delayResponses=[], _msgView='all'; // all|inbox|outbox
 
 const NOTIF_STYLE={
   info:        {icon:'ℹ️', bg:'#eff6ff',border:'#bfdbfe'},
@@ -7588,17 +7590,19 @@ async function loadNotifications(){
 
   let query;
   if(isAdmin){
-    // Admin sees everything
     query=sb.from('notifications').select('*').order('created_at',{ascending:false}).limit(300);
   } else {
-    // Others see: addressed to them + announcements (null) + their own sent
     query=sb.from('notifications').select('*')
       .or('to_user.is.null,to_user.eq.'+me+',from_user.eq.'+me)
       .order('created_at',{ascending:false}).limit(200);
   }
-  const{data,error}=await query;
+  const [{data,error}, {data:responses}]=await Promise.all([
+    query,
+    sb.from('delay_responses').select('*').order('responded_at',{ascending:true}),
+  ]);
   if(error){console.error('notif load:',error);return;}
   _notifData=data||[];
+  _delayResponses=responses||[];
   updateBellBadge();
   if(activePage==='notifications') renderNotifications();
 }
@@ -7677,42 +7681,48 @@ function renderNotifications(){
           const isEsc=n.title.startsWith('🔴');
           const ago=fmtAgo(n.created_at);
           const st=NOTIF_STYLE[n.type]||NOTIF_STYLE.info;
-          const alertStage=n.related_id?n.related_id.split('_').slice(1).join('_'):'';
-          const piNum=n.related_id?n.related_id.split('_').slice(0,-alertStage.split('_').length).join('_'):'';
-          // Parse PI number properly
+          // Parse PI number and stage from related_id
           const stageKeys=['no_action','hqpo_delay','col_delay','po_delay'];
-          let piNumber=piNum, stage=alertStage;
+          let piNumber='', stage='';
           for(const sk of stageKeys){
             if((n.related_id||'').endsWith('_'+sk)){
               piNumber=(n.related_id||'').slice(0,-(sk.length+1));
               stage=sk; break;
             }
           }
-          return`<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;border-top:1px solid var(--g100);background:${isRead?'#fff':st.bg};${isEsc?'border-left:3px solid #ef4444;':''}">
-            <span style="font-size:14px;flex-shrink:0">${isEsc?'🔴':st.icon}</span>
-            <div style="flex:1;min-width:0">
-              <div style="font-size:12px;font-weight:${isRead?'500':'700'};color:var(--g900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                ${(()=>{
-                  // Make PI number clickable in title
-                  const title=esc(n.title);
-                  if(piNumber){
-                    const piEsc=esc(piNumber);
-                    return title.replace(piEsc,
-                      '<span onclick="goToRecord(\'pi\',\''+piEsc+'\');event.stopPropagation()" style="color:var(--blue);text-decoration:underline;cursor:pointer;font-weight:800">'+piEsc+'</span>'
-                    );
-                  }
-                  return title;
-                })()}
-                ${isEsc?'<span style="font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;font-weight:700">RESENT</span>':''}
+          // Get responses for this notification
+          const replies=(_delayResponses||[]).filter(r=>r.notification_id===n.id);
+          const hasReply=replies.length>0;
+          const delayLine=n.message?(n.message.split('\n').find(l=>l.startsWith('Delayed'))||''):'';
+
+          return`<div style="border-top:1px solid var(--g100);background:${isRead&&!hasReply?'#fff':isEsc?'#fff7f7':st.bg}">
+            <!-- Alert row -->
+            <div style="display:flex;align-items:center;gap:8px;padding:7px 14px;${isEsc?'border-left:3px solid #ef4444;':''}">
+              <span style="font-size:13px;flex-shrink:0">${isEsc?'🔴':st.icon}</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:${isRead&&hasReply?'500':'700'};color:var(--g900);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                  ${piNumber?`<span onclick="goToRecord('pi','${esc(piNumber)}');event.stopPropagation()" style="color:var(--blue);text-decoration:underline;cursor:pointer">${esc(piNumber)}</span>`:''}
+                  <span style="color:var(--g500);font-weight:400;font-size:11px">${stage==='no_action'?'No Action':stage==='hqpo_delay'?'Awaiting Shipment':stage==='col_delay'?'Collection Pending':stage}</span>
+                  ${isEsc?'<span style="font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:700">RESENT</span>':''}
+                  ${hasReply?'<span style="font-size:10px;background:#dcfce7;color:#065f46;padding:1px 5px;border-radius:4px;font-weight:700">✓ Replied</span>':''}
+                </div>
+                <div style="font-size:10px;color:var(--g400);margin-top:1px">${ago} · ${esc(delayLine)}</div>
               </div>
-              <div style="font-size:11px;color:var(--g400)">${ago} ${n.message?(n.message.split('\n')[2]||''):''}
+              <div style="display:flex;gap:4px;flex-shrink:0">
+                ${!isRead?`<button onclick="markRead('${n.id}');event.stopPropagation()" style="padding:2px 7px;border:1px solid var(--g200);border-radius:5px;background:#fff;font-size:10px;cursor:pointer">✓</button>`:''}
+                ${piNumber&&!isEsc&&!hasReply?`<button onclick="openDelayResponse('${n.id}','${esc(piNumber)}','${esc(stage)}');event.stopPropagation()" style="padding:2px 9px;border:none;border-radius:5px;background:#f59e0b;color:#fff;font-size:10px;font-weight:700;cursor:pointer">📝</button>`:''}
+                <button onclick="deleteNotif('${n.id}','false');event.stopPropagation()" style="padding:2px 5px;border:1px solid var(--g100);border-radius:5px;background:#fff;font-size:10px;cursor:pointer;color:var(--g300)">🗑</button>
               </div>
             </div>
-            <div style="display:flex;gap:6px;flex-shrink:0">
-              ${!isRead?`<button onclick="markRead('${n.id}');event.stopPropagation()" style="padding:3px 8px;border:1px solid var(--g200);border-radius:5px;background:#fff;font-size:10px;cursor:pointer">✓</button>`:''}
-              ${piNumber&&!isEsc?`<button onclick="openDelayResponse('${n.id}','${esc(piNumber)}','${esc(stage)}');event.stopPropagation()" style="padding:3px 10px;border:none;border-radius:5px;background:#f59e0b;color:#fff;font-size:10px;font-weight:700;cursor:pointer">📝 Respond</button>`:''}
-              <button onclick="deleteNotif('${n.id}','false');event.stopPropagation()" style="padding:3px 6px;border:1px solid var(--g100);border-radius:5px;background:#fff;font-size:10px;cursor:pointer;color:var(--g300)">🗑</button>
-            </div>
+            <!-- Thread replies -->
+            ${replies.map(rep=>`
+              <div style="margin:0 14px 6px 36px;padding:8px 10px;background:#f0fdf4;border-left:3px solid #86efac;border-radius:0 8px 8px 0;font-size:11px">
+                <div style="font-weight:700;color:var(--g700);margin-bottom:3px">📝 @${esc(rep.responded_by)} · ${fmtAgo(rep.responded_at)}</div>
+                <div style="color:var(--g700);margin-bottom:2px"><strong>Reason:</strong> ${esc(rep.reason||'').split('\n')[0]}</div>
+                <div style="color:var(--g700)"><strong>Action Plan:</strong> ${esc(rep.action_plan||'')}</div>
+                ${(rep.reason||'').includes('Expected resolution')?`<div style="color:var(--g500);margin-top:2px">📅 ${esc((rep.reason||'').split('Expected resolution:')[1]||'').trim()}</div>`:''}
+              </div>
+            `).join('')}
           </div>`;
         }).join('')}
         <div style="padding:6px 16px;background:#fafafa;border-top:1px solid var(--g100);display:flex;gap:8px">
