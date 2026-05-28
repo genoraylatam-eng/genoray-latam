@@ -7692,7 +7692,17 @@ function renderNotifications(){
             <span style="font-size:14px;flex-shrink:0">${isEsc?'🔴':st.icon}</span>
             <div style="flex:1;min-width:0">
               <div style="font-size:12px;font-weight:${isRead?'500':'700'};color:var(--g900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                ${esc(n.title)}
+                ${(()=>{
+                  // Make PI number clickable in title
+                  const title=esc(n.title);
+                  if(piNumber){
+                    const piEsc=esc(piNumber);
+                    return title.replace(piEsc,
+                      '<span onclick="goToRecord(\'pi\',\''+piEsc+'\');event.stopPropagation()" style="color:var(--blue);text-decoration:underline;cursor:pointer;font-weight:800">'+piEsc+'</span>'
+                    );
+                  }
+                  return title;
+                })()}
                 ${isEsc?'<span style="font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;font-weight:700">RESENT</span>':''}
               </div>
               <div style="font-size:11px;color:var(--g400)">${ago} ${n.message?(n.message.split('\n')[2]||''):''}
@@ -7740,6 +7750,32 @@ function renderNotifications(){
   });
 
   el.innerHTML=html||'<div style="text-align:center;padding:48px;color:var(--g400)">📭 No messages</div>';
+}
+
+function goToRecord(page, recordId){
+  // Navigate to the page and search for the specific record
+  navigateTo(page);
+  // After page loads, find and highlight the record
+  setTimeout(()=>{
+    // Try to find a search input and fill it
+    const searchEl = document.querySelector('#'+page+'-search') ||
+                     document.querySelector('[id$="-search"]');
+    if(searchEl){
+      searchEl.value = recordId;
+      searchEl.dispatchEvent(new Event('input'));
+    }
+    // Try to find the row and highlight it
+    const rows = document.querySelectorAll('tr');
+    for(const row of rows){
+      if(row.textContent.includes(recordId)){
+        row.style.background='#fef9c3';
+        row.style.transition='background 2s';
+        row.scrollIntoView({behavior:'smooth', block:'center'});
+        setTimeout(()=>row.style.background='', 2500);
+        break;
+      }
+    }
+  }, 800);
 }
 
 function toggleAlertGroup(key){
