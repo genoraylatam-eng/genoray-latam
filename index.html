@@ -1042,50 +1042,7 @@ tr[data-paid="true"] td{opacity:.55}
           <tbody id="products-tbody"></tbody>
         </table></div>
       </div></div><!-- end hidden table -->
-    </div>
-
-    <!-- GOALS -->
-    <div id="page-goals" class="page">
-      <!-- GOALS TOOLBAR -->
-      <div class="panel" style="margin-bottom:14px">
-        <div class="panel-head" style="flex-wrap:wrap;gap:10px">
-          <span class="panel-title">Annual Sales Goals</span>
-          <div class="panel-acts">
-            <div class="search-box"><span>🔍</span><input id="goals-search" placeholder="Search..." oninput="renderGoals()"></div>
-            <select id="goals-year" onchange="renderGoals()" style="padding:7px 10px;border:1px solid var(--g200);border-radius:var(--rsm);font-size:13px;background:#fff">
-              <option value="">All Years</option>
-              <option value="2026" selected>2026</option>
-              <option value="2025">2025</option>
-              <option value="2027">2027</option>
-            </select>
-            <select id="goals-div" onchange="renderGoals()" style="padding:7px 10px;border:1px solid var(--g200);border-radius:var(--rsm);font-size:13px;background:#fff">
-              <option value="">All Divisions</option>
-              <option value="Medical">Medical</option>
-              <option value="Dental">Dental</option>
-            </select>
-            <div style="display:flex;border:1px solid var(--g200);border-radius:var(--rsm);overflow:hidden">
-              <button id="gv-combined" class="btn" style="border-radius:0;border:none;background:var(--blue);color:#fff;padding:7px 12px;font-size:12px" onclick="setGoalView('combined')">M+D Combined</button>
-              <button id="gv-split" class="btn" style="border-radius:0;border:none;background:var(--g100);color:var(--g700);padding:7px 12px;font-size:12px" onclick="setGoalView('split')">Split by Division</button>
-            </div>
-            <button class="btn btn-primary" onclick="openGoalForm()">+ New Goal</button>
-          </div>
-        </div>
-      </div>
-      <!-- GOALS SUMMARY STATS -->
-      <div class="stat-grid" id="goals-stat-cards" style="margin-bottom:14px"></div>
-      <!-- GOALS TABLE -->
-      <div class="panel">
-        <div class="tbl-wrap">
-          <table id="goals-table">
-            <thead id="goals-thead"></thead>
-            <tbody id="goals-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-  
-
+    
     <!-- PRICING -->
     <div id="page-pricing" class="page">
 
@@ -1304,7 +1261,7 @@ tr[data-paid="true"] td{opacity:.55}
         </div>
         <div id="help-content" style="flex:1;min-width:0"></div>
       </div>
-    </div>
+    </div></div>
 
 
 </div>
@@ -5373,12 +5330,18 @@ let _allDistPrices={}; // cache: {distributor: [rows]}
 function openModal(html, title){
   const t=document.getElementById('modal-title');
   const b=document.getElementById('modal-body');
-  if(t)t.textContent=title||'Price Settings';
+  const foot=document.querySelector('.modal-foot');
+  if(t)t.textContent=title||'';
   if(b)b.innerHTML=html;
+  if(foot)foot.style.display='none';
   const ov=document.getElementById('overlay');
   if(ov)ov.classList.add('show');
 }
-function closeModal(){ closeForm(); }
+function closeModal(){
+  const foot=document.querySelector('.modal-foot');
+  if(foot)foot.style.display='';
+  closeForm();
+}
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function setPricingTab(tab){
@@ -6232,6 +6195,8 @@ navigateTo=function(page){
   _origNavTo_admin(page);
   if(page==='admin'){loadAdminUsers();loadDeleteRequests();checkDeleteAlarm();}
   updateReadOnlyIndicator();
+  // Scroll content to top on page change
+  const contentEl=document.getElementById('content');if(contentEl)contentEl.scrollTop=0;
 };
 
 
@@ -6251,6 +6216,71 @@ function setStatus(msg, isErr){
   if(!sc)return;
   const col=isErr?'#dc2626':'#2563eb';
   sc.innerHTML='<div style="grid-column:1/-1;padding:20px;text-align:center;color:'+col+';font-size:13px;font-weight:600">'+(isErr?'⚠️ ':'⏳ ')+msg+'</div>';
+}
+
+function showWelcomeMessage(username, displayName, tempPwd){
+  const loginUrl='https://genoray-latam.vercel.app';
+  const msgText=`🌐 Genoray LATAM Sales Management
+
+Hi ${displayName}!
+
+Your account has been created:
+👤 Username: ${username}
+🔑 Temp Password: ${tempPwd}
+🔗 Login URL: ${loginUrl}
+
+⚠️ Please change your password on your first login.
+
+Requirements: 8+ chars · Uppercase · Number · Special char (!@#$...)`;
+
+  const qrUrl=`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(loginUrl)}&color=1e3a8a&bgcolor=ffffff&qzone=2&margin=0`;
+
+  openModal(`
+    <div style="text-align:center;padding:4px 0 12px">
+      <div style="font-size:24px;margin-bottom:6px">✅</div>
+      <div style="font-size:15px;font-weight:800;color:var(--g900)">User Created!</div>
+      <div style="font-size:12px;color:var(--g500);margin-top:3px">Share login credentials with @${esc(username)}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:16px;align-items:start">
+      <!-- QR Code -->
+      <div style="text-align:center">
+        <img src="${qrUrl}" alt="QR Code" style="width:160px;height:160px;border:2px solid var(--g100);border-radius:10px;display:block">
+        <div style="font-size:10px;color:var(--g400);margin-top:5px">Scan to open login page</div>
+      </div>
+      <!-- Credentials -->
+      <div style="background:var(--g50);border-radius:10px;padding:14px 16px;border:1px solid var(--g200)">
+        <div style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Credentials</div>
+        <div style="margin-bottom:8px"><div style="font-size:10px;color:var(--g400)">Login URL</div><div style="font-size:12px;font-weight:600;color:var(--blue)">${loginUrl}</div></div>
+        <div style="margin-bottom:8px"><div style="font-size:10px;color:var(--g400)">Username</div><div style="font-size:14px;font-weight:800;font-family:monospace;color:var(--g900)">${esc(username)}</div></div>
+        <div><div style="font-size:10px;color:var(--g400)">Temp Password</div><div style="font-size:18px;font-weight:900;font-family:monospace;letter-spacing:2px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;border:1px dashed #fca5a5">${esc(tempPwd)}</div></div>
+      </div>
+    </div>
+    <!-- Message to copy -->
+    <div style="margin-top:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--g600);margin-bottom:6px">📋 Ready-to-send Message (KakaoTalk / WhatsApp / Email)</div>
+      <textarea id="welcome-msg" readonly style="width:100%;height:130px;padding:10px 12px;border:1.5px solid var(--g200);border-radius:8px;font-size:12px;line-height:1.6;resize:none;background:#fafafa;box-sizing:border-box;font-family:inherit">${msgText}</textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;flex-wrap:wrap">
+      <button onclick="copyWelcomeMsg()" style="padding:9px 16px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px">📋 Copy Message</button>
+      <button onclick="downloadQR('${esc(username)}')" style="padding:9px 16px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px">⬇️ Save QR</button>
+      <button onclick="closeModal()" style="padding:9px 20px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">Done</button>
+    </div>
+  `,'New User Created');
+}
+
+function copyWelcomeMsg(){
+  const ta=document.getElementById('welcome-msg');
+  if(!ta)return;
+  navigator.clipboard?.writeText(ta.value).then(()=>toast('✅ Message copied! Paste in KakaoTalk, WhatsApp, or Email'));
+  ta.select();
+}
+
+function downloadQR(username){
+  const img=document.querySelector('#modal-body img');
+  if(!img)return;
+  const a=document.createElement('a');
+  a.href=img.src;a.download='genoray-login-qr-'+username+'.png';a.click();
+  toast('✅ QR code downloaded');
 }
 
 async function _dbLoginCheck(u,p){
@@ -6392,46 +6422,80 @@ function validatePassword(pw){
 function openAddUserForm(){
   openModal(`
     <h3 style="margin:0 0 16px;font-size:15px;font-weight:800">➕ Add New User</h3>
-    <div style="display:grid;gap:12px">
+    <div style="display:grid;gap:13px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div>
           <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px"><span style="color:var(--red)">*</span> Username (login ID)</label>
-          <input id="nu-username" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="e.g. carlos">
+          <input id="nu-username" autocomplete="off" autocorrect="off" spellcheck="false"
+            style="width:100%;padding:8px 11px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="e.g. carlos">
         </div>
         <div>
           <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Display Name</label>
-          <input id="nu-display" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="e.g. Carlos Rodriguez">
+          <input id="nu-display" autocomplete="off"
+            style="width:100%;padding:8px 11px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="e.g. Carlos Rodriguez">
         </div>
       </div>
       <div>
         <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px"><span style="color:var(--red)">*</span> Temporary Password</label>
         <div style="display:flex;gap:8px;align-items:center">
-          <input id="nu-password" type="text" style="flex:1;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;font-family:monospace;box-sizing:border-box" placeholder="Enter or auto-generate">
-          <button onclick="genTempPwd()" style="padding:8px 12px;background:var(--g100);border:1px solid var(--g200);border-radius:7px;font-size:12px;cursor:pointer;white-space:nowrap">🎲 Generate</button>
+          <div style="position:relative;flex:1">
+            <input id="nu-password" type="text" autocomplete="new-password"
+              style="width:100%;padding:8px 40px 8px 11px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;font-family:monospace;box-sizing:border-box" placeholder="Enter or auto-generate">
+            <button type="button" onclick="toggleNuPwVis()" id="nu-eye"
+              style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;font-size:16px">👁</button>
+          </div>
+          <button type="button" onclick="genTempPwd()" style="padding:8px 14px;background:var(--g100);border:1px solid var(--g200);border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">🎲 Generate</button>
         </div>
-        <div style="font-size:10px;color:var(--g400);margin-top:3px">Min 8 chars · 1 uppercase · 1 number · 1 special (!@#$%^&*...) · User must change on first login</div>
-        <div id="nu-pw-err" style="color:var(--red);font-size:11px;margin-top:3px"></div>
+        <div style="font-size:10px;color:var(--g400);margin-top:3px">Min 8 chars · Uppercase · Number · Special char (!@#$%^&*...)</div>
+        <div id="nu-pw-err" style="color:var(--red);font-size:11px;margin-top:3px;min-height:14px"></div>
       </div>
       <div>
-        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Role</label>
+        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:6px">Role</label>
         <div style="display:flex;gap:8px">
-          <label style="flex:1;cursor:pointer;padding:9px 12px;border:1.5px solid var(--g200);border-radius:8px;display:flex;align-items:center;gap:8px">
-            <input type="radio" name="nu-role" value="user" checked> <span style="font-size:13px;font-weight:600">👤 User</span><span style="font-size:10px;color:var(--g400);margin-left:auto">Limited access</span>
+          <label id="role-user-lbl" style="flex:1;cursor:pointer;padding:10px 14px;border:1.5px solid var(--blue);border-radius:8px;background:#eff6ff;display:flex;align-items:center;gap:8px" onclick="setNuRole('user')">
+            <input type="radio" name="nu-role" value="user" checked style="accent-color:var(--blue)">
+            <div><div style="font-size:13px;font-weight:700;color:var(--blue)">👤 User</div><div style="font-size:10px;color:var(--g400)">Limited access</div></div>
           </label>
-          <label style="flex:1;cursor:pointer;padding:9px 12px;border:1.5px solid var(--g200);border-radius:8px;display:flex;align-items:center;gap:8px">
-            <input type="radio" name="nu-role" value="admin"> <span style="font-size:13px;font-weight:600">⚙️ Admin</span><span style="font-size:10px;color:var(--g400);margin-left:auto">Full access</span>
+          <label id="role-admin-lbl" style="flex:1;cursor:pointer;padding:10px 14px;border:1.5px solid var(--g200);border-radius:8px;background:#fff;display:flex;align-items:center;gap:8px" onclick="setNuRole('admin')">
+            <input type="radio" name="nu-role" value="admin" style="accent-color:var(--g600)">
+            <div><div style="font-size:13px;font-weight:700">⚙️ Admin</div><div style="font-size:10px;color:var(--g400)">Full access</div></div>
           </label>
         </div>
       </div>
       <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;font-size:11px;color:#92400e">
-        ⚠️ User will be prompted to change their password on first login. Share the temporary password securely.
+        ⚠️ User must change password on first login. Share credentials securely via the generated message.
       </div>
     </div>
-    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
-      <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
-      <button onclick="saveNewUser()" style="padding:9px 20px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">➕ Add User</button>
+    <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+      <button type="button" onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
+      <button type="button" onclick="saveNewUser()" style="padding:9px 22px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">➕ Add User</button>
     </div>
   `,'Add New User');
+  // Clear fields after modal opens
+  setTimeout(()=>{
+    const u=document.getElementById('nu-username');
+    const p=document.getElementById('nu-password');
+    const d=document.getElementById('nu-display');
+    if(u){u.value='';u.focus();}
+    if(p)p.value='';
+    if(d)d.value='';
+  },50);
+}
+
+function toggleNuPwVis(){
+  const inp=document.getElementById('nu-password');
+  const eye=document.getElementById('nu-eye');
+  if(!inp)return;
+  inp.type=inp.type==='password'?'text':'password';
+  if(eye)eye.textContent=inp.type==='password'?'👁':'🙈';
+}
+
+function setNuRole(role){
+  const ul=document.getElementById('role-user-lbl');
+  const al=document.getElementById('role-admin-lbl');
+  if(ul){ul.style.borderColor=role==='user'?'var(--blue)':'var(--g200)';ul.style.background=role==='user'?'#eff6ff':'#fff';}
+  if(al){al.style.borderColor=role==='admin'?'#f59e0b':'var(--g200)';al.style.background=role==='admin'?'#fffbeb':'#fff';}
+}
 }
 
 function genTempPwd(){
@@ -6479,7 +6543,7 @@ async function saveNewUser(){
   USERS[username]={pw,role};
 
   closeModal();
-  toast(`✅ User @${username} added! Share temp password: ${pw}`);
+  showWelcomeMessage(username, display||username, pw);
   loadAdminUsers();
 }
 
