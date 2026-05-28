@@ -1136,42 +1136,38 @@ tr[data-paid="true"] td{opacity:.55}
     <!-- PRICING -->
     <div id="page-pricing" class="page">
 
-      <!-- Tab navigation (left-aligned, consistent with app style) -->
-      <div style="display:flex;gap:8px;margin-bottom:14px;background:#fff;border-radius:var(--rlg);box-shadow:var(--sh);padding:10px 16px;align-items:center">
-        <span style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.06em;margin-right:4px">View</span>
-        <button id="ptab-tp" onclick="setPricingTab('tp')"
-          style="padding:7px 16px;border:1.5px solid var(--blue);border-radius:var(--rsm);background:var(--blue);color:#fff;font-size:12px;font-weight:700;cursor:pointer">
-          📋 TP Reference</button>
-        <button id="ptab-dist" onclick="setPricingTab('dist')"
-          style="padding:7px 16px;border:1.5px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:700;cursor:pointer">
-          🏢 Distributor Prices</button>
-        <button id="ptab-hist" onclick="setPricingTab('hist')"
-          style="padding:7px 16px;border:1.5px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:700;cursor:pointer">
-          🕐 Price History</button>
+      <!-- Sub-nav tabs (same style as Report/Dashboard filters) -->
+      <div class="panel" style="margin-bottom:14px;padding:12px 20px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.06em">View</span>
+          <button id="ptab-tp"   onclick="setPricingTab('tp')"   style="padding:6px 16px;border:1.5px solid var(--blue);border-radius:var(--rsm);background:var(--blue);color:#fff;font-size:12px;font-weight:700;cursor:pointer">📋 TP Reference</button>
+          <button id="ptab-dist" onclick="setPricingTab('dist')" style="padding:6px 16px;border:1.5px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:700;cursor:pointer">🏢 Distributor Prices</button>
+          <button id="ptab-hist" onclick="setPricingTab('hist')" style="padding:6px 16px;border:1.5px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:700;cursor:pointer">🕐 Price History</button>
+        </div>
       </div>
 
-      <!-- TAB 1: TP Reference -->
-      <div id="pricing-tp" style="display:block">
+      <!-- ── TAB 1: TP Reference ── -->
+      <div id="pricing-tp">
         <div class="panel" style="margin-bottom:12px">
           <div class="panel-head">
-            <span class="panel-title">HQ Transfer Price Reference — GAI 2026 (Ex-Factory, USD)</span>
+            <span class="panel-title" id="tp-panel-title">HQ Transfer Price Reference — GAI 2026 (Ex-Factory, USD)</span>
             <div style="display:flex;gap:8px;align-items:center">
               <div style="display:flex;border:1px solid var(--g200);border-radius:var(--rsm);overflow:hidden">
-                <button id="tp-div-all" onclick="filterTP('all')" style="padding:5px 12px;border:none;background:var(--blue);color:#fff;font-size:11px;font-weight:700;cursor:pointer">All</button>
+                <button id="tp-div-all" onclick="filterTP('all')"     style="padding:5px 12px;border:none;background:var(--blue);color:#fff;font-size:11px;font-weight:700;cursor:pointer">All</button>
                 <button id="tp-div-med" onclick="filterTP('Medical')" style="padding:5px 12px;border:none;background:var(--g100);color:var(--g600);font-size:11px;font-weight:700;cursor:pointer">Medical</button>
-                <button id="tp-div-den" onclick="filterTP('Dental')" style="padding:5px 12px;border:none;background:var(--g100);color:var(--g600);font-size:11px;font-weight:700;cursor:pointer">Dental</button>
+                <button id="tp-div-den" onclick="filterTP('Dental')"  style="padding:5px 12px;border:none;background:var(--g100);color:var(--g600);font-size:11px;font-weight:700;cursor:pointer">Dental</button>
               </div>
               <div class="search-box" style="width:180px"><span>🔍</span><input id="tp-search" placeholder="Search model..." oninput="filterTP()"></div>
             </div>
           </div>
-          <div style="background:#eff6ff;border-left:3px solid var(--blue);padding:8px 16px;font-size:11px;color:#1e40af;margin-bottom:0">
-            ⓘ Read-only reference · Source: GAI 2026 · All prices Ex-Factory USD · <strong>LATAM Price</strong> = SA (South America TP, what LATAM pays to GAI) · <strong>GAI US TP</strong> = GAI internal US reference (for info only) · Min = Floor price
+          <div style="background:#eff6ff;border-left:3px solid var(--blue);padding:8px 16px;font-size:11px;color:#1e40af">
+            ⓘ Read-only reference · GAI 2026 · Ex-Factory USD · <strong>LATAM Price</strong> = SA (what LATAM pays to GAI) · <strong>GAI US TP</strong> = internal US reference · Min = floor price
           </div>
           <div class="tbl-wrap">
             <table id="tp-table">
               <thead><tr>
                 <th>Category</th><th>Division</th><th>Model</th>
-                <th style="text-align:right;color:var(--blue);background:#eff6ff">LATAM Price<div style="font-size:9px;font-weight:400;color:#93c5fd">(SA = LATAM TP)</div></th>
+                <th style="text-align:right;background:#f0f7ff;color:var(--blue)">LATAM Price<div style="font-size:9px;font-weight:400">(SA = LATAM TP)</div></th>
                 <th style="text-align:right;color:#059669">Brazil</th>
                 <th style="text-align:right;color:#7c3aed">Mexico</th>
                 <th style="text-align:right;color:#d97706">LATAM Ref</th>
@@ -1184,30 +1180,28 @@ tr[data-paid="true"] td{opacity:.55}
         </div>
       </div>
 
-      <!-- TAB 2: Distributor Prices -->
+      <!-- ── TAB 2: Distributor Prices ── -->
       <div id="pricing-dist" style="display:none">
-        <div class="panel" style="margin-bottom:12px">
+        <div class="panel">
           <div class="panel-head">
             <span class="panel-title" id="dist-price-title">Distributor Pricing</span>
-            <div style="display:flex;gap:8px;align-items:center">
-              <select id="dist-price-sel" onchange="loadDistributorPrices()" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);font-size:13px;background:#fff">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <select id="dist-price-sel" onchange="loadDistributorPrices()" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);font-size:13px;background:#fff;min-width:220px">
                 <option value="">— Select Distributor —</option>
               </select>
-              <button class="btn btn-primary" onclick="openDistPriceForm()" id="dist-price-add-btn" style="display:none">+ Set Prices</button>
-              <button onclick="openPriceListPrint()" id="dist-price-print-btn" style="display:none;padding:7px 14px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;font-size:12px;font-weight:600;cursor:pointer;display:none;gap:5px;align-items:center">
-                📄 Export Price List
-              </button>
+              <button id="dist-price-add-btn" onclick="openDistPriceForm()" style="display:none;padding:7px 14px;background:var(--blue);color:#fff;border:none;border-radius:var(--rsm);font-size:13px;font-weight:600;cursor:pointer">+ Set Prices</button>
+              <button id="dist-price-print-btn" onclick="openPriceListPrint()" style="display:none;padding:7px 14px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;font-size:12px;font-weight:600;cursor:pointer">📄 Export Price List</button>
             </div>
           </div>
           <div id="dist-price-info" style="background:#f0fdf4;border-left:3px solid var(--green);padding:10px 16px;font-size:11px;color:#065f46">
-            Select a distributor to view or set their offer prices. Prices are compared against TP reference and min price.
+            Select a distributor above to view or set their offer prices. Margin is calculated vs LATAM TP (Ex-Factory).
           </div>
           <div class="tbl-wrap" id="dist-price-tbl-wrap" style="display:none">
             <table>
               <thead><tr>
                 <th>Category</th><th>Model</th>
-                <th style="text-align:right">TP Ref (Ex-Fty)</th>
-                <th style="text-align:right">Min Price</th>
+                <th style="text-align:right">LATAM TP</th>
+                <th style="text-align:right;color:var(--red)">Min Price</th>
                 <th style="text-align:right;color:var(--blue)">Offer Price</th>
                 <th style="text-align:center">Margin over TP</th>
                 <th style="text-align:center">vs Min</th>
@@ -1218,15 +1212,15 @@ tr[data-paid="true"] td{opacity:.55}
               <tbody id="dist-price-tbody"></tbody>
             </table>
           </div>
-          <div id="dist-price-empty" style="padding:40px;text-align:center;color:var(--g400);display:none">
-            <div style="font-size:32px;margin-bottom:8px">💲</div>
-            <div style="font-size:14px;font-weight:600">No prices set yet for this distributor</div>
-            <div style="font-size:12px;margin-top:4px">Click "+ Set Prices" to add offer prices</div>
+          <div id="dist-price-empty" style="display:none;padding:48px;text-align:center;color:var(--g400)">
+            <div style="font-size:40px;margin-bottom:10px">💲</div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:4px">No prices set for this distributor</div>
+            <div style="font-size:12px">Click <strong>+ Set Prices</strong> to add offer prices</div>
           </div>
         </div>
       </div>
 
-      <!-- TAB 3: Price History -->
+      <!-- ── TAB 3: Price History ── -->
       <div id="pricing-hist" style="display:none">
         <div class="panel">
           <div class="panel-head">
@@ -5029,15 +5023,29 @@ function renderTP(){
 async function initDistPricing(){
   const sel=document.getElementById('dist-price-sel');
   const histSel=document.getElementById('hist-dist-sel');
-  if(sel&&sel.options.length>1)return;
-  if(_tpData.length===0){
-    const {data}=await sb.from('tp_prices').select('*').eq('year',2026).order('category').order('model');
-    _tpData=data||[];
+  if(sel&&sel.options.length>1){
+    // Already populated - just reload TP data if missing
+    if(_tpData.length===0){
+      const {data}=await sb.from('tp_prices').select('*').eq('year',2026).order('category').order('model');
+      _tpData=data||[];
+    }
+    return;
   }
+  // Load TP data in parallel with distributor list
+  const tpPromise=_tpData.length===0
+    ?sb.from('tp_prices').select('*').eq('year',2026).order('category').order('model')
+    :Promise.resolve({data:_tpData});
+  const {data:tpRows}=await tpPromise;
+  if(tpRows)_tpData=tpRows;
+
   const dists=[...(masterCache.distributors||[])].sort((a,b)=>(a.company_name||'').localeCompare(b.company_name||''));
+  // Clear and repopulate
+  if(sel){while(sel.options.length>1)sel.remove(1);}
+  if(histSel){while(histSel.options.length>1)histSel.remove(1);}
   dists.forEach(d=>{
-    if(sel){const o=new Option(d.company_name+' ('+d.country+')',d.company_name);sel.add(o);}
-    if(histSel){const o2=new Option(d.company_name,d.company_name);histSel.add(o2);}
+    const label=d.company_name+(d.country?' ('+d.country+')':'');
+    if(sel)sel.add(new Option(label,d.company_name));
+    if(histSel)histSel.add(new Option(d.company_name,d.company_name));
   });
 }
 
@@ -5068,10 +5076,12 @@ async function loadDistributorPrices(){
   _distPrices=dp||[];
   const distInfo=(masterCache.distributors||[]).find(d=>d.company_name===dist);
   if(title)title.textContent='Prices — '+dist+(distInfo?' ('+distInfo.country+')':'');
-  if(addBtn)addBtn.style.display='flex';
+  if(addBtn)addBtn.style.removeProperty('display'); addBtn&&(addBtn.style.display='inline-flex');
   const printBtn=document.getElementById('dist-price-print-btn');
-  if(printBtn)printBtn.style.display='flex';
+  if(printBtn)printBtn.style.display='inline-flex';
   if(info)info.style.display='none';
+  if(emptyDiv)emptyDiv.style.display='none';
+  if(tblWrap)tblWrap.style.display='none';
 
   if(_distPrices.length===0){
     if(tblWrap)tblWrap.style.display='none';
@@ -5325,20 +5335,26 @@ async function loadPriceHistory(){
 
 
 // ── PRICING MODAL HELPERS ────────────────────────────────────────────────────
-function openModal(html, title=''){
-  document.getElementById('modal-title').textContent=title||'Price Settings';
-  document.getElementById('modal-body').innerHTML=html;
-  document.getElementById('modal-foot').innerHTML='';
-  document.getElementById('overlay').classList.add('show');
+function openModal(html, title){
+  const titleEl=document.getElementById('modal-title');
+  const bodyEl=document.getElementById('modal-body');
+  // modal-foot is a class (no getElementById needed)
+  if(titleEl)titleEl.textContent=title||'Price Settings';
+  if(bodyEl)bodyEl.innerHTML=html;
+  // Note: modal-foot is class not id, leave save/cancel buttons as-is
+  const ov=document.getElementById('overlay');
+  if(ov)ov.classList.add('show');
+  else{console.error('overlay element not found'); alert('Modal error: overlay missing');}
 }
 function closeModal(){
-  document.getElementById('overlay').classList.remove('show');
+  closeForm(); // uses the app's existing modal/overlay close
 }
 
 // ── PRICE LIST PDF EXPORT ────────────────────────────────────────────────────
 function openPriceListPrint(){
   const dist=document.getElementById('dist-price-sel')?.value;
   if(!dist){toast('Please select a distributor first','err');return;}
+  if(_tpData.length===0){toast('TP data not loaded yet. Please wait a moment and try again.','err');return;}
   const distInfo=(masterCache.distributors||[]).find(d=>d.company_name===dist);
   const division=distInfo?.division||'Both';
 
