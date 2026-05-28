@@ -873,6 +873,7 @@ tr[data-paid="true"] td{opacity:.55}
             <th class="sortable" onclick="sortTbl('po','pi_number')">PI No.</th>
             <th class="sortable" onclick="sortTbl('po','amount_usd')">Amount (USD)</th>
             <th class="sortable" onclick="sortTbl('po','status')">Status ⚙</th>
+            <th>Sales Rep</th>
             <th>Actions</th>
           </tr></thead>
           <tbody id="po-tbody"></tbody>
@@ -905,6 +906,7 @@ tr[data-paid="true"] td{opacity:.55}
             <th class="sortable" onclick="sortTbl('hqpo','delivery_status')">Delivery</th>
             <th class="sortable" onclick="sortTbl('hqpo','ship_status')">Ship</th>
             <th class="sortable" onclick="sortTbl('hqpo','owner')">Owner</th>
+            <th>Sales Rep</th>
             <th>Actions</th>
           </tr></thead>
           <tbody id="hqpo-tbody"></tbody>
@@ -938,6 +940,7 @@ tr[data-paid="true"] td{opacity:.55}
             <th>BL No.</th>
             <th class="sortable" onclick="sortTbl('shipments','amount_usd')">Amount</th>
             <th class="sortable" onclick="sortTbl('shipments','status')">Status ⚙</th>
+            <th>Sales Rep</th>
             <th>Actions</th>
           </tr></thead>
           <tbody id="shipments-tbody"></tbody>
@@ -1001,6 +1004,7 @@ tr[data-paid="true"] td{opacity:.55}
             <th>Due Date</th>
             <th>Days</th>
             <th class="sortable" onclick="sortTbl('collections','collection_date')">Collection Date</th>
+            <th>Sales Rep</th>
             <th>Status ⚙</th>
             <th>Actions</th>
           </tr></thead>
@@ -2026,6 +2030,32 @@ async function autoAddMissingCollections(){
   // Reload collections
   cache._xref=null;
   loadTable('collections');
+}
+
+// ── SALES REP OPTIONS ────────────────────────────────────────────────────────
+function _getSalesRepOptions(selected){
+  const currentUser = getAuth()||'';
+  const isAdmin = currentUser==='mitchel'||currentUser==='admin'||
+                  (window._userPerms&&window._userPerms.role==='admin');
+  
+  // All known reps from user_permissions display names
+  const allReps = (masterCache.userPerms||[]).map(u=>({
+    id: u.username, 
+    name: u.display_name||u.username
+  }));
+  
+  // If no userPerms cached yet, use current user only
+  const reps = allReps.length > 0 ? allReps : [{id:currentUser, name:currentUser}];
+  
+  // Non-admin: only see themselves
+  const filtered = isAdmin ? reps : reps.filter(r=>r.id===currentUser);
+  // Always include current user even if not in list
+  const hasCurrentUser = filtered.some(r=>r.id===currentUser);
+  if(!hasCurrentUser && currentUser){
+    filtered.unshift({id:currentUser, name:currentUser});
+  }
+  
+  return filtered.map(r=>`<option value="${esc(r.id)}" ${(selected||currentUser)===r.id?'selected':''}>${esc(r.name)}</option>`).join('');
 }
 
 // ── AUTO-CREATE COLLECTIONS ON SHIPMENT ──────────────────────────────────────
@@ -3333,7 +3363,7 @@ async function saveGoal(){
 async function loadXRef(){
   if(cache._xref)return cache._xref;
   const[{data:pi=[]},{data:po=[]},{data:hq=[]},{data:sh=[]},{data:col=[]}]=await Promise.all([
-    sb.from('pi').select('pi_number,status,payment_terms'),
+    sb.from('pi').select('pi_number,status,payment_terms,sales_rep'),
     sb.from('po').select('pi_number,po_number,status'),
     sb.from('hq_po').select('hq_po_number,pi_number,po_number'),
     sb.from('shipments').select('pi_number,hq_po_number,date,etd,eta,status,amount_usd'),
@@ -3532,6 +3562,8 @@ function rowHTML(page,r){
 
   // Auto-status computation
   const xref=cache._xref||{pi:[],po:[],hq:[],sh:[],col:[],piDueMap:{}};
+  const getSalesRep=(piNum)=>{const p=(xref.pi||[]).find(r=>r.pi_number===piNum);return p?.sales_rep||null;};
+  const repPill=(piNum)=>{const r=getSalesRep(piNum);return r?`<span class="pill p-purple" style="font-size:10px">${r}</span>`:'-';};
   const st=autoStatus(page,r,xref);
 
   if(page==='pi')return`<tr${st.status==='Completed'?' data-done="true"':''}>
@@ -3558,7 +3590,7 @@ function rowHTML(page,r){
     <td>${piLink(r.pi_number,r.pi_number)}</td>
     <td><strong>$${fmt(r.amount_usd)}</strong></td>
     <td>${pillAuto(st,'po')}</td>
-    ${acts}</tr>`;
+    ${acts}<td>${repPill(r.pi_number)}</td></tr>`;
 
   if(page==='hqpo')return`<tr${(st.deliveryStatus==='Delivered'||st.shipStatus==='Completed')?' data-done="true"':''}>
     <td><strong>${r.hq_po_number}</strong></td>
@@ -3574,7 +3606,7 @@ function rowHTML(page,r){
     <td>${pill(st.ship_status)}</td>
     <td>${r.owner||'-'}</td>
     ${st.auto?'<td style="font-size:9px;color:var(--g400);white-space:nowrap">⚙ Auto</td>':'<td></td>'}
-    ${acts}</tr>`;
+    ${acts}<td>${repPill(r.pi_number)}</td></tr>`;
 
   if(page==='shipments')return`<tr>
     <td>${r.shipment_number}</td>
@@ -3590,6 +3622,7 @@ function rowHTML(page,r){
     <td>${r.bl_number||'-'}</td>
     <td><strong>$${fmt(r.amount_usd)}</strong></td>
     <td>${pillAuto(st,'shipments')}</td>
+    <td>${repPill(r.pi_number)}</td>
     ${acts}</tr>`;
 
   if(page==='collections'){
@@ -3637,6 +3670,7 @@ function rowHTML(page,r){
       +'<td style="text-align:center">'+daysBadge+'</td>'
       +'<td>'+(r.collection_date||'-')+'</td>'
       +'<td>'+pillAuto(st,'collections')+'</td>'
+      +'<td>'+repPill(r.pi_number)+'</td>'
       +acts+'</tr>';
   }
 
@@ -3826,8 +3860,11 @@ function renderPIForm(){
     <div class="fg"><label>Warranty</label><input id="pif-warranty" value="${d.warranty||'24 months from the date of shipment'}"></div>
     <div class="fg"><label>Delivery</label><input id="pif-delivery" value="${d.delivery||'4 weeks after receipt of payment'}"></div>
     <div class="fg"><label>Authorized By (Seller)</label><input id="pif-auth" value="${d.authorized_by||'Christopher Yoon'}"></div>
-    <div class="fg"><label>Sales Rep (Internal — not printed)</label>
-      <input id="pif-sales-rep" value="${d.sales_rep||getAuth()||''}" placeholder="Sales representative name" style="border-color:var(--purple);background:var(--purple-pale)">
+    <div class="fg"><label style="font-weight:700"><span style="color:var(--red)">*</span> Sales Rep <span style="font-size:10px;color:var(--g400);font-weight:400">(required · not printed)</span></label>
+      <select id="pif-sales-rep" required style="border-color:var(--purple);background:#faf5ff;font-weight:600;color:var(--g900)">
+        <option value="">— Select —</option>
+        ${_getSalesRepOptions(d.sales_rep)}
+      </select>
     </div>
     <div class="fg full"><label>Notes / Remarks</label><textarea id="pif-notes">${d.notes||''}</textarea></div>
   </div>`;
@@ -3940,6 +3977,12 @@ function calcPITotals(){
 
 async function savePI(){
   const btn=document.getElementById('pi-save-btn');
+  // Validate Sales Rep FIRST (required)
+  const salesRepVal=(document.getElementById('pif-sales-rep')?.value||'').trim();
+  if(!salesRepVal){
+    toast('⚠️ Sales Rep is required — please select a representative','err');
+    return;
+  }
   btn.textContent='Saving...';btn.disabled=true;
   const piNum=document.getElementById('pif-num').value.trim()||autoId('PI');
   const termsFull=document.getElementById('pif-terms').value.trim()||'100% T/T before shipment';
@@ -6081,6 +6124,9 @@ async function loadUserPermissions(username){
     _userPerms={role:'user',can_export:true,can_delete:false,username};
     SECTIONS.forEach(s=>_userPerms['perm_'+s.key]='view');
   }
+  // Cache all users for Sales Rep dropdown
+  sb.from('user_permissions').select('username,display_name,role').eq('is_active',true)
+    .then(({data})=>{ if(data)masterCache.userPerms=data; });
   applyPermissions();
 }
 
