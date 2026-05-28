@@ -5504,6 +5504,107 @@ function toast(msg,type='ok'){
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
+function showPasswordChangeScreen(username){
+  const loginScreen=document.getElementById('login-screen');
+  if(loginScreen)loginScreen.classList.add('hidden');
+  // Show change password overlay
+  let overlay=document.getElementById('pw-change-overlay');
+  if(!overlay){
+    overlay=document.createElement('div');
+    overlay.id='pw-change-overlay';
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(10,20,40,.97);display:flex;align-items:center;justify-content:center;z-index:9999';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML=`
+    <div style="background:#1e293b;border-radius:16px;padding:36px 40px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:32px;margin-bottom:8px">🔑</div>
+        <div style="color:#f1f5f9;font-size:18px;font-weight:800">Change Password</div>
+        <div style="color:#94a3b8;font-size:13px;margin-top:4px">Required on first login — @${username}</div>
+      </div>
+      <div style="display:grid;gap:14px">
+        <div>
+          <label style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">New Password</label>
+          <input id="pw-new" type="password" autocomplete="new-password"
+            style="width:100%;padding:11px 14px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:14px;box-sizing:border-box"
+            placeholder="Min 8 chars · Uppercase · Number · Symbol">
+        </div>
+        <div>
+          <label style="color:#94a3b8;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px">Confirm Password</label>
+          <input id="pw-confirm" type="password"
+            style="width:100%;padding:11px 14px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:14px;box-sizing:border-box"
+            placeholder="Re-enter password">
+        </div>
+        <div id="pw-change-err" style="color:#f87171;font-size:12px;min-height:16px;text-align:center"></div>
+        <div style="background:#0f172a;border-radius:8px;padding:10px 14px">
+          <div style="color:#64748b;font-size:11px;margin-bottom:4px">Password Rules:</div>
+          <div style="color:#94a3b8;font-size:11px">✓ Min 8 characters &nbsp;✓ Uppercase letter<br>✓ Number &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;✓ Special character</div>
+        </div>
+        <button onclick="submitPasswordChange('${username}')"
+          style="width:100%;padding:13px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px">
+          Set New Password →
+        </button>
+      </div>
+    </div>`;
+  document.getElementById('pw-new')?.focus();
+}
+
+async function submitPasswordChange(username){
+  const pw  = document.getElementById('pw-new')?.value||'';
+  const pw2 = document.getElementById('pw-confirm')?.value||'';
+  const err = document.getElementById('pw-change-err');
+  const pwErr = validatePassword(pw);
+  if(pwErr){if(err)err.textContent=pwErr;return;}
+  if(pw!==pw2){if(err)err.textContent='Passwords do not match';return;}
+  if(err)err.textContent='';
+  const {error}=await sb.from('user_permissions')
+    .update({password:pw,must_change_password:false}).eq('username',username);
+  if(error){if(err)err.textContent='Error: '+error.message;return;}
+  if(USERS[username])USERS[username].pw=pw;
+  const overlay=document.getElementById('pw-change-overlay');
+  if(overlay)overlay.remove();
+  toast('✅ Password updated! Welcome, @'+username);
+  loadUserPermissions(username);
+  init();
+}
+
+async function _dbLoginCheck(username, password){
+  const e=document.getElementById('lerr');
+  try{
+    const {data,error}=await sb.from('user_permissions')
+      .select('*').eq('username',username).eq('is_active',true).single();
+    if(error||!data){
+      if(e)e.textContent='Incorrect username or password.';
+      document.getElementById('lp').value='';
+      return;
+    }
+    if(data.password!==password){
+      if(e)e.textContent='Incorrect username or password.';
+      document.getElementById('lp').value='';
+      return;
+    }
+    // Login success
+    const role=data.role||'user';
+    document.getElementById('login-screen').classList.add('hidden');
+    setAuth(username,role);
+    const badge=role==='admin'
+      ?'<span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>'
+      :'';
+    document.getElementById('logged-in-user').innerHTML='👤 '+username+(badge?' '+badge:'');
+    if(e)e.textContent='';
+    resetTimer();
+    if(data.must_change_password){
+      showPasswordChangeScreen(username);
+      return;
+    }
+    loadUserPermissions(username);
+    init();
+  }catch(err){
+    console.error('_dbLoginCheck error:',err);
+    if(e)e.textContent='Login error. Please try again.';
+  }
+}
+
 function doLogout(auto=false){
   if(!auto&&!confirm('Log out?'))return;
   clearAuth();
@@ -6790,6 +6891,7 @@ async function loadAdminUsers(){
       <td style="padding:6px 14px;text-align:center">${isAdmin?'':
         `<div style="display:flex;gap:4px;flex-direction:column">
           <button onclick="toggleUserActive('${u.username}',${u.is_active})" style="padding:3px 7px;border:1px solid var(--g200);border-radius:4px;font-size:10px;cursor:pointer;background:#fff">${u.is_active?'Deact':'Activ'}</button>
+          <button onclick="resendCredentials('${u.username}','${esc(u.display_name||u.username)}','${esc(u.password||'')}','${u.user_type||'regular'}')" style="padding:3px 7px;border:1px solid #7c3aed;border-radius:4px;font-size:10px;cursor:pointer;color:#7c3aed;background:#faf5ff">📨 QR</button>
           ${utype==='sales_rep'?`<button onclick="adminSendAlert('${u.username}')" style="padding:3px 7px;border:1px solid #2563eb;border-radius:4px;font-size:10px;cursor:pointer;color:#2563eb;background:#eff6ff">📧 Alert</button>`:''}
         </div>`}
       </td>
@@ -6918,6 +7020,20 @@ async function runTestEmail(){
       ?'<span style="color:var(--green);font-weight:700">✅ Email sent to '+esc(email)+'<br><small style="font-weight:400">Check your inbox and spam folder</small></span>'
       :'<span style="color:var(--red);font-weight:700">❌ Failed: '+(window._lastEmailError||'Unknown error')+'</span><br><span style="font-size:11px;color:var(--g500)">EmailJS dashboard → Email History 탭에서 상세 확인</span>';
   }
+}
+
+function resendCredentials(username, displayName, password, userType){
+  if(!password){
+    // No password stored - prompt to reset first
+    if(confirm('@'+username+' 의 비밀번호가 없습니다.\n새 임시 비밀번호를 발급하고 QR 메시지를 생성할까요?')){
+      resetUserPassword(username).then(()=>{
+        // After reset, reload and try again
+        setTimeout(()=>loadAdminUsers(), 1000);
+      });
+    }
+    return;
+  }
+  showWelcomeMessage(username, displayName, password, userType);
 }
 
 function openAddUserForm(){
