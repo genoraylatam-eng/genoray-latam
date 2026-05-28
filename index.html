@@ -1805,6 +1805,22 @@ function renderCompareChart(years,yearData,colors,colorsLight){
 
 // ── PRODUCTS GROUPED UI ──────────────────────────────────────────────────────
 let _prodDiv='all';
+function _initProdCats(selDiv, selCat){
+  const CATS={
+    Medical:['CARM|🏥 C-Arm','MAMM|🩺 Mammography'],
+    Dental:['CBCT|🦷 CBCT / 3D','PAN|🦷 Panoramic','PORT|🦷 Portable','INTR|🦷 Intraoral']
+  };
+  const sel=document.getElementById('prod-cat-sel');
+  if(!sel)return;
+  sel.innerHTML='<option value="">— Select —</option>'+(CATS[selDiv]||[]).map(c=>{
+    const[v,l]=c.split('|');
+    return '<option value="'+v+'"'+(v===selCat?' selected':'')+'>'+l+'</option>';
+  }).join('');
+  if(selCat)sel.value=selCat;
+  const ds=document.getElementById('prod-div-sel');
+  if(ds)ds.addEventListener('change',()=>_initProdCats(ds.value,''));
+}
+
 function updateProdCode(){
   const div=document.getElementById('prod-div-sel')?.value||'';
   const cat=document.getElementById('prod-cat-sel')?.value||'';
@@ -4269,27 +4285,7 @@ const FORMS={
       </div>
     </div>
 
-  </div>
-  <script>
-  (function(){
-    const CATS={
-      Medical:['CARM|🏥 C-Arm','MAMM|🩺 Mammography'],
-      Dental:['CBCT|🦷 CBCT / 3D','PAN|🦷 Panoramic','PORT|🦷 Portable','INTR|🦷 Intraoral']
-    };
-    function initCats(div,sc){
-      const sel=document.getElementById('prod-cat-sel');
-      if(!sel)return;
-      sel.innerHTML='<option value="">— Select —</option>'+(CATS[div]||[]).map(c=>{
-        const[v,l]=c.split('|');
-        return '<option value="'+v+'"'+(v==='${selCat}'?' selected':'')+'>'+l+'</option>';
-      }).join('');
-      if(sc){sel.value=sc;}
-    }
-    initCats('${selDiv}','${selCat}');
-    const ds=document.getElementById('prod-div-sel');
-    if(ds)ds.addEventListener('change',()=>initCats(ds.value,''));
-  })();
-  </scr`+`ipt>`;
+   </div>`
 },
 
   goals:d=>'' // Goals use separate openGoalForm() modal
@@ -4313,6 +4309,7 @@ async function openForm(page,id=null){
   }
   document.getElementById('modal-title').textContent=(id?'Edit ':'New ')+MTITLES[page];
   document.getElementById('modal-body').innerHTML=FORMS[page]({...d,id});
+  if(page==='products'){const selDiv=d.code?d.code.split('-')[0]==='MED'?'Medical':'Dental':'';const selCat=d.code?d.code.split('-')[1]||'':'';setTimeout(()=>_initProdCats(selDiv,selCat),40);}
   document.getElementById('overlay').classList.add('show');
   setTimeout(()=>{
     // Distributor autocomplete for relevant fields
