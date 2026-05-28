@@ -1589,11 +1589,13 @@ async function loadDash(){
   } catch(fetchErr){
     setStatus('Data fetch failed: '+fetchErr.message, true);
     console.error('loadDash fetch:', fetchErr);
+    hidePageLoading();
     return;
   }
 
   // Step 2: Show dashboard IMMEDIATELY after data loads
   hidePageLoading();
+  console.log('[DASH] Data loaded: ships='+ships.length+' pi='+piAll.length+' goals='+goalsAll.length);
 
   const shipsYr=ships.filter(r=>r.date&&r.date.startsWith(String(yr)));
   const sales=shipsYr.reduce((s,r)=>s+(r.amount_usd||0),0);
@@ -1607,6 +1609,7 @@ async function loadDash(){
   const piMap={};piAll.forEach(p=>{piMap[p.pi_number]=p;});
 
   // Step 3: Render each section independently (errors in one don't break others)
+  console.log('[DASH] Starting render...');
 
   // KPI Cards
   try {
@@ -5398,6 +5401,22 @@ function doLogout(auto=false){
     document.getElementById('lerr').textContent='';
   }
 }
+
+// ── AUTO LOGOUT (60 min inactivity) ──────────────────────────────────────────
+const LOGOUT_MS = 60 * 60 * 1000; // 60 minutes
+
+function resetTimer(){
+  clearTimeout(window._autoLogoutTimer);
+  if(!getAuth()) return;
+  window._autoLogoutTimer = setTimeout(()=>doLogout(true), LOGOUT_MS);
+}
+
+// Reset timer on any user activity
+['click','keydown','mousemove','touchstart'].forEach(evt=>{
+  document.addEventListener(evt, resetTimer, {passive:true});
+});
+
+
 
 // ── PRICING MODULE ────────────────────────────────────────────────────────────
 
