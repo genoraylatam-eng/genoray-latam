@@ -53,6 +53,7 @@ body{display:flex;height:100vh;background:var(--g100);color:var(--g900);font-siz
 .tbadge{background:var(--blue-pale);color:var(--blue);font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;margin-left:8px}
 #content{flex:1;overflow-y:auto;padding:24px}
 .page{display:none}.page.active{display:block}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 .btn{padding:8px 16px;border-radius:var(--rsm);border:none;cursor:pointer;font-size:13px;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:#1d4ed8}
 .btn-secondary{background:var(--white);color:var(--g700);border:1px solid var(--g300)}.btn-secondary:hover{background:var(--g50)}
@@ -1221,56 +1222,67 @@ tr[data-paid="true"] td{opacity:.55}
 
     <!-- ADMIN PANEL -->
     <div id="page-admin" class="page">
-      <div class="panel" style="margin-bottom:14px;padding:14px 20px;background:linear-gradient(90deg,#1e3a8a,#1d4ed8);border-radius:var(--rlg)">
-        <div style="display:flex;align-items:center;gap:12px">
-          <span style="font-size:24px">⚙️</span>
-          <div>
-            <div style="font-size:16px;font-weight:800;color:#fff">Admin Control Panel</div>
-            <div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Manage user access, permissions, and feature flags</div>
+
+      <!-- TOP HEADER BANNER -->
+      <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);border-radius:var(--rlg);padding:18px 24px;margin-bottom:14px;display:flex;align-items:center;gap:14px">
+        <div style="width:42px;height:42px;background:rgba(255,255,255,.15);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">⚙️</div>
+        <div style="flex:1">
+          <div style="font-size:17px;font-weight:800;color:#fff;letter-spacing:-.01em">Admin Control Panel</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px">Manage user access, section permissions, and feature flags</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div id="admin-delete-badge" style="display:none;background:#ef4444;color:#fff;font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;animation:pulse 2s infinite">
+            🔔 <span id="admin-delete-count">0</span> Delete Request
           </div>
-          <button onclick="openAddUserForm()" style="margin-left:auto;padding:8px 16px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:var(--rsm);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">+ Add User</button>
+          <button onclick="openAddUserForm()" style="padding:9px 18px;background:rgba(255,255,255,.15);color:#fff;border:1.5px solid rgba(255,255,255,.35);border-radius:var(--rsm);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px;backdrop-filter:blur(4px)">
+            <span style="font-size:15px">➕</span> Add User
+          </button>
         </div>
       </div>
 
-      <!-- Permission Matrix -->
-      <div class="panel">
-        <div class="panel-head">
-          <span class="panel-title">User Permissions</span>
-          <div style="display:flex;gap:8px;align-items:center">
-            <span style="font-size:11px;color:var(--g400)">
-              <span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:12px;height:12px;border-radius:3px;background:#dcfce7;border:1px solid #86efac;display:inline-block"></span> Edit</span>
-              <span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:12px;height:12px;border-radius:3px;background:#dbeafe;border:1px solid #93c5fd;display:inline-block"></span> View</span>
-              <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#f1f5f9;border:1px solid #e2e8f0;display:inline-block"></span> None</span>
-            </span>
+      <!-- USER PERMISSIONS TABLE -->
+      <div class="panel" style="margin-bottom:14px">
+        <div class="panel-head" style="border-bottom:2px solid var(--g100)">
+          <span class="panel-title">👥 User Permissions</span>
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="display:flex;gap:6px;font-size:11px;color:var(--g500)">
+              <span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:10px;background:#dcfce7;border:1px solid #86efac;border-radius:2px;display:inline-block"></span>Edit</span>
+              <span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:10px;background:#dbeafe;border:1px solid #93c5fd;border-radius:2px;display:inline-block"></span>View</span>
+              <span style="display:flex;align-items:center;gap:3px"><span style="width:10px;height:10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:2px;display:inline-block"></span>None</span>
+            </div>
             <button onclick="loadAdminUsers()" style="padding:5px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;font-size:11px;cursor:pointer">🔄 Refresh</button>
           </div>
         </div>
-        <div id="admin-user-grid" style="overflow-x:auto;padding:0">
+        <div id="admin-user-grid" style="overflow-x:auto">
           <div style="padding:40px;text-align:center;color:var(--g400)">Loading...</div>
         </div>
       </div>
 
-      <!-- Delete Requests -->
-      <div class="panel" style="margin-top:14px">
-        <div class="panel-head">
-          <span class="panel-title">🗑️ Pending Delete Requests</span>
-          <button onclick="loadDeleteRequests()" style="padding:5px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;font-size:11px;cursor:pointer">🔄 Refresh</button>
+      <!-- BOTTOM ROW: Delete Requests + Recent Changes -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <!-- Delete Requests -->
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">🗑️ Delete Requests</span>
+            <button onclick="loadDeleteRequests()" style="padding:5px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;font-size:11px;cursor:pointer">🔄</button>
+          </div>
+          <div id="admin-delete-requests">
+            <div style="padding:28px;text-align:center;color:var(--g400);font-size:12px">✅ No pending requests</div>
+          </div>
         </div>
-        <div id="admin-delete-requests">
-          <div style="padding:32px;text-align:center;color:var(--g400);font-size:13px">No pending delete requests</div>
+        <!-- Recent Changes -->
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">📋 Recent Permission Changes</span>
+          </div>
+          <div id="admin-activity-log">
+            <div style="padding:28px;text-align:center;color:var(--g400);font-size:12px">No changes recorded yet</div>
+          </div>
         </div>
       </div>
 
-      <!-- Activity Log -->
-      <div class="panel" style="margin-top:14px">
-        <div class="panel-head">
-          <span class="panel-title">📋 Recent Permission Changes</span>
-        </div>
-        <div id="admin-activity-log">
-          <div style="padding:24px;text-align:center;color:var(--g400);font-size:12px">Permission change history will appear here</div>
-        </div>
-      </div>
     </div>
+
 
     <!-- HELP / USER MANUAL -->
     <div id="page-help" class="page">
@@ -1445,6 +1457,12 @@ function doLogin(){
   const p=document.getElementById('lp').value;
   const e=document.getElementById('lerr');
   const acc=USERS[u];
+  // Also check DB-stored users (added via Admin Panel)
+  if(!acc){
+    // Try DB lookup async
+    _dbLoginCheck(u,p);
+    return;
+  }
   if(acc&&acc.pw===p){
     document.getElementById('login-screen').classList.add('hidden');
     setAuth(u,acc.role);
@@ -1452,8 +1470,18 @@ function doLogin(){
     document.getElementById('logged-in-user').innerHTML='👤 '+u+badge;
     e.textContent='';
     resetTimer();
-    init();
-    loadUserPermissions(u);
+    // Check if must change password (for hardcoded admin users, skip)
+    if(!ADMIN_USERS.includes(u)){
+      sb.from('user_permissions').select('must_change_password').eq('username',u).single()
+        .then(({data})=>{
+          if(data?.must_change_password){showPasswordChangeScreen(u);return;}
+          loadUserPermissions(u);
+          init();
+        }).catch(()=>{loadUserPermissions(u);init();});
+    } else {
+      loadUserPermissions(u);
+      init();
+    }
   }else{e.textContent='Incorrect username or password.';document.getElementById('lp').value='';}
 }
 
@@ -6020,169 +6048,94 @@ function guardExport(){
   return true;
 }
 
-// ── Admin Panel: Load all users ───────────────────────────────────────────────
+// ── Admin Panel: Load all users ─────────────────────────────────────────────
 async function loadAdminUsers(){
   const grid=document.getElementById('admin-user-grid');
   if(!grid)return;
-  grid.innerHTML='<div style="padding:24px;text-align:center;color:var(--g400)">Loading users...</div>';
+  grid.innerHTML='<div style="padding:24px;text-align:center;color:var(--g400)">Loading...</div>';
   const {data:users,error}=await sb.from('user_permissions').select('*').order('role').order('username');
   if(error){
-    grid.innerHTML=`<div style="padding:16px;color:var(--red)">⚠️ ${error.message}<br><small>Run the user_permissions_schema.sql in Supabase SQL Editor first.</small></div>`;
+    grid.innerHTML=`<div style="padding:16px;color:var(--red)">⚠️ ${error.message}<br><small>Run user_permissions_schema.sql in Supabase SQL Editor first.</small></div>`;
     return;
   }
-  if(!users||!users.length){grid.innerHTML='<div style="padding:24px;text-align:center;color:var(--g400)">No users found. Add users with the + Add User button.</div>';return;}
+  if(!users||!users.length){grid.innerHTML='<div style="padding:24px;text-align:center;color:var(--g400)">No users found.</div>';return;}
 
-  const pLevel=(v)=>{
-    const styles={
-      edit:'background:#dcfce7;color:#065f46;border:1px solid #86efac',
-      view:'background:#dbeafe;color:#1e40af;border:1px solid #93c5fd',
-      none:'background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0'
-    };
-    return styles[v]||styles.view;
-  };
+  // Short labels for horizontal headers
+  const SEC_LABELS=[
+    {key:'dashboard',   short:'Dash'},
+    {key:'pipeline',    short:'Pipeline'},
+    {key:'report',      short:'Report'},
+    {key:'pi',          short:'PI'},
+    {key:'po',          short:'PO'},
+    {key:'hqpo',        short:'HQ PO'},
+    {key:'shipments',   short:'Ship'},
+    {key:'collections', short:'Collec'},
+    {key:'distributors',short:'Distrib'},
+    {key:'products',    short:'Prod'},
+    {key:'goals',       short:'Goals'},
+    {key:'pricing',     short:'Pricing'},
+  ];
 
-  let html=`<table style="width:100%;border-collapse:collapse;font-size:12px">
-    <thead><tr style="background:var(--g50)">
-      <th style="padding:10px 14px;text-align:left;font-weight:700;color:var(--g600);border-bottom:2px solid var(--g100);min-width:110px">User</th>
-      <th style="padding:10px 14px;text-align:center;font-weight:700;color:var(--g600);border-bottom:2px solid var(--g100)">Role</th>
-      ${SECTIONS.map(s=>`<th style="padding:6px 4px;text-align:center;font-weight:600;color:var(--g500);border-bottom:2px solid var(--g100);font-size:10px;writing-mode:vertical-rl;height:70px">${s.icon} ${s.label}</th>`).join('')}
-      <th style="padding:10px 6px;text-align:center;font-weight:700;color:var(--g600);border-bottom:2px solid var(--g100);font-size:10px">Export</th>
-      <th style="padding:10px 6px;text-align:center;font-weight:700;color:var(--g600);border-bottom:2px solid var(--g100);font-size:10px">Delete</th>
-      <th style="padding:10px 6px;text-align:center;font-weight:700;color:var(--g600);border-bottom:2px solid var(--g100);font-size:10px">Status</th>
-      <th style="padding:10px 14px;text-align:center;border-bottom:2px solid var(--g100)"></th>
-    </tr></thead>
-    <tbody>`;
+  const pColor={edit:'#dcfce7|#065f46|#86efac',view:'#dbeafe|#1e40af|#93c5fd',none:'#f1f5f9|#94a3b8|#e2e8f0'};
+  const pStyle=(v)=>{const[bg,tx,bd]=(pColor[v]||pColor.view).split('|');return`background:${bg};color:${tx};border:1px solid ${bd}`;};
+  const selStyle=(v)=>`padding:3px 5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;${pStyle(v)}`;
 
-  users.forEach((u,idx)=>{
+  let html=`<table style="width:100%;border-collapse:collapse;font-size:12.5px">
+  <thead><tr style="background:var(--g50);border-bottom:2px solid var(--g100)">
+    <th style="padding:10px 16px;text-align:left;font-weight:700;color:var(--g700);min-width:130px">User</th>
+    <th style="padding:10px 10px;text-align:center;font-weight:700;color:var(--g700)">Role</th>
+    ${SEC_LABELS.map(s=>`<th style="padding:8px 4px;text-align:center;font-weight:600;color:var(--g500);font-size:11px;min-width:58px">${s.short}</th>`).join('')}
+    <th style="padding:8px 6px;text-align:center;font-weight:700;color:var(--g600);font-size:11px">Export</th>
+    <th style="padding:8px 6px;text-align:center;font-weight:700;color:var(--g600);font-size:11px">Delete</th>
+    <th style="padding:8px 6px;text-align:center;font-weight:700;color:var(--g600);font-size:11px">Status</th>
+    <th style="padding:8px 14px;min-width:80px"></th>
+  </tr></thead>
+  <tbody>`;
+
+  users.forEach((u,i)=>{
     const isAdmin=u.role==='admin';
-    const rowBg=idx%2===0?'#fff':'#fafafa';
-    html+=`<tr style="background:${rowBg};${!u.is_active?'opacity:.5':''}">
-      <td style="padding:10px 14px;border-bottom:1px solid var(--g100)">
+    const bg=i%2===0?'#fff':'#fafafa';
+    const dim=!u.is_active?'opacity:.45;':'';
+    html+=`<tr style="background:${bg};${dim}border-bottom:1px solid var(--g100)">
+      <td style="padding:10px 16px">
         <div style="font-weight:700;color:var(--g900)">${u.display_name||u.username}</div>
-        <div style="font-size:10px;color:var(--g400)">@${u.username}</div>
+        <div style="font-size:10px;color:var(--g400);margin-top:1px">@${u.username}${u.must_change_password?'<span style="margin-left:6px;color:#f59e0b;font-size:9px;font-weight:700">⚠️ Must change pwd</span>':''}</div>
       </td>
-      <td style="padding:10px 6px;text-align:center;border-bottom:1px solid var(--g100)">
+      <td style="padding:10px;text-align:center">
         <span style="padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;background:${isAdmin?'#fef3c7':'#dbeafe'};color:${isAdmin?'#92400e':'#1e40af'}">${u.role.toUpperCase()}</span>
       </td>
-      ${SECTIONS.map(s=>{
+      ${SEC_LABELS.map(s=>{
         const perm=isAdmin?'edit':(u['perm_'+s.key]||'view');
-        const opts=['edit','view','none'];
-        if(isAdmin)return`<td style="padding:6px 4px;text-align:center;border-bottom:1px solid var(--g100)"><span style="padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;${pLevel(perm)}">${perm}</span></td>`;
-        return`<td style="padding:4px 4px;text-align:center;border-bottom:1px solid var(--g100)">
-          <select onchange="updateUserPerm('${u.username}','perm_${s.key}',this.value)"
-            style="padding:3px 4px;border:1px solid var(--g200);border-radius:5px;font-size:10px;font-weight:600;background:${perm==='edit'?'#dcfce7':perm==='none'?'#f1f5f9':'#dbeafe'};color:${perm==='edit'?'#065f46':perm==='none'?'#94a3b8':'#1e40af'};cursor:pointer;width:56px">
-            <option value="edit" ${perm==='edit'?'selected':''}>Edit</option>
-            <option value="view" ${perm==='view'?'selected':''}>View</option>
-            <option value="none" ${perm==='none'?'selected':''}>None</option>
-          </select>
-        </td>`;
+        if(isAdmin)return`<td style="padding:6px 4px;text-align:center"><span style="padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;${pStyle(perm)}">${perm}</span></td>`;
+        return`<td style="padding:4px;text-align:center"><select onchange="updateUserPerm('${u.username}','perm_${s.key}',this.value)" style="${selStyle(perm)}">
+          <option value="edit"${perm==='edit'?' selected':''}>Edit</option>
+          <option value="view"${perm==='view'?' selected':''}>View</option>
+          <option value="none"${perm==='none'?' selected':''}>None</option>
+        </select></td>`;
       }).join('')}
-      <td style="padding:6px;text-align:center;border-bottom:1px solid var(--g100)">
-        ${isAdmin?'<span style="color:#059669;font-weight:700;font-size:12px">✓</span>':
-          `<input type="checkbox" ${u.can_export?'checked':''} onchange="updateUserPerm('${u.username}','can_export',this.checked)" style="cursor:pointer;width:14px;height:14px">`}
+      <td style="padding:6px;text-align:center">${isAdmin
+        ?'<span style="color:#059669;font-weight:800;font-size:14px">✓</span>'
+        :`<input type="checkbox"${u.can_export?' checked':''} onchange="updateUserPerm('${u.username}','can_export',this.checked)" style="width:15px;height:15px;cursor:pointer">`}
       </td>
-      <td style="padding:6px;text-align:center;border-bottom:1px solid var(--g100)">
-        ${isAdmin?'<span style="color:#059669;font-weight:700;font-size:12px">✓</span>':
-          `<input type="checkbox" ${u.can_delete?'checked':''} onchange="updateUserPerm('${u.username}','can_delete',this.checked)" style="cursor:pointer;width:14px;height:14px">`}
+      <td style="padding:6px;text-align:center">${isAdmin
+        ?'<span style="color:#059669;font-weight:800;font-size:14px">✓</span>'
+        :`<input type="checkbox"${u.can_delete?' checked':''} onchange="updateUserPerm('${u.username}','can_delete',this.checked)" style="width:15px;height:15px;cursor:pointer">`}
       </td>
-      <td style="padding:6px;text-align:center;border-bottom:1px solid var(--g100)">
-        <span style="font-size:10px;padding:2px 6px;border-radius:8px;background:${u.is_active?'#dcfce7':'#f1f5f9'};color:${u.is_active?'#065f46':'#94a3b8'};font-weight:700">${u.is_active?'Active':'Inactive'}</span>
+      <td style="padding:6px;text-align:center">
+        <span style="font-size:10px;padding:2px 7px;border-radius:8px;font-weight:700;background:${u.is_active?'#dcfce7':'#f1f5f9'};color:${u.is_active?'#065f46':'#94a3b8'}">${u.is_active?'Active':'Inactive'}</span>
       </td>
-      <td style="padding:6px 14px;text-align:center;border-bottom:1px solid var(--g100)">
-        ${isAdmin?'':`<div style="display:flex;gap:4px;justify-content:center">
-          <button onclick="toggleUserActive('${u.username}',${u.is_active})" style="padding:3px 8px;border:1px solid var(--g200);border-radius:4px;font-size:10px;cursor:pointer;background:#fff">${u.is_active?'Deactivate':'Activate'}</button>
-          <button onclick="openEditUserForm('${u.username}')" style="padding:3px 8px;border:1px solid var(--blue);border-radius:4px;font-size:10px;cursor:pointer;color:var(--blue);background:#fff">Edit</button>
+      <td style="padding:6px 14px;text-align:center">${isAdmin?'':`
+        <div style="display:flex;gap:4px">
+          <button onclick="resetUserPassword('${u.username}')" style="padding:3px 7px;border:1px solid #f59e0b;border-radius:4px;font-size:10px;cursor:pointer;color:#92400e;background:#fffbeb" title="Reset password">🔑</button>
+          <button onclick="toggleUserActive('${u.username}',${u.is_active})" style="padding:3px 7px;border:1px solid var(--g200);border-radius:4px;font-size:10px;cursor:pointer;background:#fff">${u.is_active?'Deact':'Activ'}</button>
         </div>`}
       </td>
     </tr>`;
   });
-
   html+='</tbody></table>';
   grid.innerHTML=html;
 }
 
-// ── Update a single permission field ─────────────────────────────────────────
-async function updateUserPerm(username, field, value){
-  const {error}=await sb.from('user_permissions')
-    .update({[field]:value, updated_at:new Date().toISOString()})
-    .eq('username',username);
-  if(error){toast('Error: '+error.message,'err');return;}
-  toast(`✅ ${username}: ${field} → ${value}`);
-  // If editing current user's own perms, re-apply
-  if(username===getAuth())await loadUserPermissions(username);
-}
-
-async function toggleUserActive(username, isActive){
-  await updateUserPerm(username,'is_active',!isActive);
-  loadAdminUsers();
-}
-
-// ── Add / Edit User Form ──────────────────────────────────────────────────────
-function openAddUserForm(){
-  openModal(`
-    <h3 style="margin:0 0 16px;font-size:15px;font-weight:800">Add New User</h3>
-    <div style="display:grid;gap:12px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div>
-          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">* Username (login ID)</label>
-          <input id="nu-username" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="e.g. carlos">
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">* Password</label>
-          <input id="nu-password" type="password" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="Set password">
-        </div>
-      </div>
-      <div>
-        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Display Name</label>
-        <input id="nu-display" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="e.g. Carlos Rodriguez">
-      </div>
-      <div>
-        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Role</label>
-        <select id="nu-role" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px">
-          <option value="user">User (limited access)</option>
-          <option value="admin">Admin (full access)</option>
-        </select>
-      </div>
-      <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;font-size:11px;color:#92400e">
-        ⚠️ After adding, set section permissions in the Permission Matrix. New users default to View-only access.
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
-      <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
-      <button onclick="saveNewUser()" style="padding:9px 20px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">Add User</button>
-    </div>
-  `,'Add New User');
-}
-
-async function saveNewUser(){
-  const username=(document.getElementById('nu-username')?.value||'').trim().toLowerCase();
-  const password=(document.getElementById('nu-password')?.value||'').trim();
-  const display=document.getElementById('nu-display')?.value||'';
-  const role=document.getElementById('nu-role')?.value||'user';
-  if(!username){toast('Username required','err');return;}
-  if(!password){toast('Password required','err');return;}
-
-  // Add to user_permissions table
-  const {error}=await sb.from('user_permissions').insert({
-    username, display_name:display, role,
-    perm_dashboard:'view',perm_pipeline:'view',perm_report:'view',
-    perm_pi:'view',perm_po:'view',perm_hqpo:'view',perm_shipments:'view',
-    perm_collections:'view',perm_distributors:'view',perm_products:'view',
-    perm_goals:'view',perm_pricing:'none',
-    can_export:true, can_delete:false
-  });
-  if(error){toast('Error: '+error.message,'err');return;}
-
-  // Add to ACCOUNTS (in-memory - admin needs to add to code)
-  ACCOUNTS[username]={password,role};
-  closeModal();
-  toast(`✅ User @${username} added. Set their permissions in the grid.`);
-  loadAdminUsers();
-}
-
-function openEditUserForm(username){
-  toast('Edit user: click permission dropdowns directly in the grid','err');
-}
 
 // ── Delete Request System ─────────────────────────────────────────────────────
 let _deleteRequests=[];
@@ -6209,6 +6162,28 @@ async function performDelete(table,id,label){
   _deleteRequests=_deleteRequests.filter(r=>r.id!==id);
   localStorage.setItem('gl_delete_requests',JSON.stringify(_deleteRequests));
   loadTable(activePage);
+}
+
+function checkDeleteAlarm(){
+  try{_deleteRequests=JSON.parse(localStorage.getItem('gl_delete_requests')||'[]');}catch(e){_deleteRequests=[];}
+  const badge=document.getElementById('admin-delete-badge');
+  const cnt=document.getElementById('admin-delete-count');
+  const navAdmin=document.getElementById('nav-admin');
+  if(_deleteRequests.length>0){
+    if(badge){badge.style.display='flex';badge.style.alignItems='center';badge.style.gap='4px';}
+    if(cnt)cnt.textContent=_deleteRequests.length;
+    // Red dot on nav item
+    if(navAdmin&&!navAdmin.querySelector('.del-dot')){
+      const dot=document.createElement('span');dot.className='del-dot';
+      dot.style.cssText='width:7px;height:7px;background:#ef4444;border-radius:50%;margin-left:auto;animation:pulse 2s infinite';
+      navAdmin.appendChild(dot);
+    }
+    // Play notification sound (single beep via Web Audio)
+    try{const ac=new AudioContext();const o=ac.createOscillator();const g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=880;g.gain.setValueAtTime(.3,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.4);o.start();o.stop(ac.currentTime+.4);}catch(e){}
+  } else {
+    if(badge)badge.style.display='none';
+    const dot=navAdmin?.querySelector('.del-dot');if(dot)dot.remove();
+  }
 }
 
 function loadDeleteRequests(){
@@ -6255,7 +6230,7 @@ navigateTo=function(page){
     }
   }
   _origNavTo_admin(page);
-  if(page==='admin'){loadAdminUsers();loadDeleteRequests();}
+  if(page==='admin'){loadAdminUsers();loadDeleteRequests();checkDeleteAlarm();}
   updateReadOnlyIndicator();
 };
 
@@ -6278,6 +6253,29 @@ function setStatus(msg, isErr){
   sc.innerHTML='<div style="grid-column:1/-1;padding:20px;text-align:center;color:'+col+';font-size:13px;font-weight:600">'+(isErr?'⚠️ ':'⏳ ')+msg+'</div>';
 }
 
+async function _dbLoginCheck(u,p){
+  const e=document.getElementById('lerr');
+  try{
+    const {data,error}=await sb.from('user_permissions').select('*').eq('username',u).eq('is_active',true).single();
+    if(error||!data||data.password!==p){
+      if(e)e.textContent='Incorrect username or password.';
+      document.getElementById('lp').value='';
+      return;
+    }
+    // DB user authenticated
+    USERS[u]={pw:p,role:data.role||'user'};
+    document.getElementById('login-screen').classList.add('hidden');
+    setAuth(u,data.role||'user');
+    document.getElementById('logged-in-user').innerHTML='👤 '+u+(data.role==='admin'?' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">ADMIN</span>':'');
+    if(e)e.textContent='';
+    resetTimer();
+    // Must change password?
+    if(data.must_change_password){showPasswordChangeScreen(u);return;}
+    loadUserPermissions(u);
+    init();
+  }catch(err){if(e)e.textContent='Login error: '+err.message;}
+}
+
 async function init(){
   const user=getAuth()||'';
   const role=getRole();
@@ -6298,6 +6296,7 @@ async function init(){
     setStatus('Step 2: Data connected ('+r1.data.length+' distributors). Loading dashboard...');
     const savedUser=getAuth(); if(savedUser)loadUserPermissions(savedUser);
     loadDash();
+    setInterval(checkDeleteAlarm, 60000); // check delete requests every minute
   } catch(err) {
     setStatus('Connection failed: '+err.message, true);
     console.error('init() error:', err);
@@ -6381,4 +6380,181 @@ function updateBottomNav(page){
 </div>
 
 </body>
-</html>
+</html>// ── Add / Edit User + Password Management ────────────────────────────────────
+function validatePassword(pw){
+  if(pw.length<8)return'Password must be at least 8 characters';
+  if(!/[A-Z]/.test(pw))return'Must include at least one uppercase letter';
+  if(!/[0-9]/.test(pw))return'Must include at least one number';
+  if(!/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(pw))return'Must include at least one special character (!@#$%^&*...)';
+  return null;
+}
+
+function openAddUserForm(){
+  openModal(`
+    <h3 style="margin:0 0 16px;font-size:15px;font-weight:800">➕ Add New User</h3>
+    <div style="display:grid;gap:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px"><span style="color:var(--red)">*</span> Username (login ID)</label>
+          <input id="nu-username" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="e.g. carlos">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Display Name</label>
+          <input id="nu-display" style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="e.g. Carlos Rodriguez">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px"><span style="color:var(--red)">*</span> Temporary Password</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="nu-password" type="text" style="flex:1;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;font-family:monospace;box-sizing:border-box" placeholder="Enter or auto-generate">
+          <button onclick="genTempPwd()" style="padding:8px 12px;background:var(--g100);border:1px solid var(--g200);border-radius:7px;font-size:12px;cursor:pointer;white-space:nowrap">🎲 Generate</button>
+        </div>
+        <div style="font-size:10px;color:var(--g400);margin-top:3px">Min 8 chars · 1 uppercase · 1 number · 1 special (!@#$%^&*...) · User must change on first login</div>
+        <div id="nu-pw-err" style="color:var(--red);font-size:11px;margin-top:3px"></div>
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Role</label>
+        <div style="display:flex;gap:8px">
+          <label style="flex:1;cursor:pointer;padding:9px 12px;border:1.5px solid var(--g200);border-radius:8px;display:flex;align-items:center;gap:8px">
+            <input type="radio" name="nu-role" value="user" checked> <span style="font-size:13px;font-weight:600">👤 User</span><span style="font-size:10px;color:var(--g400);margin-left:auto">Limited access</span>
+          </label>
+          <label style="flex:1;cursor:pointer;padding:9px 12px;border:1.5px solid var(--g200);border-radius:8px;display:flex;align-items:center;gap:8px">
+            <input type="radio" name="nu-role" value="admin"> <span style="font-size:13px;font-weight:600">⚙️ Admin</span><span style="font-size:10px;color:var(--g400);margin-left:auto">Full access</span>
+          </label>
+        </div>
+      </div>
+      <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;font-size:11px;color:#92400e">
+        ⚠️ User will be prompted to change their password on first login. Share the temporary password securely.
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
+      <button onclick="saveNewUser()" style="padding:9px 20px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">➕ Add User</button>
+    </div>
+  `,'Add New User');
+}
+
+function genTempPwd(){
+  const upper='ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower='abcdefghjkmnpqrstuvwxyz';
+  const nums='23456789';
+  const spec='!@#$%&*';
+  let pw=upper[Math.floor(Math.random()*upper.length)]
+    +lower[Math.floor(Math.random()*lower.length)]
+    +lower[Math.floor(Math.random()*lower.length)]
+    +nums[Math.floor(Math.random()*nums.length)]
+    +nums[Math.floor(Math.random()*nums.length)]
+    +spec[Math.floor(Math.random()*spec.length)];
+  while(pw.length<10){pw+=lower[Math.floor(Math.random()*lower.length)];}
+  // Shuffle
+  pw=pw.split('').sort(()=>Math.random()-.5).join('');
+  const el=document.getElementById('nu-password');
+  if(el){el.value=pw;el.style.background='#f0fdf4';el.style.borderColor='var(--green)';}
+}
+
+async function saveNewUser(){
+  const username=(document.getElementById('nu-username')?.value||'').trim().toLowerCase();
+  const pw=document.getElementById('nu-password')?.value||'';
+  const display=document.getElementById('nu-display')?.value||'';
+  const role=document.querySelector('input[name="nu-role"]:checked')?.value||'user';
+  const errEl=document.getElementById('nu-pw-err');
+
+  if(!username){toast('Username required','err');return;}
+  const pwErr=validatePassword(pw);
+  if(pwErr){if(errEl)errEl.textContent=pwErr;toast(pwErr,'err');return;}
+  if(errEl)errEl.textContent='';
+
+  // Save to user_permissions with password
+  const {error}=await sb.from('user_permissions').insert({
+    username,display_name:display||username,role,password:pw,must_change_password:true,
+    perm_dashboard:'view',perm_pipeline:'view',perm_report:'view',
+    perm_pi:'view',perm_po:'view',perm_hqpo:'view',perm_shipments:'view',
+    perm_collections:'view',perm_distributors:'view',perm_products:'view',
+    perm_goals:'view',perm_pricing:'none',
+    can_export:true,can_delete:false
+  });
+  if(error){toast('Error: '+error.message,'err');return;}
+
+  // Also add to runtime USERS so they can log in immediately
+  USERS[username]={pw,role};
+
+  closeModal();
+  toast(`✅ User @${username} added! Share temp password: ${pw}`);
+  loadAdminUsers();
+}
+
+async function resetUserPassword(username){
+  // Generate new temp password
+  const upper='ABCDEFGHJKLMNPQRSTUVWXYZ',lower='abcdefghjkmnpqrstuvwxyz',nums='23456789',spec='!@#$%&*';
+  let pw=upper[Math.floor(Math.random()*upper.length)]+nums[Math.floor(Math.random()*nums.length)]+spec[Math.floor(Math.random()*spec.length)];
+  while(pw.length<10)pw+=lower[Math.floor(Math.random()*lower.length)];
+  pw=pw.split('').sort(()=>Math.random()-.5).join('');
+
+  const {error}=await sb.from('user_permissions').update({password:pw,must_change_password:true}).eq('username',username);
+  if(error){toast('Error: '+error.message,'err');return;}
+  if(USERS[username])USERS[username].pw=pw;
+  toast(`🔑 New temp password for @${username}: ${pw} — Share this securely!`,'');
+  // Show in a visible modal too
+  openModal(`<div style="text-align:center;padding:8px">
+    <div style="font-size:14px;font-weight:700;margin-bottom:12px">Temp Password Reset — @${username}</div>
+    <div style="font-family:monospace;font-size:24px;font-weight:900;letter-spacing:3px;background:#f0fdf4;padding:16px;border-radius:8px;border:2px solid var(--green);color:var(--g900)">${pw}</div>
+    <div style="font-size:11px;color:var(--g400);margin-top:8px">User must change password on next login</div>
+    <button onclick="navigator.clipboard?.writeText('${pw}');toast('Copied!');closeModal()" style="margin-top:14px;padding:9px 20px;background:var(--green);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">📋 Copy & Close</button>
+  </div>`,'Password Reset');
+}
+
+// ── First-login password change flow ──────────────────────────────────────────
+function showPasswordChangeScreen(username){
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('login-screen').innerHTML=`
+    <div class="login-box" style="max-width:420px">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:32px;margin-bottom:8px">🔒</div>
+        <h2 style="font-size:18px;font-weight:800;color:var(--g900);margin:0">Set Your New Password</h2>
+        <p style="font-size:12px;color:var(--g500);margin-top:6px">Your temporary password must be changed before continuing</p>
+      </div>
+      <div style="display:grid;gap:12px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">New Password</label>
+          <input id="chpw-new" type="password" style="width:100%;padding:9px 12px;border:1.5px solid var(--g200);border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="Min 8 chars · Uppercase · Number · Special char" oninput="checkPwStrength(this.value)">
+          <div id="chpw-strength" style="margin-top:5px;height:4px;border-radius:2px;background:var(--g200);overflow:hidden"><div id="chpw-bar" style="height:100%;width:0;border-radius:2px;transition:all .3s"></div></div>
+          <div id="chpw-hint" style="font-size:10px;color:var(--g400);margin-top:3px">Enter a strong password</div>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Confirm Password</label>
+          <input id="chpw-confirm" type="password" style="width:100%;padding:9px 12px;border:1.5px solid var(--g200);border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="Re-enter password">
+        </div>
+        <div id="chpw-err" style="color:var(--red);font-size:12px"></div>
+        <button onclick="submitPasswordChange('${username}')" style="padding:11px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">✅ Set Password & Continue</button>
+      </div>
+    </div>`;
+}
+
+function checkPwStrength(pw){
+  const bar=document.getElementById('chpw-bar');
+  const hint=document.getElementById('chpw-hint');
+  let score=0;
+  const checks=[pw.length>=8,/[A-Z]/.test(pw),/[0-9]/.test(pw),/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(pw),pw.length>=12];
+  score=checks.filter(Boolean).length;
+  const colors=['#ef4444','#f97316','#eab308','#22c55e','#16a34a'];
+  const labels=['Too short','Weak','Fair','Strong','Very strong'];
+  if(bar){bar.style.width=(score*20)+'%';bar.style.background=colors[Math.max(0,score-1)]||colors[0];}
+  if(hint){hint.textContent=labels[Math.max(0,score-1)]||labels[0];hint.style.color=colors[Math.max(0,score-1)]||colors[0];}
+}
+
+async function submitPasswordChange(username){
+  const newPw=document.getElementById('chpw-new')?.value||'';
+  const confirm=document.getElementById('chpw-confirm')?.value||'';
+  const errEl=document.getElementById('chpw-err');
+  const pwErr=validatePassword(newPw);
+  if(pwErr){if(errEl)errEl.textContent=pwErr;return;}
+  if(newPw!==confirm){if(errEl)errEl.textContent='Passwords do not match';return;}
+  const {error}=await sb.from('user_permissions').update({password:newPw,must_change_password:false}).eq('username',username);
+  if(error){if(errEl)errEl.textContent='Error saving: '+error.message;return;}
+  USERS[username]&&(USERS[username].pw=newPw);
+  toast('✅ Password updated! Welcome '+username);
+  document.getElementById('login-screen').classList.add('hidden');
+  init();
+}
+
+
