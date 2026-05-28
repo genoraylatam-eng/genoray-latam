@@ -4398,6 +4398,7 @@ function calcPITotals(){
 }
 
 async function savePI(){
+  if(!guardEdit('pi'))return;
   const btn=document.getElementById('pi-save-btn');
   // Validate Sales Rep FIRST (required)
   const salesRepVal=(document.getElementById('pif-sales-rep')?.value||'').trim();
@@ -4944,6 +4945,7 @@ function closeForm(){document.getElementById('overlay').classList.remove('show')
 
 
 async function saveForm(){
+  if(!guardEdit())return;
   const btn=document.getElementById('save-btn');
   btn.textContent='Saving...';btn.disabled=true;
   const inputs=document.querySelectorAll('#modal-body input,#modal-body select,#modal-body textarea');
@@ -4991,6 +4993,7 @@ async function saveForm(){
 }
 
 async function delRow(page,id){
+  if(!canEdit()&&!canDelete()){toast('⛔ View-only access','err');return;}
   if(!confirm('Delete this record?'))return;
   const{error}=await sb.from(tbl(page)).delete().eq('id',id);
   if(error){toast('Error: '+error.message,'err');return;}
@@ -6688,6 +6691,29 @@ function applyPermissions(){
   // Show admin nav only for admins
   const adminNav=document.getElementById('nav-admin');
   if(adminNav)adminNav.style.display=isAdmin?'':'none';
+
+  // Hide edit buttons via CSS for view-only users
+  var permStyle=document.getElementById('perm-css');
+  if(!permStyle){
+    permStyle=document.createElement('style');
+    permStyle.id='perm-css';
+    document.head.appendChild(permStyle);
+  }
+  if(isAdmin){
+    permStyle.textContent='';
+  } else {
+    var rules=[];
+    SECTIONS.forEach(function(s){
+      var perm=_userPerms['perm_'+s.key]||'view';
+      if(perm!=='edit'){
+        var sel='#page-'+s.key;
+        rules.push(sel+' .btn-add{display:none!important}');
+        rules.push(sel+' .btn-edit{display:none!important}');
+        rules.push(sel+' .hide-on-view{display:none!important}');
+      }
+    });
+    permStyle.textContent=rules.join(' ');
+  }
 
   // Add read-only indicator to topbar if user is view-only on current page
   updateReadOnlyIndicator();
