@@ -1218,6 +1218,9 @@ tr[data-paid="true"] td{opacity:.55}
           <div id="admin-delete-badge" style="display:none;background:#ef4444;color:#fff;font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;animation:pulse 2s infinite">
             🔔 <span id="admin-delete-count">0</span> Delete Request
           </div>
+          <button onclick="openTestEmailForm()" style="padding:9px 18px;background:rgba(255,255,255,.1);color:#fff;border:1.5px solid rgba(255,255,255,.25);border-radius:var(--rsm);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px">
+            <span style="font-size:15px">📧</span> Test Email
+          </button>
           <button onclick="openAddUserForm()" style="padding:9px 18px;background:rgba(255,255,255,.15);color:#fff;border:1.5px solid rgba(255,255,255,.35);border-radius:var(--rsm);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px;backdrop-filter:blur(4px)">
             <span style="font-size:15px">➕</span> Add User
           </button>
@@ -1373,7 +1376,7 @@ const sb=createClient('https://cqvtqcnjmmfvvynsgmei.supabase.co','sb_publishable
 const EMAILJS_SERVICE  = 'service_g9bn6ff';
 const EMAILJS_TEMPLATE = 'lzhgapk';
 const EMAILJS_KEY      = '37yTnuJZVizqIMq7u';
-(function(){if(typeof emailjs!=='undefined')emailjs.init({publicKey:EMAILJS_KEY});})();
+window.addEventListener('load',function(){if(typeof emailjs!=='undefined'){emailjs.init({publicKey:EMAILJS_KEY});console.log('[EmailJS] Initialized ✅');}else{console.warn('[EmailJS] SDK not loaded!');}});
 
 // ── AUTH STORAGE (uses both session + local storage for reliability) ──────────
 function getAuth(){ return sessionStorage.getItem('gl_auth')||localStorage.getItem('gl_auth')||null; }
@@ -2195,23 +2198,27 @@ function requestDelete(table, id, label){
 // ── EMAILJS SEND ─────────────────────────────────────────────────────────────
 async function sendEmailAlert(toEmail, repName, piCount, piListText){
   if(!toEmail){
-    toast('⚠️ No email address for this user — add in Admin panel','err');
+    toast('⚠️ No email address — add email in Admin panel first','err');
+    return false;
+  }
+  if(typeof emailjs==='undefined'){
+    toast('⚠️ EmailJS not loaded. Check your internet connection.','err');
     return false;
   }
   try{
-    if(typeof emailjs==='undefined'){
-      toast('EmailJS not loaded','err'); return false;
-    }
-    await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+    const result = await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
       to_email: toEmail,
-      rep_name: repName,
-      pi_count: String(piCount),
-      pi_list:  piListText,
-    }, {publicKey: EMAILJS_KEY});
-    toast('✅ Alert email sent to '+toEmail);
+      rep_name: repName||'Sales Rep',
+      pi_count: String(piCount||0),
+      pi_list:  piListText||'No PI details',
+    });
+    console.log('[EmailJS] Send result:', result);
+    toast('✅ Email sent to '+toEmail);
     return true;
   } catch(err){
-    toast('Email error: '+(err?.text||err?.message||JSON.stringify(err)),'err');
+    const errMsg = err?.text||err?.message||JSON.stringify(err);
+    console.error('[EmailJS] Send error:', err);
+    toast('❌ Email failed: '+errMsg,'err');
     return false;
   }
 }
@@ -6858,6 +6865,44 @@ function onNuRoleChange(){
   const role=document.getElementById('nu-role')?.value;
   const emailWrap=document.getElementById('nu-email-wrap');
   if(emailWrap)emailWrap.style.display=role==='sales_rep'?'block':'none';
+}
+
+function openTestEmailForm(){
+  openModal(`
+    <h3 style="margin:0 0 4px;font-size:15px;font-weight:800">📧 Send Test Email</h3>
+    <p style="font-size:12px;color:var(--g500);margin:0 0 16px">Verify EmailJS is working correctly</p>
+    <div style="display:grid;gap:12px">
+      <div>
+        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Send to Email Address</label>
+        <input id="test-email-addr" type="email" style="width:100%;padding:9px 12px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="Enter any email to test">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Test Message Content</label>
+        <textarea id="test-email-body" rows="4" style="width:100%;padding:9px 12px;border:1.5px solid var(--g200);border-radius:7px;font-size:12px;box-sizing:border-box;resize:vertical;font-family:inherit">• PI-TEST-001 (20d no action) — $50,000 — Test Distributor
+• PI-TEST-002 (35d no action) — $120,000 — Another Distributor</textarea>
+      </div>
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-size:11px;color:#0369a1">
+        <strong>EmailJS Settings:</strong><br>
+        Service: service_g9bn6ff · Template: lzhgapk<br>
+        From: genoraylatam@gmail.com
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
+      <button onclick="runTestEmail()" style="padding:9px 22px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">📤 Send Test</button>
+    </div>
+  `,'Test Email');
+}
+
+async function runTestEmail(){
+  const email = document.getElementById('test-email-addr')?.value?.trim();
+  const body  = document.getElementById('test-email-body')?.value?.trim();
+  if(!email){toast('Please enter an email address','err');return;}
+  const btn = document.querySelector('#modal-body button:last-child');
+  if(btn){btn.textContent='Sending...';btn.disabled=true;}
+  const ok = await sendEmailAlert(email, 'Test User', 2, body||'Test PI list');
+  if(btn){btn.textContent='📤 Send Test';btn.disabled=false;}
+  if(ok) closeModal();
 }
 
 function openAddUserForm(){
