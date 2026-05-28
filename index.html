@@ -1157,9 +1157,7 @@ tr[data-paid="true"] td{opacity:.55}
       </div>
 
       <!-- Notification List -->
-      <div id="notif-list" style="padding:16px 24px;display:flex;flex-direction:column;gap:8px;max-width:860px">
-        <div style="text-align:center;padding:40px;color:var(--g400)">Loading...</div>
-      </div>
+      <div id="notif-list" style="padding:16px 24px;display:flex;flex-direction:column;gap:8px;max-width:860px"></div>
     </div>
 
     <!-- PRICING -->
@@ -1650,7 +1648,13 @@ function loadPage(p){
   if(p==='goals')return loadGoals();
   if(p==='help')return loadHelp();
   if(p==='pricing')return loadPricingPage();
-  if(p==='notifications'){renderNotifications();setNotifTab(_notifTab||'all');return;}
+  if(p==='notifications'){
+    const el=document.getElementById('notif-list');
+    if(el)el.innerHTML='<div style="text-align:center;padding:40px;color:var(--g400)">⏳ Loading...</div>';
+    setNotifTab(_notifTab||'all');
+    loadNotifications();
+    return;
+  }
   if(p==='admin'){loadAdminUsers();loadDeleteRequests();return;}
   loadTable(p);
 }
@@ -7297,8 +7301,6 @@ function copyWelcomeMsg(){
 
 
 
-async 
-
 async function sendMessage(){
   const me=getAuth();
   const title=(document.getElementById('msg-title')?.value||'').trim();
@@ -7558,15 +7560,23 @@ const NOTIF_STYLE={
 
 async function loadNotifications(){
   const me=getAuth(); if(!me)return;
-  const{data,error}=await sb.from('notifications')
-    .select('*')
-    .or(`to_user.is.null,to_user.eq.${me},from_user.eq.${me}`)
-    .order('created_at',{ascending:false})
-    .limit(200);
-  if(error){console.error('notif:',error);return;}
+  const isAdmin=getRole()==='admin'||ADMIN_USERS.includes(me);
+
+  let query;
+  if(isAdmin){
+    // Admin sees everything
+    query=sb.from('notifications').select('*').order('created_at',{ascending:false}).limit(300);
+  } else {
+    // Others see: addressed to them + announcements (null) + their own sent
+    query=sb.from('notifications').select('*')
+      .or('to_user.is.null,to_user.eq.'+me+',from_user.eq.'+me)
+      .order('created_at',{ascending:false}).limit(200);
+  }
+  const{data,error}=await query;
+  if(error){console.error('notif load:',error);return;}
   _notifData=data||[];
   updateBellBadge();
-  if(activePage==='notifications')renderNotifications();
+  if(activePage==='notifications') renderNotifications();
 }
 
 function updateBellBadge(){
