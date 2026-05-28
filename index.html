@@ -1119,7 +1119,7 @@ tr[data-paid="true"] td{opacity:.55}
     <!-- NOTIFICATIONS / MESSAGES -->
     <div id="page-notifications" class="page">
       <div class="page-header" style="padding-bottom:0">
-        <h1 class="page-title">🔔 Messages & Notifications</h1>
+        <h1 class="page-title" style="font-size:16px">🔔 Messages & Notifications</h1>
         <div style="display:flex;gap:8px">
           <button onclick="runDelayCheck()" style="padding:9px 16px;background:#fef3c7;color:#92400e;border:1.5px solid #fcd34d;border-radius:var(--rsm);font-size:13px;font-weight:700;cursor:pointer">⚠️ Check Delays</button>
           <button onclick="openNewMessageForm()" class="btn btn-primary" style="display:flex;align-items:center;gap:6px">
@@ -1129,35 +1129,35 @@ tr[data-paid="true"] td{opacity:.55}
       </div>
 
       <!-- Tabs -->
-      <div style="display:flex;gap:0;border-bottom:2px solid var(--g100);padding:0 24px;margin-bottom:0">
+      <div style="display:flex;gap:0;border-bottom:2px solid var(--g100);padding:0 20px;margin-bottom:0">
         <button id="ntab-all" onclick="setNotifTab('all')"
-          style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:700;cursor:pointer;border-bottom:2px solid var(--blue);color:var(--blue);margin-bottom:-2px">
+          style="padding:8px 14px;border:none;background:none;font-size:12px;font-weight:700;cursor:pointer;border-bottom:2px solid var(--blue);color:var(--blue);margin-bottom:-2px">
           All
         </button>
         <button id="ntab-unread" onclick="setNotifTab('unread')"
-          style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
+          style="padding:8px 14px;border:none;background:none;font-size:12px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
           Unread
         </button>
         <button id="ntab-announcements" onclick="setNotifTab('announcements')"
-          style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
+          style="padding:8px 14px;border:none;background:none;font-size:12px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
           📢 Announcements
         </button>
         <button id="ntab-inbox" onclick="setNotifTab('inbox')"
-          style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
+          style="padding:8px 14px;border:none;background:none;font-size:12px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
           📥 Inbox
         </button>
         <button id="ntab-outbox" onclick="setNotifTab('outbox')"
-          style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
+          style="padding:8px 14px;border:none;background:none;font-size:12px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
           📤 Outbox
         </button>
         <button id="ntab-alerts" onclick="setNotifTab('alerts')"
-          style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
+          style="padding:8px 14px;border:none;background:none;font-size:12px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--g500);margin-bottom:-2px">
           ⚠️ System Alerts
         </button>
       </div>
 
       <!-- Notification List -->
-      <div id="notif-list" style="padding:16px 24px;display:flex;flex-direction:column;gap:8px;max-width:860px"></div>
+      <div id="notif-list" style="padding:12px 20px;display:flex;flex-direction:column;gap:6px;max-width:680px"></div>
     </div>
 
     <!-- PRICING -->
