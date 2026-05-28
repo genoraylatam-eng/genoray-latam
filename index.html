@@ -2032,6 +2032,127 @@ async function autoAddMissingCollections(){
   loadTable('collections');
 }
 
+// ── PI STATUS PILL & DIALOG ───────────────────────────────────────────────────
+function piStatusPill(st, r){
+  const status = st.status || 'No Action';
+  
+  if(status === 'No Action'){
+    const days = st.daysSince !== null && st.daysSince !== undefined ? st.daysSince : '?';
+    const urgency = typeof days === 'number' && days > 60 ? '#b91c1c' : '#dc2626';
+    const noteIcon = r.notes ? ' 📝' : '';
+    return `<button onclick="openPIStatusDialog('${esc(r.pi_number)}','${esc(r.date||'')}',${days},'${esc(r.notes||'')}')"
+      style="background:${urgency};color:#fff;border:none;padding:4px 10px;border-radius:20px;
+             font-size:11px;font-weight:700;cursor:pointer;animation:pulse 2s infinite;
+             display:inline-flex;align-items:center;gap:4px;white-space:nowrap">
+      🔴 No Action · ${days}d${noteIcon}
+    </button>`;
+  }
+
+  if(status === 'In Progress' || status === 'Pending'){
+    return `<button onclick="openPIStatusDialog('${esc(r.pi_number)}','${esc(r.date||'')}',null,'${esc(r.notes||'')}')"
+      style="background:#2563eb;color:#fff;border:none;padding:4px 10px;border-radius:20px;
+             font-size:11px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+      🔵 In Progress ›
+    </button>`;
+  }
+
+  return pillAuto(st,'pi');
+}
+
+function openPIStatusDialog(piNum, piDate, daysSince, currentNote){
+  const xref = cache._xref || {pi:[],po:[],hq:[],sh:[],col:[]};
+  const pos  = (xref.po  || []).filter(p => p.pi_number === piNum);
+  const hqs  = (xref.hq  || []).filter(h => h.pi_number === piNum);
+  const shs  = (xref.sh  || []).filter(s => s.pi_number === piNum);
+  const isNoAction = pos.length === 0 && hqs.length === 0 && shs.length === 0;
+  const days = daysSince !== null && daysSince !== undefined ? daysSince : '?';
+  const urgencyColor = typeof days === 'number' && days > 60 ? '#b91c1c' : '#dc2626';
+
+  // Build linked records section
+  let linkedHTML = '';
+  if(isNoAction){
+    linkedHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px 16px;text-align:center;margin-bottom:14px">
+      <div style="font-size:28px;margin-bottom:6px">⏳</div>
+      <div style="font-size:13px;font-weight:700;color:#dc2626">No linked PO, HQ PO, or Shipment</div>
+      <div style="font-size:11px;color:#ef4444;margin-top:4px">This PI has had no action for <strong>${days} days</strong></div>
+    </div>`;
+  } else {
+    linkedHTML = '<div style="display:grid;gap:8px;margin-bottom:14px">';
+    if(pos.length > 0){
+      linkedHTML += `<div style="background:#eff6ff;border-radius:8px;padding:10px 14px">
+        <div style="font-size:10px;font-weight:700;color:#1e40af;text-transform:uppercase;margin-bottom:6px">📦 Purchase Orders</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${pos.map(p=>`<button onclick="closeModal();navigateTo('po')" style="padding:4px 12px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">${esc(p.po_number)}</button>`).join('')}
+        </div>
+      </div>`;
+    }
+    if(hqs.length > 0){
+      linkedHTML += `<div style="background:#f0fdf4;border-radius:8px;padding:10px 14px">
+        <div style="font-size:10px;font-weight:700;color:#065f46;text-transform:uppercase;margin-bottom:6px">🏭 HQ Purchase Orders</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${hqs.map(h=>`<button onclick="closeModal();navigateTo('hqpo')" style="padding:4px 12px;background:#059669;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">${esc(h.hq_po_number)}</button>`).join('')}
+        </div>
+      </div>`;
+    }
+    if(shs.length > 0){
+      linkedHTML += `<div style="background:#fffbeb;border-radius:8px;padding:10px 14px">
+        <div style="font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase;margin-bottom:6px">🚢 Shipments</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${shs.map(s=>`<button onclick="closeModal();navigateTo('shipments')" style="padding:4px 12px;background:#d97706;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">${esc(s.shipment_number||s.pi_number)}</button>`).join('')}
+        </div>
+      </div>`;
+    }
+    linkedHTML += '</div>';
+  }
+
+  openModal(`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div style="width:40px;height:40px;border-radius:10px;background:${isNoAction?'#fef2f2':'#eff6ff'};display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">
+        ${isNoAction?'🔴':'🔵'}
+      </div>
+      <div>
+        <div style="font-size:15px;font-weight:800;color:var(--g900)">${esc(piNum)}</div>
+        <div style="font-size:11px;color:var(--g500);margin-top:2px">${isNoAction?`<span style="color:${urgencyColor};font-weight:700">No Action for ${days} days</span>`:'In Progress'} · Issued ${esc(piDate||'?')}</div>
+      </div>
+    </div>
+
+    ${linkedHTML}
+
+    <!-- Memo / Note section -->
+    <div style="border-top:1px solid var(--g100);padding-top:14px">
+      <label style="font-size:12px;font-weight:700;color:var(--g600);display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        📝 Sales Rep Memo
+        <span style="font-size:10px;font-weight:400;color:var(--g400)">${isNoAction?'Explain reason for no action / next steps':'Internal notes'}</span>
+      </label>
+      <textarea id="pi-status-note" rows="3"
+        style="width:100%;padding:10px 12px;border:1.5px solid var(--g200);border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit;line-height:1.5"
+        placeholder="${isNoAction?'e.g. Waiting for distributor PO · Budget approval pending · Customer requested delay until Q3...':'e.g. PO received, HQ confirming delivery schedule...'}">${esc(currentNote||'')}</textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+        <div style="font-size:10px;color:var(--g400)">Saved to PI notes · Visible in status tooltip</div>
+        <button onclick="savePIStatusNote('${esc(piNum)}')" style="padding:6px 16px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">💾 Save Memo</button>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:14px">
+      <button onclick="closeModal()" style="padding:8px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Close</button>
+    </div>
+  `, `PI Status — ${piNum}`);
+}
+
+async function savePIStatusNote(piNum){
+  const note = document.getElementById('pi-status-note')?.value || '';
+  const {error} = await sb.from('pi').update({notes: note}).eq('pi_number', piNum);
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast('✅ Memo saved');
+  // Refresh cache
+  cache._xref = null;
+  cache.pi = null;
+  // Update button tooltip without full reload
+  const btns = document.querySelectorAll(`#pi-tbody button`);
+  closeModal();
+  loadTable('pi');
+}
+
 // ── SALES REP OPTIONS ────────────────────────────────────────────────────────
 function _getSalesRepOptions(selected){
   const currentUser = getAuth()||'';
@@ -3404,7 +3525,10 @@ function autoStatus(page, r, xref){
     if(hasHQ) return {status:'In Progress',auto:true};
     const hasPO=xref.po.some(p=>p.pi_number===r.pi_number);
     if(hasPO) return {status:'In Progress',auto:true};
-    return {status:'Pending',auto:true};
+    // No linked records → "No Action"
+    const piDate=r.date?new Date(r.date):null;
+    const daysSince=piDate?Math.floor((today-piDate)/(1000*86400)):null;
+    return {status:'No Action',auto:true,daysSince};
   }
 
   if(page==='po'){
@@ -3575,7 +3699,7 @@ function rowHTML(page,r){
     <td><strong>$${fmt(r.amount_usd)}</strong></td>
     <td style="max-width:140px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.payment_terms||'-'}</td>
     <td>${r.sales_rep?`<span class="pill p-purple">${r.sales_rep}</span>`:'-'}</td>
-    <td>${pillAuto(st,'pi')}</td>
+    <td>${piStatusPill(st,r)}</td>
     <td><div class="td-acts">
       <button class="btn btn-secondary btn-sm" onclick="openPI('${r.id}')">Edit</button>
       <button class="btn btn-print btn-sm" onclick="showPIPrint('${r.pi_number}')">🖨️</button>
@@ -5072,7 +5196,7 @@ function fmt(n){return(parseFloat(n)||0).toLocaleString('en-US',{minimumFraction
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
 function esc2(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function pill(s){
-  const m={'In Progress':'blue','Completed':'green','Collected':'green','Arrived':'green','Delivered':'green','Shipped':'blue','In Transit':'blue','Pending':'amber','Partial':'amber','Preparing':'amber','Cancelled':'gray','Overdue':'red'};
+  const m={'In Progress':'blue','Completed':'green','Collected':'green','Arrived':'green','Delivered':'green','Shipped':'blue','In Transit':'blue','Pending':'amber','Partial':'amber','Preparing':'amber','Cancelled':'gray','Overdue':'red','No Action':'red'};
   return`<span class="pill p-${m[s]||'gray'}">${s||'-'}</span>`;
 }
 function toast(msg,type='ok'){
