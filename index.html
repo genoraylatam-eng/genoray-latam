@@ -2192,7 +2192,7 @@ async function autoAddMissingCollections(){
 }
 
 // ── ADMIN UTILITY FUNCTIONS ──────────────────────────────────────────────────
-async function updateUserPerm(username, field, value){
+async function updateUserPerm(username, field, value, el){
   const {error}=await sb.from('user_permissions')
     .update({[field]:value, updated_at:new Date().toISOString()})
     .eq('username',username);
@@ -2201,20 +2201,18 @@ async function updateUserPerm(username, field, value){
   // If the edited user is the current user, reload their live permissions
   // so their OWN menus/buttons update without a manual refresh.
   if(username===getAuth()) await loadUserPermissions(username);
-  // Keep the cached admin list in sync so the change persists if the panel
-  // re-renders, and recolor the just-changed permission dropdown in place
-  // (no full reload → the user's scroll position and focus are preserved).
+  // Keep the cached admin list in sync.
   if(masterCache.userPerms){
     const u=masterCache.userPerms.find(x=>x.username===username);
     if(u) u[field]=value;
   }
-  if(typeof field==='string' && field.indexOf('perm_')===0){
-    const sel=document.querySelector(`select[onchange*="updateUserPerm('${username}','${field}'"]`);
-    if(sel){
-      const pColor={edit:'#dcfce7|#065f46|#86efac',view:'#dbeafe|#1e40af|#93c5fd',none:'#f1f5f9|#94a3b8|#e2e8f0'};
-      const [bg,tx,bd]=(pColor[value]||pColor.view).split('|');
-      sel.setAttribute('style',`padding:3px 5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;background:${bg};color:${tx};border:1px solid ${bd}`);
-    }
+  // Recolor the just-changed permission dropdown IN PLACE using the element
+  // that fired the event (el = this). This is reliable — no selector lookup,
+  // no full reload, so scroll position and focus are preserved.
+  if(el && typeof field==='string' && field.indexOf('perm_')===0){
+    const pColor={edit:'#dcfce7|#065f46|#86efac',view:'#dbeafe|#1e40af|#93c5fd',none:'#f1f5f9|#94a3b8|#e2e8f0'};
+    const [bg,tx,bd]=(pColor[value]||pColor.view).split('|');
+    el.style.background=bg; el.style.color=tx; el.style.border='1px solid '+bd;
   }
 }
 
@@ -7098,7 +7096,7 @@ async function loadAdminUsers(){
       ${SEC_LABELS.map(s=>{
         const perm=isAdmin?'edit':(u['perm_'+s.key]||'view');
         if(isAdmin)return`<td style="padding:6px 4px;text-align:center"><span style="padding:2px 7px;border-radius:4px;font-size:9px;font-weight:700;${pStyle(perm)}">${perm}</span></td>`;
-        return`<td style="padding:4px;text-align:center"><select onchange="updateUserPerm('${u.username}','perm_${s.key}',this.value)" style="${selStyle(perm)}">
+        return`<td style="padding:4px;text-align:center"><select onchange="updateUserPerm('${u.username}','perm_${s.key}',this.value,this)" style="${selStyle(perm)}">
           <option value="edit"${perm==='edit'?' selected':''}>Edit</option>
           <option value="view"${perm==='view'?' selected':''}>View</option>
           <option value="none"${perm==='none'?' selected':''}>None</option>
