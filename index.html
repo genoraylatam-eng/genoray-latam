@@ -706,8 +706,10 @@ tr[data-paid="true"] td{opacity:.55}
                 <option value="">All Status</option>
                 <option value="Backlog">🔴 Backlog</option>
                 <option value="In Progress">🔵 In Progress</option>
-                <option value="Shipped">✅ Shipped</option>
               </select>
+              <button id="pipe-shipped-toggle" onclick="toggleShipped()" style="padding:7px 14px;border:1.5px solid var(--g200);border-radius:var(--rsm);font-size:13px;background:#f9fafb;color:var(--g600);cursor:pointer;font-weight:600;white-space:nowrap">
+                Show Shipped ▼
+              </button>
             </div>
           </div>
           <div class="tbl-wrap"><table>
@@ -3199,6 +3201,8 @@ async function loadPipeline(){
     <div class="pipe-stat"><div class="pipe-stat-val" style="color:var(--blue)">${inProg.length}</div><div class="pipe-stat-lbl">🔵 In Progress</div><div style="font-size:11px;color:var(--g400);margin-top:2px">$${fmt(inProgAmt)}</div></div>
     <div class="pipe-stat"><div class="pipe-stat-val" style="color:var(--green)">${shipped.length}</div><div class="pipe-stat-lbl">✅ Shipped / Done</div></div>
     <div class="pipe-stat"><div class="pipe-stat-val">${pipelineData.length}</div><div class="pipe-stat-lbl">Total PIs</div></div>`;
+  // Default: hide Shipped/Completed — show only active pipeline
+  _pipeShowShipped=false;
   renderPipeline(pipelineData);
   hidePageLoading();
   document.getElementById('pipe-data').style.display='block';
@@ -3206,8 +3210,19 @@ async function loadPipeline(){
 
 function renderPipeline(rows){
   const tbody=document.getElementById('pipe-tbody');
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="11"><div class="empty-state">No records</div></td></tr>';return;}
-  tbody.innerHTML=rows.map(r=>{
+  // Filter shipped unless toggled on
+  const visible=_pipeShowShipped?rows:rows.filter(r=>r.pipe_status!=='Shipped');
+  const shippedCount=rows.filter(r=>r.pipe_status==='Shipped').length;
+  // Update toggle button
+  const toggleBtn=document.getElementById('pipe-shipped-toggle');
+  if(toggleBtn){
+    toggleBtn.textContent=_pipeShowShipped?'Hide Shipped ('+shippedCount+') ▲':'Show Shipped ('+shippedCount+') ▼';
+    toggleBtn.style.background=_pipeShowShipped?'#dcfce7':'#f9fafb';
+    toggleBtn.style.color=_pipeShowShipped?'#065f46':'var(--g600)';
+    toggleBtn.style.borderColor=_pipeShowShipped?'#86efac':'var(--g200)';
+  }
+  if(!visible.length){tbody.innerHTML='<tr><td colspan="11"><div class="empty-state">No active pipeline items</div></td></tr>';return;}
+  tbody.innerHTML=visible.map(r=>{
     const sc=r.pipe_status==='Backlog'?'p-red':r.pipe_status==='In Progress'?'p-blue':'p-green';
     const dayColor=r.days_since>=60?'color:var(--red);font-weight:700':r.days_since>=30?'color:var(--amber);font-weight:600':'';
     return`<tr>
@@ -3226,6 +3241,16 @@ function renderPipeline(rows){
 }
 
 function filterPipeline(){
+  const q=document.getElementById('pipe-search').value.toLowerCase();
+  const st=document.getElementById('pipe-filter').value;
+  let rows=pipelineData;
+  if(st)rows=rows.filter(r=>r.pipe_status===st);
+  if(q)rows=rows.filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q)));
+  renderPipeline(rows);
+}
+
+function toggleShipped(){
+  _pipeShowShipped=!_pipeShowShipped;
   const q=document.getElementById('pipe-search').value.toLowerCase();
   const st=document.getElementById('pipe-filter').value;
   let rows=pipelineData;
@@ -7632,7 +7657,8 @@ async function sendRecordMessage(page, recordId, recordLabel){
 }
 
 // ── MESSAGING ─────────────────────────────────────────────────────────────────
-let _notifTab='all', _notifData=[], _delayResponses=[], _msgView='all'; // all|inbox|outbox
+let _notifTab='all', _notifData=[], _delayResponses=[], _msgView='all';
+let _pipeShowShipped=false; // all|inbox|outbox
 
 const NOTIF_STYLE={
   info:        {icon:'ℹ️', bg:'#eff6ff',border:'#bfdbfe'},
