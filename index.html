@@ -4249,7 +4249,7 @@ function rowHTML(page,r){
     <td>${piLink(r.pi_number,r.pi_number)}</td>
     <td><strong>$${fmt(r.amount_usd)}</strong></td>
     <td>${pillAuto(st,'po')}</td>
-    ${acts}<td>${repPill(r.pi_number)}</td></tr>`;
+    <td>${repPill(r.pi_number)}</td>${acts}</tr>`;
 
   if(page==='hqpo')return`<tr${st.ship_status==='Completed'?' data-done="true"':''}>
     <td><strong>${r.hq_po_number}</strong></td>
@@ -4263,8 +4263,7 @@ function rowHTML(page,r){
     <td><strong>$${fmt(r.pi_total_usd)}</strong></td>
     <td>${pill(st.ship_status)}</td>
     <td>${r.owner||'-'}</td>
-    ${st.auto?'<td style="font-size:9px;color:var(--g400);white-space:nowrap">⚙ Auto</td>':'<td></td>'}
-    ${acts}<td>${repPill(r.pi_number)}</td></tr>`;
+    <td>${repPill(r.pi_number)}</td>${acts}</tr>`;
 
   if(page==='shipments')return`<tr${st.status==='Completed'?' data-done="true"':''}>
     <td>${r.shipment_number}</td>
@@ -4327,8 +4326,8 @@ function rowHTML(page,r){
       })()
       +'<td style="text-align:center">'+daysBadge+'</td>'
       +'<td>'+(r.collection_date||'-')+'</td>'
-      +'<td>'+pillAuto(st,'collections')+'</td>'
       +'<td>'+repPill(r.pi_number)+'</td>'
+      +'<td>'+pillAuto(st,'collections')+'</td>'
       +acts+'</tr>';
   }
 
