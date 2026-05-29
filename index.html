@@ -3645,7 +3645,7 @@ function renderGoals(){
   const yrF=document.getElementById('goals-year')?.value||'';
   const divF=document.getElementById('goals-div')?.value||'';
   const q=document.getElementById('goals-search')?.value.toLowerCase()||'';
-  const isAdmin=sessionStorage.getItem('gl_role')==='admin';
+  const isAdmin=getRole()==='admin'||(typeof ADMIN_USERS!=='undefined'&&ADMIN_USERS.includes(getAuth()||''));
 
   let rows=cache.goals||[];
   if(yrF)rows=rows.filter(r=>String(r.year)===yrF);
@@ -3690,9 +3690,9 @@ function renderGoals(){
       const q2=allQ.slice(3,6).reduce((a,b)=>a+b,0);
       const q3=allQ.slice(6,9).reduce((a,b)=>a+b,0);
       const q4=allQ.slice(9,12).reduce((a,b)=>a+b,0);
-      const actM=g.medical?`<button class="btn btn-secondary btn-sm" onclick="openGoalForm('${g.medical.id}')">✏️ Med</button>${isAdmin?`<button class="btn btn-danger btn-sm" onclick="delGoalRow('${g.medical.id}')">Del</button>`:''}`:
+      const actM=g.medical?`<button class="btn btn-secondary btn-sm" onclick="openGoalForm('${g.medical.id}')">✏️ Med</button>${canDeleteOn('goals')?`<button class="btn btn-danger btn-sm" onclick="delGoalRow('${g.medical.id}')">Del</button>`:''}`:
         `<button class="btn btn-primary btn-sm" onclick="openGoalForm(null,'${g.base}','Medical','${g.country||''}','${g.year}')">+ Med</button>`;
-      const actD=g.dental?`<button class="btn btn-secondary btn-sm" onclick="openGoalForm('${g.dental.id}')">✏️ Den</button>${isAdmin?`<button class="btn btn-danger btn-sm" onclick="delGoalRow('${g.dental.id}')">Del</button>`:''}`:
+      const actD=g.dental?`<button class="btn btn-secondary btn-sm" onclick="openGoalForm('${g.dental.id}')">✏️ Den</button>${canDeleteOn('goals')?`<button class="btn btn-danger btn-sm" onclick="delGoalRow('${g.dental.id}')">Del</button>`:''}`:
         `<button class="btn btn-primary btn-sm" onclick="openGoalForm(null,'${g.base}','Dental','${g.country||''}','${g.year}')">+ Den</button>`;
       return`<tr>
         <td>${g.year}</td><td>${g.country||'-'}</td><td><strong>${g.base}</strong></td>
@@ -3727,7 +3727,7 @@ function renderGoals(){
         <td>$${fmt(q1)}</td><td>$${fmt(q2)}</td><td>$${fmt(q3)}</td><td>$${fmt(q4)}</td>
         <td><div class="td-acts">
           <button class="btn btn-secondary btn-sm" onclick="openGoalForm('${r.id}')">Edit</button>
-          ${isAdmin?`<button class="btn btn-danger btn-sm" onclick="delGoalRow('${r.id}')">Del</button>`:''}
+          ${canDeleteOn('goals')?`<button class="btn btn-danger btn-sm" onclick="delGoalRow('${r.id}')">Del</button>`:''}
         </div></td>
       </tr>`;
     }).join('');
@@ -3735,6 +3735,7 @@ function renderGoals(){
 }
 
 async function delGoalRow(id){
+  if(!canDeleteOn('goals')){toast('⛔ You do not have delete permission for this section','err');return;}
   if(!confirm('Delete this goal entry?'))return;
   const{error}=await sb.from('goals').delete().eq('id',id);
   if(error){toast('Error: '+error.message,'err');return;}
@@ -4129,8 +4130,8 @@ function fmtEditBadge(r){
 }
 
 function rowHTML(page,r){
-  const isAdmin=sessionStorage.getItem('gl_role')==='admin';
-  const delBtn=isAdmin?`<button class="btn btn-danger btn-sm hide-on-view" onclick="delRow('${page}','${r.id}')">Del</button>`:'';
+  const isAdmin=getRole()==='admin'||(typeof ADMIN_USERS!=='undefined'&&ADMIN_USERS.includes(getAuth()||''));
+  const delBtn=canDeleteOn(page)?`<button class="btn btn-danger btn-sm" onclick="delRow('${page}','${r.id}')">Del</button>`:'';
   const _recLabel=r.pi_number||r.po_number||r.hq_po_number||r.shipment_number||r.collection_id||String(r.id||'');
   const acts=`<td><div class="td-acts"><button class="btn btn-secondary btn-sm hide-on-view" onclick="openForm('${page}','${r.id}')">Edit</button>${delBtn}<button class="btn btn-secondary btn-sm" onclick="openRecordMessage('${page}','${r.id}','${_recLabel}')" title="Message about this" style="padding:3px 8px;font-size:11px">💬</button></div></td>`;
   const piLink=(num,label)=>num?`<span class="pi-link" onclick="showPIPrint('${num}')">${label||num}</span>`:'-';
@@ -4152,9 +4153,9 @@ function rowHTML(page,r){
     <td>${r.sales_rep?`<span class="pill p-purple">${r.sales_rep}</span>`:'-'}</td>
     <td>${piStatusPill(st,r)}</td>
     <td><div class="td-acts">
-      <button class="btn btn-secondary btn-sm" onclick="openPI('${r.id}')">Edit</button>
+      <button class="btn btn-secondary btn-sm hide-on-view" onclick="openPI('${r.id}')">Edit</button>
       <button class="btn btn-print btn-sm" onclick="showPIPrint('${r.pi_number}')">🖨️</button>
-      ${isAdmin?`<button class="btn btn-danger btn-sm" onclick="delRow('pi','${r.id}')">Del</button>`:''}
+      ${canDeleteOn('pi')?`<button class="btn btn-danger btn-sm" onclick="delRow('pi','${r.id}')">Del</button>`:''}
     </div></td></tr>`;
 
   if(page==='po')return`<tr${st.status==='Completed'?' data-done="true"':''}>
@@ -4631,8 +4632,10 @@ async function savePI(){
     })));
   }
   toast('PI saved!','ok');btn.textContent='Save PI';btn.disabled=false;
-  await _recordPIHistory(payload, piFS.ed, piFS.id);
-  closePIForm();loadTable('pi');
+  try{ await _recordPIHistory(piData, piFS.ed, piFS.id); }catch(e){ console.warn('history log skipped:',e); }
+  cache._xref=null; // clear cache so the table shows fresh data
+  closePIForm();
+  await loadTable('pi');
 }
 
 // ── PI PRINT ──────────────────────────────────────────────────────────────────
@@ -5154,7 +5157,7 @@ async function saveForm(){
     :await sb.from(formState.table).insert(data);
   btn.textContent='Save';btn.disabled=false;
   if(error){toast('Error: '+error.message,'err');return;}
-  toast('Saved!','ok');closeForm();loadPage(activePage);
+  toast('Saved!','ok');cache._xref=null;closeForm();loadPage(activePage);
   if(formState.page==='distributors')masterCache.distributors=(await sb.from('distributors').select('*').order('company_name')).data||[];
   if(formState.page==='products')masterCache.products=(await sb.from('products').select('*').order('product_name')).data||[];
   // Auto-create Collections when a Shipment is saved
@@ -5164,11 +5167,11 @@ async function saveForm(){
 }
 
 async function delRow(page,id){
-  if(!canEdit()&&!canDelete()){toast('⛔ View-only access','err');return;}
+  if(!canDeleteOn(page)){toast('⛔ You do not have delete permission for this section','err');return;}
   if(!confirm('Delete this record?'))return;
   const{error}=await sb.from(tbl(page)).delete().eq('id',id);
   if(error){toast('Error: '+error.message,'err');return;}
-  toast('Deleted','ok');loadPage(activePage);
+  toast('Deleted','ok');cache._xref=null;loadPage(activePage);
 }
 
 
@@ -6932,6 +6935,14 @@ function canDelete(){
   if(!_userPerms)return false;
   if(_userPerms.role==='admin'||ADMIN_USERS.includes(getAuth()||''))return true;
   return _userPerms.can_delete===true;
+}
+// Can this user delete a record on a specific section/page?
+// Rule: admins always; otherwise the user must have the delete permission
+// AND edit access to that section (can't delete what you can only view).
+function canDeleteOn(page){
+  if(!_userPerms)return false;
+  if(_userPerms.role==='admin'||ADMIN_USERS.includes(getAuth()||''))return true;
+  return _userPerms.can_delete===true && (_userPerms['perm_'+(page||activePage)]||'view')==='edit';
 }
 
 // ── Block actions if no permission ───────────────────────────────────────────
