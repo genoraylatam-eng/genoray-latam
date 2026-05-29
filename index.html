@@ -4195,7 +4195,7 @@ function rowHTML(page,r){
     ${st.auto?'<td style="font-size:9px;color:var(--g400);white-space:nowrap">⚙ Auto</td>':'<td></td>'}
     ${acts}<td>${repPill(r.pi_number)}</td></tr>`;
 
-  if(page==='shipments')return`<tr>
+  if(page==='shipments')return`<tr${st.status==='Completed'?' data-done="true"':''}>
     <td>${r.shipment_number}</td>
     <td>${r.date||'-'}</td>
     <td>${piLink(r.pi_number,r.pi_number)}</td>
