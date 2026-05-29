@@ -2616,28 +2616,50 @@ async function autoCreateCollection(piNumber, shipAmount){
     .select('pi_number,amount_usd,payment_terms,distributor,country').eq('pi_number',piNumber).single();
   if(!piData)return;
 
-  const terms=(piData.payment_terms||'').toLowerCase();
-  const isPrepaid=terms.includes('before shipment')||terms.includes('tt before');
+  const terms=(piData.payment_terms||'');
+  const tlow=terms.toLowerCase();
+  const isPrepaid=tlow.includes('before shipment')||tlow.includes('tt before')||tlow.includes('in advance')||tlow.includes('at sight');
   const invoiceAmt=parseFloat(piData.amount_usd||shipAmount||0);
 
-  // 3. Create collection record
+  // Find the linked shipment date (= B/L date) for due-date calculation
+  let blDate=null;
+  try{
+    const {data:shData}=await sb.from('shipments')
+      .select('date').eq('pi_number',piNumber).not('date','is',null).order('date').limit(1);
+    if(shData&&shData.length) blDate=shData[0].date;
+  }catch(e){}
+
+  // 3. Build payment schedule (only if we have a B/L date to anchor due dates)
+  let sched=[];
+  if(blDate) sched=computePaymentSchedule(terms, blDate, invoiceAmt);
+
+  // 4. Create collection record
   const payload={
     pi_number:piNumber,
     distributor:piData.distributor||'',
     country:piData.country||'',
     invoice_amount_usd:invoiceAmt,
     collected_amount_usd:isPrepaid?invoiceAmt:0,
+    payment_terms:terms,
+    bl_date:blDate,
     status:isPrepaid?'Collected':'Pending',
-    notes:isPrepaid?'Auto-created: 100% TT before shipment — fully paid':'Auto-created on shipment'
+    notes:isPrepaid?'Auto-created: prepaid terms — fully paid':'Auto-created — collect per payment terms'
   };
+  // Fill installment schedule columns
+  for(let i=1;i<=3;i++){
+    const s=sched[i-1];
+    payload['pay'+i+'_amount']=s?s.amount:null;
+    payload['pay'+i+'_due']=s?(s.due||null):null;
+    // If prepaid, mark installment 1 as received today
+    payload['pay'+i+'_date']=(isPrepaid&&i===1)?new Date().toISOString().slice(0,10):null;
+  }
 
   const {error}=await sb.from('collections').insert(payload);
   if(!error){
     const msg=isPrepaid
-      ?'✅ Collections: auto-marked as Collected (TT before shipment)'
-      :'📋 Collections: new Pending record created for '+piNumber;
+      ?'✅ Collections: auto-marked as Collected (prepaid terms)'
+      :'📋 Collections: new record created for '+piNumber+' — 수금을 조건에 맞춰 진행하세요';
     toast(msg,'ok');
-    // Invalidate xref cache
     cache._xref=null;
   }
 }
@@ -3962,6 +3984,55 @@ async function loadXRef(){
   return cache._xref;
 }
 
+// ── PAYMENT SCHEDULE CALCULATOR ───────────────────────────────────────────────
+// Given payment terms text + B/L (shipping) date + total invoice amount,
+// returns up to 3 installments: [{amount, due}], each with a due date.
+// The result is a STARTING SUGGESTION — the user can edit any value manually.
+function computePaymentSchedule(termsText, blDate, totalAmount){
+  const t=(termsText||'').toLowerCase();
+  const total=parseFloat(totalAmount)||0;
+  const base=blDate?new Date(blDate):null;
+  const addDays=(dt,n)=>{ if(!dt)return null; const d=new Date(dt); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
+  const blStr=base?base.toISOString().slice(0,10):null;
+  const r2=n=>Math.round(n*100)/100;
+
+  // Detect advance percentage and balance term days
+  let advPct=100, balDays=0;
+  if(t.includes('before shipment')||t.includes('in advance')||t.includes('at sight')||t.includes('100%')){
+    advPct=100; balDays=0;
+  } else if(/30\s*%/.test(t)&&/70\s*%/.test(t)){
+    advPct=30;
+  } else if(t.includes('50/50')||(/50\s*%/.test(t))){
+    advPct=50;
+  }
+  // Balance term days (60 / 90 / 120 / 45 / 30)
+  const dm=t.match(/(\d{2,3})\s*d/);
+  if(dm) balDays=parseInt(dm[1]);
+  else if(t.includes('against b/l')||t.includes('b/l documents')) balDays=0;
+
+  const sched=[];
+  // Installment 1 — advance, due on B/L (shipping) date
+  sched.push({ amount:r2(total*advPct/100), due:blStr });
+  // Installment 2 — balance, due balDays after B/L
+  if(advPct<100){
+    sched.push({ amount:r2(total*(100-advPct)/100), due:addDays(base,balDays) });
+  }
+  // Installment 3 left blank for manual entry (further splits)
+  return sched;
+}
+
+// Human-readable rule explanation for the current terms (shown to reps)
+function explainPaymentRule(termsText){
+  const t=(termsText||'').toLowerCase();
+  if(t.includes('before shipment')) return '100% T/T before shipment → 전액을 선적일에 수금 (1회).';
+  if(t.includes('in advance')&&t.includes('100%')) return '100% in advance → 전액을 선적 전에 수금 (1회).';
+  if(t.includes('at sight')) return 'L/C at Sight → 선적 서류 제출 시 전액 결제 (1회).';
+  if(/30\s*%/.test(t)&&/70\s*%/.test(t)) return '30% 선불(선적일) + 70% 잔금(B/L 기준).';
+  const dm=t.match(/(\d{2,3})\s*d/);
+  if(t.includes('50/50')||/50\s*%/.test(t)) return `50% 선불(선적일) + 50% 잔금(B/L + ${dm?dm[1]:'__'}일).`;
+  return '결제 조건을 확인하고 회차별 금액·예정일을 직접 입력하세요.';
+}
+
 function autoStatus(page, r, xref){
   // Returns {status, auto:true/false}
   // auto=true means we computed it; auto=false means keep manual (Cancelled)
@@ -4946,10 +5017,30 @@ const FORMS={
 
   collections:d=>`<div class="form-grid">
     <div class="fg"><label>Collection ID</label><input name="collection_id" value="${esc(d.collection_id||'')}"></div>
-    <div class="fg"><label>PI Number</label><input name="pi_number" value="${esc(d.pi_number||'')}"></div>
+    <div class="fg"><label>PI Number</label><input name="pi_number" id="col-pi" value="${esc(d.pi_number||'')}" oninput="colSyncTermsFromPI()"></div>
     ${acDistFg('ac-col',d.distributor||'')}${cntryFg('cnt-col',d.country||'')}
-    <div class="fg"><label>Invoice Amount (USD)</label><input type="number" name="invoice_amount_usd" value="${d.invoice_amount_usd||''}"></div>
-    <div class="fg"><label>Collected Amount (USD)</label><input type="number" name="collected_amount_usd" value="${d.collected_amount_usd||''}"></div>
+    <div class="fg"><label>Invoice Amount (USD)</label><input type="number" name="invoice_amount_usd" id="col-inv" value="${d.invoice_amount_usd||''}" oninput="colRecalcBalance()"></div>
+    <div class="fg"><label>Shipping / B/L Date</label><input type="date" name="bl_date" id="col-bl" value="${d.bl_date||''}"></div>
+    <div class="fg full"><label>Payment Terms (PI 기준)</label><input name="payment_terms" id="col-terms" value="${esc(d.payment_terms||'')}" placeholder="예: 50/50 (90d B/L)"></div>
+    <div class="fg full" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 12px;margin:2px 0">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <span style="font-size:11px;color:#0369a1" id="col-rule">규칙: PI Number와 B/L Date를 입력하면 자동 계산할 수 있어요.</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="colAutoFillSchedule()" style="white-space:nowrap">⚡ 자동 계산</button>
+      </div>
+    </div>
+
+    <div class="fg full"><label style="font-weight:700;color:var(--g700)">입금 스케줄 (자동 계산 후 직접 수정 가능)</label></div>
+    ${[1,2,3].map(i=>`
+    <div class="fg"><label>${i}차 ${i===1?'(선불)':'(잔금)'} 금액</label><input type="number" name="pay${i}_amount" id="col-p${i}a" value="${d['pay'+i+'_amount']||''}" oninput="colRecalcBalance()"></div>
+    <div class="fg"><label>${i}차 예정일 (Due)</label><input type="date" name="pay${i}_due" value="${d['pay'+i+'_due']||''}"></div>
+    <div class="fg"><label>${i}차 실제 수금일</label><input type="date" name="pay${i}_date" value="${d['pay'+i+'_date']||''}"></div>
+    `).join('')}
+
+    <div class="fg"><label>Collected (총 수금액)</label><input type="number" name="collected_amount_usd" id="col-collected" value="${d.collected_amount_usd||''}" oninput="colRecalcBalance()"></div>
+    <div class="fg"><label>Balance (잔액)</label><input type="text" id="col-balance" readonly value="" style="background:var(--g50);font-weight:700"></div>
+    <div class="fg full">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="colMarkAllReceived()" style="background:#dcfce7;color:#065f46;border-color:#86efac">✅ All Received (전액 수금 처리)</button>
+    </div>
     <div class="fg"><label>Collection Date</label><input type="date" name="collection_date" value="${d.collection_date||tod()}"></div>
     <div class="fg"><label>Status</label><select name="status">${selOpts(['Pending','Collected','Partial','Overdue'],d.status||'Pending')}</select></div>
     <div class="fg full"><label>Notes</label><textarea name="notes">${esc(d.notes||'')}</textarea></div>
@@ -5107,6 +5198,10 @@ async function openForm(page,id=null){
   document.getElementById('modal-title').textContent=(id?'Edit ':'New ')+MTITLES[page];
   document.getElementById('modal-body').innerHTML=FORMS[page]({...d,id});
   if(page==='products'){const selDiv=d.code?d.code.split('-')[0]==='MED'?'Medical':'Dental':'';const selCat=d.code?d.code.split('-')[1]||'':'';setTimeout(()=>_initProdCats(selDiv,selCat),40);}
+  if(page==='collections'){
+    await loadXRef();           // ensure PI/shipment lookup available for auto-fill
+    setTimeout(()=>{ colUpdateRuleHint(); colRecalcBalance(); },50);
+  }
   document.getElementById('overlay').classList.add('show');
   setTimeout(()=>{
     // Distributor autocomplete for relevant fields
@@ -5127,6 +5222,85 @@ async function loadTableSilent(page){
 
 function closeForm(){document.getElementById('overlay').classList.remove('show');}
 
+// ── COLLECTION FORM HELPERS ───────────────────────────────────────────────────
+// Pull payment terms + invoice amount from the linked PI when PI Number is typed
+function colSyncTermsFromPI(){
+  const pin=(document.getElementById('col-pi')?.value||'').trim();
+  if(!pin)return;
+  const xr=cache._xref;
+  const pi=(xr&&xr.pi||[]).find(p=>p.pi_number===pin);
+  if(!pi)return;
+  const termsEl=document.getElementById('col-terms');
+  const invEl=document.getElementById('col-inv');
+  if(termsEl&&!termsEl.value) termsEl.value=pi.payment_terms||'';
+  if(invEl&&!invEl.value) invEl.value=pi.amount_usd||'';
+  // also try to fill B/L date from the linked shipment
+  const blEl=document.getElementById('col-bl');
+  if(blEl&&!blEl.value){
+    const sh=(xr&&xr.sh||[]).find(s=>s.pi_number===pin&&s.date);
+    if(sh) blEl.value=sh.date;
+  }
+  colUpdateRuleHint();
+}
+
+function colUpdateRuleHint(){
+  const terms=document.getElementById('col-terms')?.value||'';
+  const el=document.getElementById('col-rule');
+  if(el) el.textContent='규칙: '+explainPaymentRule(terms);
+}
+
+// Fill the 3-installment schedule automatically from terms + B/L date + invoice
+function colAutoFillSchedule(){
+  const terms=document.getElementById('col-terms')?.value||'';
+  const bl=document.getElementById('col-bl')?.value||'';
+  const inv=parseFloat(document.getElementById('col-inv')?.value||0);
+  if(!inv){ toast('Invoice Amount를 먼저 입력하세요','err'); return; }
+  if(!bl){ toast('Shipping / B/L Date를 먼저 입력하세요','err'); return; }
+  const sched=computePaymentSchedule(terms, bl, inv);
+  for(let i=1;i<=3;i++){
+    const amtEl=document.querySelector(`[name="pay${i}_amount"]`);
+    const dueEl=document.querySelector(`[name="pay${i}_due"]`);
+    const s=sched[i-1];
+    if(amtEl) amtEl.value = s ? s.amount : '';
+    if(dueEl) dueEl.value = s ? (s.due||'') : '';
+  }
+  colUpdateRuleHint();
+  colRecalcBalance();
+  toast('✅ 스케줄 자동 계산됨 — 필요하면 직접 수정하세요','ok');
+}
+
+// Recompute balance = invoice − collected. If collected is blank, sum actual-received installments.
+function colRecalcBalance(){
+  const inv=parseFloat(document.getElementById('col-inv')?.value||0);
+  let collected=parseFloat(document.getElementById('col-collected')?.value||0);
+  // If no explicit collected total, sum installments that have an actual received date
+  if(!collected){
+    let sum=0;
+    for(let i=1;i<=3;i++){
+      const dt=document.querySelector(`[name="pay${i}_date"]`)?.value;
+      const amt=parseFloat(document.getElementById('col-p'+i+'a')?.value||0);
+      if(dt&&amt) sum+=amt;
+    }
+    collected=sum;
+  }
+  const bal=Math.max(0, inv-collected);
+  const balEl=document.getElementById('col-balance');
+  if(balEl) balEl.value = '$'+ (Math.round(bal*100)/100).toLocaleString('en-US');
+}
+
+// Mark everything received: collected = invoice, status = Collected, today as collection date
+function colMarkAllReceived(){
+  const inv=parseFloat(document.getElementById('col-inv')?.value||0);
+  if(!inv){ toast('Invoice Amount를 먼저 입력하세요','err'); return; }
+  const collEl=document.getElementById('col-collected');
+  if(collEl) collEl.value=inv;
+  const statusEl=document.querySelector('[name="status"]');
+  if(statusEl) statusEl.value='Collected';
+  const cdEl=document.querySelector('[name="collection_date"]');
+  if(cdEl&&!cdEl.value) cdEl.value=new Date().toISOString().slice(0,10);
+  colRecalcBalance();
+  toast('✅ 전액 수금 처리됨','ok');
+}
 
 async function saveForm(){
   if(!guardEdit())return;
@@ -5173,6 +5347,11 @@ async function saveForm(){
   // Auto-create Collections when a Shipment is saved
   if(formState.page==='shipments'&&data.pi_number){
     await autoCreateCollection(data.pi_number, data.amount_usd||0);
+  }
+  // Auto-create Collections + remind when an HQ PO is created (PI → HQ PO transition)
+  if(formState.page==='hqpo'&&data.pi_number){
+    await autoCreateCollection(data.pi_number, data.pi_total_usd||0);
+    toast('🔔 '+data.pi_number+' 가 수금 목록에 추가되었습니다 — 결제 조건에 맞춰 수금을 진행하세요','ok');
   }
 }
 
