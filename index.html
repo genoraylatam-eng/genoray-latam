@@ -57,7 +57,7 @@ body{display:flex;height:100vh;background:var(--g100);color:var(--g900);font-siz
 #page-title{font-size:17px;font-weight:700}
 .tbadge{background:var(--blue-pale);color:var(--blue);font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;margin-left:8px}
 #content{flex:1;overflow-y:auto;padding:24px}
-.page{display:none}.page.active{display:block}
+.page{display:none}.page.active{display:block}#page-notifications.active{display:flex}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 @keyframes slideUp{from{transform:translateY(100px);opacity:0}to{transform:translateY(0);opacity:1}}
 /* Hide-completed toggle */
@@ -1120,7 +1120,7 @@ tr[data-paid="true"] td{opacity:.55}
     </div>
 
     <!-- NOTIFICATIONS / MESSAGES -->
-    <div id="page-notifications" class="page" style="padding:0;display:flex;flex-direction:column;height:calc(100vh - 56px)">
+    <div id="page-notifications" class="page" style="padding:0;flex-direction:column;height:calc(100vh - 56px)">
 
       <!-- Top Bar -->
       <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1.5px solid var(--g100);background:#fff;flex-shrink:0">
@@ -2569,17 +2569,14 @@ function _canChangeRep(){
 
 function _getSalesRepOptions(selected){
   const currentUser=getAuth()||'';
-  const canChange=_canChangeRep();
   const allReps=(masterCache.userPerms||[]).filter(u=>u.is_active).map(u=>({
     id:u.username, name:u.display_name||u.username
   }));
+  // Always show ALL active reps — restriction is on the select element, not options
   const reps=allReps.length>0?allReps:[{id:currentUser,name:currentUser}];
-  // Only authorized users see all reps; others locked to themselves
-  const filtered=canChange?reps:reps.filter(r=>r.id===currentUser);
-  if(!filtered.some(r=>r.id===currentUser)&&currentUser){
-    filtered.unshift({id:currentUser,name:currentUser});
-  }
-  return filtered.map(r=>`<option value="${esc(r.id)}" ${(selected||(piFS.ed?.sales_rep)||currentUser)===r.id?'selected':''}>${esc(r.name)}</option>`).join('');
+  if(!reps.some(r=>r.id===currentUser)&&currentUser) reps.unshift({id:currentUser,name:currentUser});
+  const sel=selected||(piFS.ed?.sales_rep)||currentUser;
+  return reps.map(r=>`<option value="${esc(r.id)}" ${sel===r.id?'selected':''}>${esc(r.name)}</option>`).join('');
 }
 
 // ── AUTO-CREATE COLLECTIONS ON SHIPMENT ──────────────────────────────────────
@@ -4442,7 +4439,7 @@ function renderPIForm(){
     <div class="fg"><label>Delivery</label><input id="pif-delivery" value="${d.delivery||'4 weeks after receipt of payment'}"></div>
     <div class="fg"><label>Authorized By (Seller)</label><input id="pif-auth" value="${d.authorized_by||'Christopher Yoon'}"></div>
     <div class="fg"><label style="font-weight:700"><span style="color:var(--red)">*</span> Sales Rep <span style="font-size:10px;color:var(--g400);font-weight:400">(required · not printed)</span></label>
-      <select id="pif-sales-rep" required style="border-color:var(--purple);background:#faf5ff;font-weight:600;color:var(--g900)" ${!_canChangeRep()&&piFS.id?'disabled title="Locked — contact admin to reassign"':''}>\n        <option value="">— Select —</option>\n        ${_getSalesRepOptions(d.sales_rep)}\n      </select>\n      ${!_canChangeRep()&&piFS.id?'<div style="font-size:10px;color:var(--amber);margin-top:2px">🔒 Only admin or authorized users can change the assigned rep</div>':''}
+      <select id="pif-sales-rep" required style="border-color:var(--purple);background:#faf5ff;font-weight:600;color:var(--g900)" ${piFS.id&&!_canChangeRep()?"disabled title=\"Only admin can reassign rep\"":""}>\n        <option value="">— Select —</option>\n        ${_getSalesRepOptions(d.sales_rep)}\n      </select>\n      ${!_canChangeRep()&&piFS.id?'<div style="font-size:10px;color:var(--amber);margin-top:2px">🔒 Only admin or authorized users can change the assigned rep</div>':''}
     </div>
     <div class="fg full"><label>Notes / Remarks</label><textarea id="pif-notes">${d.notes||''}</textarea></div>
   </div>`;
