@@ -2198,7 +2198,24 @@ async function updateUserPerm(username, field, value){
     .eq('username',username);
   if(error){toast('Error: '+error.message,'err');return;}
   toast('✅ Saved');
+  // If the edited user is the current user, reload their live permissions
+  // so their OWN menus/buttons update without a manual refresh.
   if(username===getAuth()) await loadUserPermissions(username);
+  // Keep the cached admin list in sync so the change persists if the panel
+  // re-renders, and recolor the just-changed permission dropdown in place
+  // (no full reload → the user's scroll position and focus are preserved).
+  if(masterCache.userPerms){
+    const u=masterCache.userPerms.find(x=>x.username===username);
+    if(u) u[field]=value;
+  }
+  if(typeof field==='string' && field.indexOf('perm_')===0){
+    const sel=document.querySelector(`select[onchange*="updateUserPerm('${username}','${field}'"]`);
+    if(sel){
+      const pColor={edit:'#dcfce7|#065f46|#86efac',view:'#dbeafe|#1e40af|#93c5fd',none:'#f1f5f9|#94a3b8|#e2e8f0'};
+      const [bg,tx,bd]=(pColor[value]||pColor.view).split('|');
+      sel.setAttribute('style',`padding:3px 5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;background:${bg};color:${tx};border:1px solid ${bd}`);
+    }
+  }
 }
 
 async function toggleUserActive(username, isActive){
