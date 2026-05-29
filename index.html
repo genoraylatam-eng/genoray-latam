@@ -8132,18 +8132,19 @@ function updateBellBadge(){
   const me=getAuth();
   const badge=document.getElementById('notif-badge');
   if(!badge)return;
-  // 🔴 Unread messages/alerts TO me (from others, not yet read)
+  // 🔴 Unread messages RECEIVED by me (from others only)
   const unreadMsgs=_notifData.filter(n=>
     n.type==='message'&&n.to_user===me&&
     n.from_user!==me&&!(n.read_by||[]).includes(me)
   ).length;
-  // 🔴 Unread alerts TO me
+  // 🔴 Unread alerts RECEIVED by me (not sent by me)
   const unreadAlerts=_notifData.filter(n=>
-    n.type==='alert'&&n.to_user===me&&!(n.read_by||[]).includes(me)
-  ).length;
-  // 🟡 Alerts TO me: read but no response yet
-  const needsReply=_notifData.filter(n=>
     n.type==='alert'&&n.to_user===me&&
+    n.from_user!==me&&!(n.read_by||[]).includes(me)
+  ).length;
+  // 🟡 Alerts received, opened, but no response yet
+  const needsReply=_notifData.filter(n=>
+    n.type==='alert'&&n.to_user===me&&n.from_user!==me&&
     (n.read_by||[]).includes(me)&&
     !(_delayResponses||[]).some(r=>r.notification_id===n.id)
   ).length;
@@ -8187,18 +8188,19 @@ function buildConvList(){
 
   const convs=[];
 
-  // 1. System Alerts — only count alerts RECEIVED by me
+  // 1. System Alerts
   const alerts=_notifData.filter(n=>n.type==='alert');
-  const myAlerts=alerts.filter(n=>n.to_user===me);               // alerts sent TO me
-  const alertUnread=myAlerts.filter(n=>!(n.read_by||[]).includes(me)).length;  // truly unread (red)
-  const alertNeedsReply=myAlerts.filter(n=>                       // read but no response (amber)
+  // Count ONLY alerts specifically sent TO me (excludes: sent-by-me, broadcast to_user=null)
+  const receivedAlerts=alerts.filter(n=>n.to_user===me&&n.from_user!==me);
+  const alertUnread=receivedAlerts.filter(n=>!(n.read_by||[]).includes(me)).length; // 🔴 not yet opened
+  const alertNeedsReply=receivedAlerts.filter(n=>                                    // 🟡 opened, no response
     (n.read_by||[]).includes(me)&&
     !(_delayResponses||[]).some(r=>r.notification_id===n.id)
   ).length;
   convs.push({
     key:'alerts',icon:'⚠️',label:'System Alerts',
-    unread:alertUnread,         // 🔴 count
-    needsReply:alertNeedsReply, // 🟡 count
+    unread:alertUnread,
+    needsReply:alertNeedsReply,
     type:'alerts'
   });
 
@@ -8207,22 +8209,27 @@ function buildConvList(){
   const annUnread=anns.filter(n=>!(n.read_by||[]).includes(me)&&n.from_user!==me).length;
   if(anns.length) convs.push({key:'announcements',icon:'📢',label:'Announcements',unread:annUnread,needsReply:0,type:'announcements'});
 
-  // 3. Per-person conversations — UNREAD ONLY (like WhatsApp/iMessage)
+  // 3. Per-person conversations — RECEIVED UNREAD ONLY (like WhatsApp/iMessage)
   const userMsgs={};
-  _notifData.filter(n=>n.type==='message'||(!n.to_user&&n.type!=='alert'&&n.type!=='announcement')).forEach(n=>{
+  _notifData.filter(n=>n.type==='message').forEach(n=>{
     const other=n.from_user===me?n.to_user:n.from_user;
     if(!other||other==='system')return;
-    if(!userMsgs[other])userMsgs[other]={msgs:[],unread:0};
+    if(!userMsgs[other])userMsgs[other]={msgs:[],unread:0,lastFrom:null};
     userMsgs[other].msgs.push(n);
-    // Count only messages FROM the other person that I haven't read
+    // Badge: ONLY messages FROM the other person that I haven't read yet
     if(n.from_user!==me&&!(n.read_by||[]).includes(me)) userMsgs[other].unread++;
+    // Track most recent message for preview (regardless of direction)
+    if(!userMsgs[other].lastFrom||new Date(n.created_at)>new Date(userMsgs[other].lastFrom.created_at))
+      userMsgs[other].lastFrom=n;
   });
 
   Object.entries(userMsgs).sort((a,b)=>{
     const la=a[1].msgs[0]?.created_at||''; const lb=b[1].msgs[0]?.created_at||'';
     return lb.localeCompare(la);
-  }).forEach(([user,{msgs,unread}])=>{
-    convs.push({key:'user:'+user,icon:'💬',label:'@'+user,unread,needsReply:0,type:'user',user,last:msgs[0]});
+  }).forEach(([user,{msgs,unread,lastFrom}])=>{
+    // Sort so most recent is first for preview
+    const sorted=[...msgs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+    convs.push({key:'user:'+user,icon:'💬',label:'@'+user,unread,needsReply:0,type:'user',user,last:sorted[0]});
   });
 
   // Render conversation items in left panel
@@ -8346,118 +8353,197 @@ function renderMsgThread(el,msgs,me,otherUser){
 
 function renderAlertThread(el){
   const me=getAuth();
-  const alerts=_notifData.filter(n=>n.type==='alert');
+  const stageKeys=['no_action','hqpo_delay','col_delay','col_setup','po_delay'];
+  const stageLbls={no_action:'No Action',hqpo_delay:'Awaiting Shipment',col_delay:'Collection Pending',col_setup:'Collection Incomplete'};
 
-  if(!alerts.length){
-    el.innerHTML='<div style="text-align:center;color:var(--g300);font-size:13px;margin-top:40px">✅ No delay alerts</div>';
-    return;
+  // Helper: parse PI number + stage from related_id
+  function parseRelated(related_id){
+    for(const sk of stageKeys){
+      if((related_id||'').endsWith('_'+sk))
+        return{piNumber:(related_id||'').slice(0,-(sk.length+1)),stage:sk};
+    }
+    return{piNumber:'',stage:''};
   }
 
-  // Group by to_user
-  const byUser={};
-  alerts.forEach(n=>{
-    const u=n.to_user||'ALL';
-    if(!byUser[u])byUser[u]=[];
-    byUser[u].push(n);
-  });
-
-  // Helper: render reply thread rows (shared by sent & received)
-  const replyRows=replies=>`${replies.map(rep=>`
+  // Helper: reply rows
+  const replyRows=replies=>replies.map(rep=>`
     <div style="padding:8px 12px 8px 32px;background:#f0fdf4;border-top:1px solid #bbf7d0">
       <div style="font-size:11px;font-weight:700;color:var(--g600);margin-bottom:3px">📝 @${esc(rep.responded_by)} · ${fmtAgo(rep.responded_at)}</div>
       <div style="font-size:11px;color:var(--g700);margin-bottom:2px"><strong>Reason:</strong> ${esc((rep.reason||'').split('\n')[0])}</div>
       <div style="font-size:11px;color:var(--g700)"><strong>Action:</strong> ${esc(rep.action_plan||'')}</div>
       ${(rep.reason||'').includes('Expected')
-        ?`<div style="font-size:10px;color:var(--g500);margin-top:2px">📅 ${esc((rep.reason||'').split('Expected resolution:')[1]||'').trim()}</div>`
-        :''}
-    </div>
-  `).join('')}`;
+        ?`<div style="font-size:10px;color:var(--g500);margin-top:2px">📅 ${esc((rep.reason||'').split('Expected resolution:')[1]||'').trim()}</div>`:''}
+    </div>`).join('');
 
-  el.innerHTML=Object.entries(byUser).map(([user,userAlerts])=>{
-    // Determine if I am the recipient of this group's alerts
-    const iAmRecipient=(user===me);
-    const groupLabel=iAmRecipient
-      ?`<span style="background:#fef2f2;color:#dc2626;font-weight:800;padding:2px 8px;border-radius:6px;font-size:10px">📥 Received — @${esc(user)}</span>`
-      :`<span style="background:#eff6ff;color:#1d4ed8;font-weight:800;padding:2px 8px;border-radius:6px;font-size:10px">📤 Sent → @${esc(user)}</span>`;
+  const allAlerts=_notifData.filter(n=>n.type==='alert');
+  if(!allAlerts.length){
+    el.innerHTML='<div style="text-align:center;color:var(--g300);font-size:13px;margin-top:40px">✅ No delay alerts</div>';
+    return;
+  }
 
-    return`<div style="margin-bottom:18px">
-      <div style="padding:6px 0 6px;display:flex;align-items:center;gap:6px">${groupLabel}</div>
-      ${userAlerts.map(n=>{
-        const stageKeys=['no_action','hqpo_delay','col_delay','col_setup','po_delay'];
-        let piNumber='',stage='';
-        for(const sk of stageKeys){
-          if((n.related_id||'').endsWith('_'+sk)){
-            piNumber=(n.related_id||'').slice(0,-(sk.length+1)); stage=sk; break;
-          }
-        }
-        const stageLbl={no_action:'No Action',hqpo_delay:'Awaiting Shipment',col_delay:'Collection Pending',col_setup:'Collection Incomplete'}[stage]||stage;
-        const delayDays=(n.message||'').match(/Delayed: (\d+)/)?.[1]||'';
-        const replies=(_delayResponses||[]).filter(r=>r.notification_id===n.id);
-        const isEsc=n.title.startsWith('🔴');
-        const isRead=(n.read_by||[]).includes(me);
+  // ── Separate: alerts TO me (received) vs alerts NOT to me (sent/broadcast) ──
+  const received=allAlerts.filter(n=>n.to_user===me&&n.from_user!==me);
+  const sent=allAlerts.filter(n=>n.to_user!==me||n.from_user===me);
 
-        if(iAmRecipient){
-          // ── RECEIVED: I need to respond ──────────────────────────────────────
-          const needsResponse=!replies.length;
-          const borderColor=needsResponse?'#fecaca':replies.length?'#bbf7d0':'var(--g100)';
-          const bgColor=isEsc?'#fff7f7':needsResponse?'#fff5f5':'#f0fdf4';
-          return`<div style="border:1.5px solid ${borderColor};border-radius:10px;overflow:hidden;margin-bottom:7px;background:#fff">
-            <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:${bgColor}">
-              <span style="font-size:13px">${isEsc?'🔴':'🚫'}</span>
-              <div style="flex:1;min-width:0">
-                <div style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-                  ${piNumber?`<span onclick="goToRecord('pi','${esc(piNumber)}')" style="color:var(--blue);text-decoration:underline;cursor:pointer;font-weight:800">${esc(piNumber)}</span>`:''}
-                  <span style="color:var(--g500);font-weight:500;font-size:11px">${esc(stageLbl)}</span>
-                  ${delayDays?`<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px">${delayDays}d delay</span>`:''}
-                  ${isEsc?'<span style="font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:700">ESCALATED</span>':''}
-                  ${needsResponse
-                    ?'<span style="font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 7px;border-radius:4px;font-weight:800;border:1px solid #fecaca">⚠️ Response Required</span>'
-                    :'<span style="font-size:10px;background:#dcfce7;color:#065f46;padding:1px 5px;border-radius:4px;font-weight:700">✓ Replied</span>'}
-                </div>
-                <div style="font-size:10px;color:var(--g400);margin-top:2px">${fmtAgo(n.created_at)}</div>
-              </div>
-              <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
-                ${!isRead?`<button onclick="markRead('${n.id}')" title="Mark read" style="padding:2px 7px;border:1px solid var(--g200);border-radius:5px;background:#fff;font-size:10px;cursor:pointer">✓</button>`:''}
-                ${piNumber?`<button onclick="openDelayResponse('${n.id}','${esc(piNumber)}','${esc(stage)}')" style="padding:3px 10px;border:none;border-radius:6px;background:${replies.length?'#059669':'#dc2626'};color:#fff;font-size:11px;font-weight:700;cursor:pointer">${replies.length?'📝 Add':'📝 Respond'}</button>`:''}
-                <button onclick="openForwardAlert('${n.id}','${esc(piNumber)}','${esc(stage)}')" title="Forward/CC" style="padding:2px 7px;border:1px solid var(--g200);border-radius:5px;background:#fff;font-size:10px;cursor:pointer">📤 CC</button>
-                <button onclick="deleteNotif('${n.id}','false')" title="Delete" style="padding:2px 5px;border:1px solid var(--g100);border-radius:5px;background:#fff;font-size:10px;cursor:pointer;color:var(--g300)">🗑</button>
-              </div>
+  // ── SENT: group by recipient + base PI+stage key → show timeline ────────────
+  // Key: to_user + '::' + piNumber + '_' + stage
+  const sentGroups={};
+  sent.forEach(n=>{
+    const{piNumber,stage}=parseRelated(n.related_id);
+    if(!piNumber)return; // skip if unrecognised
+    const recipient=n.to_user||'ALL';
+    const groupKey=recipient+'::'+piNumber+'_'+stage;
+    if(!sentGroups[groupKey])sentGroups[groupKey]={recipient,piNumber,stage,alerts:[],replies:[]};
+    sentGroups[groupKey].alerts.push(n);
+    // Collect replies for all alerts in this group
+    (_delayResponses||[]).filter(r=>r.notification_id===n.id)
+      .forEach(r=>sentGroups[groupKey].replies.push(r));
+  });
+  // Sort alerts within each group by date ascending (timeline order)
+  Object.values(sentGroups).forEach(g=>{
+    g.alerts.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+  });
+
+  // ── Build HTML ──────────────────────────────────────────────────────────────
+  let html='';
+
+  // RECEIVED section
+  if(received.length){
+    // Group received by to_user (should all be me)
+    const byRecipient={};
+    received.forEach(n=>{
+      const u=n.to_user||'me';
+      if(!byRecipient[u])byRecipient[u]=[];
+      byRecipient[u].push(n);
+    });
+
+    html+=`<div style="padding:6px 0 4px;display:flex;align-items:center;gap:6px">
+      <span style="background:#fef2f2;color:#dc2626;font-weight:800;padding:2px 8px;border-radius:6px;font-size:10px">📥 Received (${received.length})</span>
+    </div>`;
+
+    html+=received.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(n=>{
+      const{piNumber,stage}=parseRelated(n.related_id);
+      const stageLbl=stageLbls[stage]||stage;
+      const delayDays=(n.message||'').match(/Delayed: (\d+)/)?.[1]||'';
+      const replies=(_delayResponses||[]).filter(r=>r.notification_id===n.id);
+      const isEsc=n.title.startsWith('🔴');
+      const isRead=(n.read_by||[]).includes(me);
+      const needsResponse=!replies.length;
+      const borderColor=needsResponse?'#fecaca':'#bbf7d0';
+      const bgColor=isEsc?'#fff7f7':needsResponse?'#fff5f5':'#f0fdf4';
+      return`<div style="border:1.5px solid ${borderColor};border-radius:10px;overflow:hidden;margin-bottom:7px;background:#fff">
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:${bgColor}">
+          <span style="font-size:13px">${isEsc?'🔴':'🚫'}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+              ${piNumber?`<span onclick="goToRecord('pi','${esc(piNumber)}')" style="color:var(--blue);text-decoration:underline;cursor:pointer;font-weight:800">${esc(piNumber)}</span>`:''}
+              <span style="color:var(--g500);font-weight:500;font-size:11px">${esc(stageLbl)}</span>
+              ${delayDays?`<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px">${delayDays}d delay</span>`:''}
+              ${isEsc?'<span style="font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:700">ESCALATED</span>':''}
+              ${needsResponse
+                ?'<span style="font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 7px;border-radius:4px;font-weight:800;border:1px solid #fecaca">⚠️ Response Required</span>'
+                :'<span style="font-size:10px;background:#dcfce7;color:#065f46;padding:1px 5px;border-radius:4px;font-weight:700">✓ Replied</span>'}
             </div>
-            ${replyRows(replies)}
-          </div>`;
+            <div style="font-size:10px;color:var(--g400);margin-top:2px">${fmtAgo(n.created_at)}</div>
+          </div>
+          <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
+            ${!isRead?`<button onclick="markRead('${n.id}')" title="Mark read" style="padding:2px 7px;border:1px solid var(--g200);border-radius:5px;background:#fff;font-size:10px;cursor:pointer">✓</button>`:''}
+            ${piNumber?`<button onclick="openDelayResponse('${n.id}','${esc(piNumber)}','${esc(stage)}')" style="padding:3px 10px;border:none;border-radius:6px;background:${replies.length?'#059669':'#dc2626'};color:#fff;font-size:11px;font-weight:700;cursor:pointer">${replies.length?'📝 Add':'📝 Respond'}</button>`:''}
+            <button onclick="openForwardAlert('${n.id}','${esc(piNumber)}','${esc(stage)}')" title="Forward/CC" style="padding:2px 7px;border:1px solid var(--g200);border-radius:5px;background:#fff;font-size:10px;cursor:pointer">📤 CC</button>
+            <button onclick="deleteNotif('${n.id}','false')" title="Delete" style="padding:2px 5px;border:1px solid var(--g100);border-radius:5px;background:#fff;font-size:10px;cursor:pointer;color:var(--g300)">🗑</button>
+          </div>
+        </div>
+        ${replyRows(replies)}
+      </div>`;
+    }).join('');
+  }
 
-        } else {
-          // ── SENT: I sent this alert, tracking response from recipient ─────────
-          const awaitingReply=!replies.length;
-          const borderColor=awaitingReply?'#fcd34d':replies.length?'var(--g100)':'var(--g100)';
-          const bgColor=awaitingReply?'#fefce8':'#fff';
-          return`<div style="border:1px solid ${borderColor};border-radius:10px;overflow:hidden;margin-bottom:7px;background:#fff">
-            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${bgColor}">
-              <span style="font-size:13px;color:var(--g400)">📤</span>
+  // SENT section — grouped by PI+stage, full timeline
+  const sentArr=Object.values(sentGroups);
+  if(sentArr.length){
+    // Group by recipient for display header
+    const byRecipient={};
+    sentArr.forEach(g=>{
+      if(!byRecipient[g.recipient])byRecipient[g.recipient]=[];
+      byRecipient[g.recipient].push(g);
+    });
+
+    html+=`<div style="margin-top:${received.length?'18px':'0px'}"></div>`;
+
+    Object.entries(byRecipient).forEach(([recipient,groups])=>{
+      // Sort groups: awaiting-reply first, then by latest alert date desc
+      groups.sort((a,b)=>{
+        const aRepl=a.replies.length; const bRepl=b.replies.length;
+        if(aRepl!==bRepl)return aRepl-bRepl; // no reply first
+        const aLast=a.alerts[a.alerts.length-1]?.created_at||'';
+        const bLast=b.alerts[b.alerts.length-1]?.created_at||'';
+        return bLast.localeCompare(aLast);
+      });
+
+      const totalPending=groups.filter(g=>!g.replies.length).length;
+      html+=`<div style="padding:6px 0 4px;display:flex;align-items:center;gap:6px">
+        <span style="background:#eff6ff;color:#1d4ed8;font-weight:800;padding:2px 8px;border-radius:6px;font-size:10px">📤 Sent → @${esc(recipient)}</span>
+        ${totalPending?`<span style="font-size:10px;color:#92400e;background:#fef3c7;padding:1px 7px;border-radius:6px;font-weight:700">⏳ ${totalPending} awaiting reply</span>`:'<span style="font-size:10px;color:#065f46;background:#dcfce7;padding:1px 7px;border-radius:6px;font-weight:700">✓ All replied</span>'}
+      </div>`;
+
+      html+=groups.map(g=>{
+        const stageLbl=stageLbls[g.stage]||g.stage;
+        const awaitingReply=!g.replies.length;
+        const latestAlert=g.alerts[g.alerts.length-1];
+        const delayDays=(latestAlert.message||'').match(/Delayed: (\d+)/)?.[1]||'';
+        const borderColor=awaitingReply?'#fcd34d':'var(--g200)';
+        const bgColor=awaitingReply?'#fefce8':'#fafafa';
+        const firstId=g.alerts[0].id;
+        const lastId=latestAlert.id;
+
+        // Build send history timeline
+        const timeline=g.alerts.map((a,i)=>{
+          const isFirst=i===0;
+          const isLast=i===g.alerts.length-1;
+          const isEsc=a.title.startsWith('🔴');
+          return`<div style="display:flex;align-items:center;gap:5px;padding:2px 0">
+            <span style="font-size:10px;flex-shrink:0;color:${isEsc?'#dc2626':isFirst?'var(--g500)':'#d97706'}">${isFirst?'📤 Sent':isEsc?'🔴 Escalated':'🔁 Re-sent'}</span>
+            <span style="font-size:10px;color:var(--g400)">${fmtAgo(a.created_at)}</span>
+            ${isLast&&awaitingReply?'<span style="font-size:9px;background:#fef3c7;color:#92400e;padding:0 5px;border-radius:4px;font-weight:700">no reply yet</span>':''}
+          </div>`;
+        }).join('');
+
+        return`<div style="border:1px solid ${borderColor};border-radius:10px;overflow:hidden;margin-bottom:7px;background:#fff">
+          <div style="padding:9px 12px;background:${bgColor}">
+            <div style="display:flex;align-items:flex-start;gap:8px">
+              <span style="font-size:13px;color:var(--g400);margin-top:1px">📤</span>
               <div style="flex:1;min-width:0">
-                <div style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-                  ${piNumber?`<span onclick="goToRecord('pi','${esc(piNumber)}')" style="color:var(--blue);text-decoration:underline;cursor:pointer;font-weight:800">${esc(piNumber)}</span>`:''}
+                <div style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:4px">
+                  ${g.piNumber?`<span onclick="goToRecord('pi','${esc(g.piNumber)}')" style="color:var(--blue);text-decoration:underline;cursor:pointer;font-weight:800">${esc(g.piNumber)}</span>`:''}
                   <span style="color:var(--g500);font-weight:500;font-size:11px">${esc(stageLbl)}</span>
                   ${delayDays?`<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px">${delayDays}d delay</span>`:''}
-                  ${isEsc?'<span style="font-size:10px;background:#fff7ed;color:#c2410c;padding:1px 5px;border-radius:4px;font-weight:700">🔁 Re-sent</span>':''}
                   ${awaitingReply
                     ?'<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 7px;border-radius:4px;font-weight:700;border:1px solid #fcd34d">⏳ Awaiting Reply</span>'
                     :'<span style="font-size:10px;background:#dcfce7;color:#065f46;padding:1px 5px;border-radius:4px;font-weight:700">✓ Replied</span>'}
                 </div>
-                <div style="font-size:10px;color:var(--g400);margin-top:2px">${fmtAgo(n.created_at)}</div>
+                <!-- Send history timeline -->
+                <div style="background:rgba(0,0,0,.03);border-radius:6px;padding:5px 8px;margin-bottom:2px">
+                  ${timeline}
+                </div>
               </div>
-              <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
-                ${awaitingReply&&piNumber?`<button onclick="sendFollowUp('${n.id}','${esc(piNumber)}','${esc(user)}','${esc(stage)}')" style="padding:3px 10px;border:none;border-radius:6px;background:#d97706;color:#fff;font-size:11px;font-weight:700;cursor:pointer" title="Send follow-up request">🔁 Follow Up</button>`:''}
-                <button onclick="openForwardAlert('${n.id}','${esc(piNumber)}','${esc(stage)}')" title="Forward/CC" style="padding:2px 7px;border:1px solid var(--g200);border-radius:5px;background:#fff;font-size:10px;cursor:pointer">📤 CC</button>
-                <button onclick="deleteNotif('${n.id}','false')" title="Delete" style="padding:2px 5px;border:1px solid var(--g100);border-radius:5px;background:#fff;font-size:10px;cursor:pointer;color:var(--g300)">🗑</button>
+              <div style="display:flex;gap:4px;flex-shrink:0;align-items:flex-start">
+                ${awaitingReply&&g.piNumber?`<button onclick="sendFollowUp('${lastId}','${esc(g.piNumber)}','${esc(g.recipient)}','${esc(g.stage)}')" style="padding:3px 10px;border:none;border-radius:6px;background:#d97706;color:#fff;font-size:11px;font-weight:700;cursor:pointer" title="Send follow-up">🔁 Follow Up</button>`:''}
+                <button onclick="openForwardAlert('${lastId}','${esc(g.piNumber)}','${esc(g.stage)}')" title="Forward/CC" style="padding:2px 7px;border:1px solid var(--g200);border-radius:5px;background:#fff;font-size:10px;cursor:pointer">📤 CC</button>
+                <button onclick="deleteNotif('${firstId}','false')" title="Delete" style="padding:2px 5px;border:1px solid var(--g100);border-radius:5px;background:#fff;font-size:10px;cursor:pointer;color:var(--g300)">🗑</button>
               </div>
             </div>
-            ${replyRows(replies)}
-          </div>`;
-        }
-      }).join('')}
-    </div>`;
-  }).join('');
+          </div>
+          ${replyRows(g.replies)}
+        </div>`;
+      }).join('');
+    });
+  }
+
+  if(!received.length&&!sentArr.length){
+    html='<div style="text-align:center;color:var(--g300);font-size:13px;margin-top:40px">✅ No delay alerts</div>';
+  }
+
+  el.innerHTML=html;
   el.scrollTop=0;
 }
 
