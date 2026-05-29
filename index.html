@@ -898,7 +898,7 @@ tr[data-paid="true"] td{opacity:.55}
           <span class="panel-title">HQ Purchase Order</span><button class="sh-btn" onclick="showStatusHelp('hqpo',this)" title="Show auto status rules">?</button>
           <div class="panel-acts">
             <div class="search-box"><span>🔍</span><input id="hqpo-search" placeholder="Search..." oninput="filterTbl('hqpo')"></div>
-            <button id="hqpo-done-toggle" onclick="toggleDoneRows('hqpo')" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:600;cursor:pointer">👁 Show Delivered</button>
+            <button id="hqpo-done-toggle" onclick="toggleDoneRows('hqpo')" style="padding:6px 12px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:600;cursor:pointer">👁 Show Completed</button>
             <button class="btn btn-primary hide-on-view" onclick="openForm('hqpo')">+ New HQ PO</button>
           </div>
         </div>
@@ -913,8 +913,7 @@ tr[data-paid="true"] td{opacity:.55}
             <th class="sortable" onclick="sortTbl('hqpo','models')">Models</th>
             <th class="sortable" onclick="sortTbl('hqpo','quantity')">Qty</th>
             <th class="sortable" onclick="sortTbl('hqpo','pi_total_usd')">PI Total</th>
-            <th class="sortable" onclick="sortTbl('hqpo','delivery_status')">Delivery</th>
-            <th class="sortable" onclick="sortTbl('hqpo','ship_status')">Ship</th>
+            <th class="sortable" onclick="sortTbl('hqpo','ship_status')">Status</th>
             <th class="sortable" onclick="sortTbl('hqpo','owner')">Owner</th>
             <th>Sales Rep</th>
             <th>Actions</th>
@@ -2645,7 +2644,7 @@ async function autoCreateCollection(piNumber, shipAmount){
 
 // ── HIDE COMPLETED TOGGLE ─────────────────────────────────────────────────────
 const _doneState={pi:false, po:false, hqpo:false, shipments:false};
-const _doneLabel={pi:'Completed', po:'Completed', hqpo:'Delivered', shipments:'Completed'};
+const _doneLabel={pi:'Completed', po:'Completed', hqpo:'Completed', shipments:'Completed'};
 
 function toggleDoneRows(page){
   _doneState[page]=!_doneState[page];
@@ -3992,21 +3991,18 @@ function autoStatus(page, r, xref){
   }
 
   if(page==='hqpo'){
+    // Status mirrors the linked shipment. Delivery concept removed.
+    // If the linked shipment is Completed → this HQ PO is Completed (and will be hidden).
     const sh=xref.sh.find(s=>s.pi_number===r.pi_number);
-    // Delivery status
-    let delStatus,shipStatus;
+    let shipStatus;
     if(!sh||!sh.date){
-      delStatus='Preparing'; shipStatus='Pending';
+      shipStatus='Pending';
     } else {
-      shipStatus='Shipped';
-      const eta=d2(sh.eta);
-      const etd=d2(sh.etd);
-      const shDate=d2(sh.date);
-      if(eta&&today>eta) delStatus='Delivered';
-      else if(etd&&today>=etd) delStatus='In Transit';
-      else delStatus='In Transit'; // date exists = shipped
+      // Reuse the shipment's own computed status so the two stay consistent
+      const shSt=autoStatus('shipments',sh,xref);
+      shipStatus=shSt.status; // Shipped / In Transit / Arrived / Completed
     }
-    return {delivery_status:delStatus,ship_status:shipStatus,auto:true};
+    return {ship_status:shipStatus,auto:true};
   }
 
   if(page==='shipments'){
@@ -4016,7 +4012,8 @@ function autoStatus(page, r, xref){
       return {status:'Completed',auto:true};
     const eta=d2(r.eta);
     const etd=d2(r.etd);
-    if(eta&&today>eta) return {status:'Arrived',auto:true};
+    // Arrived (past ETA) is treated as Completed — the goods have been delivered.
+    if(eta&&today>eta) return {status:'Completed',auto:true};
     if(etd&&today>=etd) return {status:'In Transit',auto:true};
     return {status:'Shipped',auto:true};
   }
@@ -4035,7 +4032,7 @@ function autoStatus(page, r, xref){
 // Pill with auto badge
 function pillAuto(statusObj, page){
   if(page==='hqpo'){
-    return pill(statusObj.delivery_status)+' '+pill(statusObj.ship_status)
+    return pill(statusObj.ship_status||statusObj.status)
       +(statusObj.auto?'<span title="Auto-calculated" style="font-size:9px;color:var(--g400);margin-left:3px">⚙</span>':'');
   }
   const s=statusObj.status||statusObj;
@@ -4183,7 +4180,7 @@ function rowHTML(page,r){
     <td>${pillAuto(st,'po')}</td>
     ${acts}<td>${repPill(r.pi_number)}</td></tr>`;
 
-  if(page==='hqpo')return`<tr${(st.deliveryStatus==='Delivered'||st.shipStatus==='Completed')?' data-done="true"':''}>
+  if(page==='hqpo')return`<tr${st.ship_status==='Completed'?' data-done="true"':''}>
     <td><strong>${r.hq_po_number}</strong></td>
     <td>${r.issue_date||'-'}</td>
     <td>${piLink(r.pi_number,r.pi_number)}</td>
@@ -4193,7 +4190,6 @@ function rowHTML(page,r){
     <td style="font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.models||''}">${r.models||'-'}</td>
     <td style="text-align:center">${r.quantity||'-'}</td>
     <td><strong>$${fmt(r.pi_total_usd)}</strong></td>
-    <td>${pill(st.delivery_status)}</td>
     <td>${pill(st.ship_status)}</td>
     <td>${r.owner||'-'}</td>
     ${st.auto?'<td style="font-size:9px;color:var(--g400);white-space:nowrap">⚙ Auto</td>':'<td></td>'}
@@ -4926,7 +4922,6 @@ const FORMS={
     <div class="fg"><label>Models</label><input id="models-hq" name="models" value="${esc(d.models||'')}"></div>
     <div class="fg"><label>Quantity</label><input type="number" id="qty-hq" name="quantity" value="${d.quantity||''}"></div>
     <div class="fg"><label>PI Total (USD)</label><input type="number" id="total-hq" name="pi_total_usd" value="${d.pi_total_usd||''}"></div>
-    <div class="fg"><label>Delivery Status</label><select name="delivery_status">${selOpts(['Pending','In Transit','Delivered'],d.delivery_status||'Pending')}</select></div>
     <div class="fg"><label>Ship Status</label><select name="ship_status">${selOpts(['Pending','Shipped','Completed'],d.ship_status||'Pending')}</select></div>
     <div class="fg"><label>Owner</label><input id="owner-hq" name="owner" value="${esc(d.owner||'')}"></div>
     <div class="fg"><label>Actual Arrival</label><input type="date" name="actual_arrival" value="${d.actual_arrival||''}"></div>
@@ -5219,30 +5214,27 @@ const STATUS_RULES = {
   hqpo: {
     title: 'HQ PO Status — Auto Rules',
     sections: [
-      { label: 'Delivery Status', rules: [
-        { cond: 'Today is <strong>after ETA</strong> of linked shipment', status: 'Delivered', cls: 'p-green' },
-        { cond: 'Shipment has a <strong>ship date</strong> set', status: 'In Transit', cls: 'p-blue' },
-        { cond: 'No shipment date yet', status: 'Preparing', cls: 'p-amber' },
-      ]},
-      { label: 'Ship Status', rules: [
-        { cond: 'Linked shipment has a <strong>Shipment Date</strong>', status: 'Shipped', cls: 'p-blue' },
-        { cond: 'No shipment date set', status: 'Pending', cls: 'p-amber' },
+      { label: null, rules: [
+        { cond: 'Linked shipment is <strong>Completed</strong> (arrived or fully paid)', status: 'Completed', cls: 'p-green' },
+        { cond: 'Linked shipment <strong>in transit</strong>', status: 'In Transit', cls: 'p-blue' },
+        { cond: 'Shipment has a <strong>ship date</strong> set', status: 'Shipped', cls: 'p-blue' },
+        { cond: 'No shipment date yet', status: 'Pending', cls: 'p-amber' },
       ]}
     ],
-    note: '⚙ Both Delivery and Ship status update automatically based on the linked Shipment record.'
+    note: '⚙ Status mirrors the linked Shipment automatically. Completed HQ POs are hidden — use “Show Completed” to view them.'
   },
   shipments: {
     title: 'Shipment Status — Auto Rules',
     sections: [
       { label: null, rules: [
         { cond: '<strong>Full payment collected</strong> (Collections: Collected)', status: 'Completed', cls: 'p-green' },
-        { cond: 'Today is <strong>past ETA</strong>', status: 'Arrived', cls: 'p-green' },
+        { cond: 'Today is <strong>past ETA</strong> (arrived)', status: 'Completed', cls: 'p-green' },
         { cond: '<strong>ETD ≤ Today ≤ ETA</strong> (in transit window)', status: 'In Transit', cls: 'p-blue' },
         { cond: 'Ship date exists, ETA not yet reached', status: 'Shipped', cls: 'p-blue' },
         { cond: '<strong>No Ship Date</strong> entered yet', status: 'Preparing', cls: 'p-amber' },
       ]}
     ],
-    note: '⚙ Status advances automatically as ETD → ETA dates pass and payments are received.'
+    note: '⚙ Status advances automatically as dates pass and payments are received. Completed shipments are hidden — use “Show Completed” to view them.'
   },
   collections: {
     title: 'Collection Status — Auto Rules',
