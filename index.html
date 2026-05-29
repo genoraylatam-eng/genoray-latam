@@ -718,6 +718,7 @@ tr[data-paid="true"] td{opacity:.55}
               <th class="sortable" onclick="sortPipe('pi_number')">PI No.</th>
               <th class="sortable" onclick="sortPipe('distributor')">Distributor</th>
               <th class="sortable" onclick="sortPipe('country')">Country</th>
+              <th class="sortable" onclick="sortPipe('sales_rep')">Rep</th>
               <th class="sortable" onclick="sortPipe('amount_usd')">Amount</th>
               <th class="sortable" onclick="sortPipe('payment_terms')">Payment Terms</th>
               <th class="sortable" onclick="sortPipe('has_po')">Has PO?</th>
@@ -3221,7 +3222,7 @@ function renderPipeline(rows){
     toggleBtn.style.color=_pipeShowShipped?'#065f46':'var(--g600)';
     toggleBtn.style.borderColor=_pipeShowShipped?'#86efac':'var(--g200)';
   }
-  if(!visible.length){tbody.innerHTML='<tr><td colspan="11"><div class="empty-state">No active pipeline items</div></td></tr>';return;}
+  if(!visible.length){tbody.innerHTML='<tr><td colspan="12"><div class="empty-state">No active pipeline items</div></td></tr>';return;}
   tbody.innerHTML=visible.map(r=>{
     const sc=r.pipe_status==='Backlog'?'p-red':r.pipe_status==='In Progress'?'p-blue':'p-green';
     const dayColor=r.days_since>=60?'color:var(--red);font-weight:700':r.days_since>=30?'color:var(--amber);font-weight:600':'';
@@ -3229,6 +3230,7 @@ function renderPipeline(rows){
       <td>${r.pi_month||'-'}</td>
       <td><span class="pi-link" onclick="showPIPrint('${r.pi_number}')">${r.pi_number}</span></td>
       <td>${r.distributor||'-'}</td><td>${r.country||'-'}</td>
+      <td><span style="font-size:11px;background:var(--g100);padding:2px 7px;border-radius:6px;font-weight:600">${r.sales_rep||'—'}</span></td>
       <td><strong>$${fmt(r.amount_usd)}</strong></td>
       <td style="font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.payment_terms||'-'}</td>
       <td>${r.has_po==='Yes'?'<span class="pill p-green">Yes</span>':'<span class="pill p-gray">No</span>'}</td>
