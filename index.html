@@ -1185,6 +1185,7 @@ tr[data-paid="true"] td{opacity:.55}
           <div class="nlsec-hdr">
             <span>Conversations</span>
             <span id="conv-unread-total" style="display:none;background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px">0</span>
+            <span style="margin-left:auto;font-size:9px;color:var(--g300);font-weight:400;letter-spacing:0" title="🔴 Unread  🟡 Read but needs your response">🔴🟡</span>
           </div>
           <div id="conv-items" style="flex:1;overflow-y:auto;padding-bottom:8px"></div>
         </div>
@@ -8131,9 +8132,30 @@ function updateBellBadge(){
   const me=getAuth();
   const badge=document.getElementById('notif-badge');
   if(!badge)return;
-  const unread=_notifData.filter(n=>!(n.read_by||[]).includes(me)&&n.from_user!==me);
-  if(unread.length>0){badge.textContent=unread.length>99?'99+':unread.length;badge.style.display='flex';}
-  else badge.style.display='none';
+  // 🔴 Unread messages/alerts TO me (from others, not yet read)
+  const unreadMsgs=_notifData.filter(n=>
+    n.type==='message'&&n.to_user===me&&
+    n.from_user!==me&&!(n.read_by||[]).includes(me)
+  ).length;
+  // 🔴 Unread alerts TO me
+  const unreadAlerts=_notifData.filter(n=>
+    n.type==='alert'&&n.to_user===me&&!(n.read_by||[]).includes(me)
+  ).length;
+  // 🟡 Alerts TO me: read but no response yet
+  const needsReply=_notifData.filter(n=>
+    n.type==='alert'&&n.to_user===me&&
+    (n.read_by||[]).includes(me)&&
+    !(_delayResponses||[]).some(r=>r.notification_id===n.id)
+  ).length;
+  const total=unreadMsgs+unreadAlerts+needsReply;
+  if(total>0){
+    badge.textContent=total>99?'99+':total;
+    badge.style.display='flex';
+    // Red if truly unread, amber if just needs-reply
+    badge.style.background=(unreadMsgs+unreadAlerts)>0?'#ef4444':'#f59e0b';
+  } else {
+    badge.style.display='none';
+  }
 }
 
 function setNotifTab(tab){
@@ -8165,55 +8187,87 @@ function buildConvList(){
 
   const convs=[];
 
-  // 1. System Alerts
+  // 1. System Alerts — only count alerts RECEIVED by me
   const alerts=_notifData.filter(n=>n.type==='alert');
-  const alertUnread=alerts.filter(n=>!(n.read_by||[]).includes(me)&&n.from_user!==me).length;
-  convs.push({key:'alerts',icon:'⚠️',label:'System Alerts',count:alerts.length,unread:alertUnread,type:'alerts'});
+  const myAlerts=alerts.filter(n=>n.to_user===me);               // alerts sent TO me
+  const alertUnread=myAlerts.filter(n=>!(n.read_by||[]).includes(me)).length;  // truly unread (red)
+  const alertNeedsReply=myAlerts.filter(n=>                       // read but no response (amber)
+    (n.read_by||[]).includes(me)&&
+    !(_delayResponses||[]).some(r=>r.notification_id===n.id)
+  ).length;
+  convs.push({
+    key:'alerts',icon:'⚠️',label:'System Alerts',
+    unread:alertUnread,         // 🔴 count
+    needsReply:alertNeedsReply, // 🟡 count
+    type:'alerts'
+  });
 
-  // 2. Announcements
+  // 2. Announcements — unread only (regular read logic)
   const anns=_notifData.filter(n=>n.to_user===null&&n.type!=='alert');
   const annUnread=anns.filter(n=>!(n.read_by||[]).includes(me)&&n.from_user!==me).length;
-  if(anns.length) convs.push({key:'announcements',icon:'📢',label:'Announcements',count:anns.length,unread:annUnread,type:'announcements'});
+  if(anns.length) convs.push({key:'announcements',icon:'📢',label:'Announcements',unread:annUnread,needsReply:0,type:'announcements'});
 
-  // 3. Per-person conversations
+  // 3. Per-person conversations — UNREAD ONLY (like WhatsApp/iMessage)
   const userMsgs={};
   _notifData.filter(n=>n.type==='message'||(!n.to_user&&n.type!=='alert'&&n.type!=='announcement')).forEach(n=>{
-    const other = n.from_user===me ? n.to_user : n.from_user;
+    const other=n.from_user===me?n.to_user:n.from_user;
     if(!other||other==='system')return;
-    if(!userMsgs[other]) userMsgs[other]={msgs:[],unread:0};
+    if(!userMsgs[other])userMsgs[other]={msgs:[],unread:0};
     userMsgs[other].msgs.push(n);
-    if(!(n.read_by||[]).includes(me)&&n.from_user!==me) userMsgs[other].unread++;
+    // Count only messages FROM the other person that I haven't read
+    if(n.from_user!==me&&!(n.read_by||[]).includes(me)) userMsgs[other].unread++;
   });
 
   Object.entries(userMsgs).sort((a,b)=>{
     const la=a[1].msgs[0]?.created_at||''; const lb=b[1].msgs[0]?.created_at||'';
     return lb.localeCompare(la);
   }).forEach(([user,{msgs,unread}])=>{
-    convs.push({key:'user:'+user,icon:'💬',label:'@'+user,count:msgs.length,unread,type:'user',user,last:msgs[0]});
+    convs.push({key:'user:'+user,icon:'💬',label:'@'+user,unread,needsReply:0,type:'user',user,last:msgs[0]});
   });
 
   // Render conversation items in left panel
   el.innerHTML=convs.map(c=>{
     const isActive=_activeConv===c.key;
-    const preview=c.type==='user'&&c.last?esc((c.last.message||c.last.title||'').slice(0,35)):'';
+    const hasAny=(c.unread||0)+(c.needsReply||0)>0;
     const bg=isActive?'var(--blue)':'transparent';
     const col=isActive?'#fff':'var(--g900)';
+
+    // Badge rendering — different colors for unread vs needs-reply
+    let badges='';
+    if(isActive){
+      // On active item: white badges
+      if(c.unread) badges+=`<span style="background:rgba(255,255,255,.35);color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0">${c.unread}</span>`;
+      if(c.needsReply) badges+=`<span style="background:rgba(255,255,255,.25);color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0;margin-left:2px">${c.needsReply}</span>`;
+    } else {
+      // 🔴 unread (new messages, haven't seen yet)
+      if(c.unread) badges+=`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0" title="Unread">${c.unread}</span>`;
+      // 🟡 needs reply (read but no response given)
+      if(c.needsReply) badges+=`<span style="background:#f59e0b;color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0;margin-left:2px" title="Read — awaiting your response">${c.needsReply}</span>`;
+    }
+
+    const preview=c.type==='user'&&c.last?esc((c.last.message||c.last.title||'').slice(0,35)):'';
     return`<div onclick="openConv('${c.key}')" style="padding:9px 12px;cursor:pointer;border-radius:8px;margin:2px 6px;background:${bg};color:${col};transition:background .1s"
       onmouseover="if('${c.key}'!=='${_activeConv||''}')this.style.background='var(--g100)'"
       onmouseout="if('${c.key}'!=='${_activeConv||''}')this.style.background='${isActive?'var(--blue)':'transparent'}'">
       <div style="display:flex;align-items:center;gap:7px">
         <span style="font-size:14px;flex-shrink:0">${c.icon}</span>
-        <span style="font-size:12px;font-weight:${c.unread?'800':'600'};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.label)}</span>
-        ${c.unread?`<span style="background:${isActive?'rgba(255,255,255,.35)':'#ef4444'};color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0">${c.unread}</span>`:''}
+        <span style="font-size:12px;font-weight:${hasAny?'800':'600'};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.label)}</span>
+        <span style="display:flex;gap:2px;align-items:center;flex-shrink:0">${badges}</span>
       </div>
       ${preview?`<div style="font-size:11px;opacity:.65;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:21px">${preview}</div>`:''}
     </div>`;
   }).join('');
 
-  // Update global unread badge
+  // Update global header badge (unread + needs-reply combined)
   const totalUnread=convs.reduce((s,c)=>s+(c.unread||0),0);
-  const badge=document.getElementById('conv-unread-total');
-  if(badge){badge.textContent=totalUnread>99?'99+':totalUnread;badge.style.display=totalUnread?'inline':'none';}
+  const totalNeedsReply=convs.reduce((s,c)=>s+(c.needsReply||0),0);
+  const totalBadge=document.getElementById('conv-unread-total');
+  if(totalBadge){
+    const tot=totalUnread+totalNeedsReply;
+    totalBadge.textContent=tot>99?'99+':tot;
+    totalBadge.style.display=tot?'inline':'none';
+    totalBadge.style.background=totalUnread?'#ef4444':'#f59e0b';
+  }
 
   // Auto-open first conv if nothing selected yet
   if(!_activeConv&&convs.length) openConv(convs[0].key);
@@ -8234,6 +8288,14 @@ function openConv(key){
     // System alerts view
     header.innerHTML='<span>⚠️ System Alerts</span>';
     if(replyBox)replyBox.style.display='none';
+    // Mark MY unread alerts as read (local first → instant badge update)
+    const myUnread=_notifData.filter(n=>n.type==='alert'&&n.to_user===me&&!(n.read_by||[]).includes(me));
+    if(myUnread.length){
+      myUnread.forEach(n=>{n.read_by=[...(n.read_by||[]),me];});
+      buildConvList();   // refresh 🔴 → 🟡 immediately
+      updateBellBadge();
+      myUnread.forEach(n=>sb.from('notifications').update({read_by:n.read_by}).eq('id',n.id));
+    }
     renderAlertThread(msgs);
   } else if(key==='announcements'){
     header.innerHTML='<span>📢 Announcements</span>';
@@ -8252,8 +8314,15 @@ function openConv(key){
       )
     ).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
     renderMsgThread(msgs,thread,me,user);
-    // Mark all as read
-    thread.filter(n=>!(n.read_by||[]).includes(me)&&n.from_user!==me).forEach(n=>markRead(n.id));
+    // ── Mark all as read: LOCAL first (instant badge update), DB async ──────
+    const toRead=thread.filter(n=>n.from_user!==me&&!(n.read_by||[]).includes(me));
+    if(toRead.length){
+      toRead.forEach(n=>{n.read_by=[...(n.read_by||[]),me];}); // instant local update
+      buildConvList();   // immediately refresh counts in sidebar
+      updateBellBadge(); // immediately update bell
+      // Background DB sync (no await — don't block UI)
+      toRead.forEach(n=>sb.from('notifications').update({read_by:n.read_by}).eq('id',n.id));
+    }
   }
 }
 
@@ -8659,13 +8728,19 @@ async function sendReply(){
   const text=(input?.value||'').trim();
   if(!text||!to)return;
   input.value='';
-  const{error}=await sb.from('notifications').insert({
+  const{data,error}=await sb.from('notifications').insert({
     type:'message', title:'💬 '+me, message:text,
     from_user:me, to_user:to,
-  });
+  }).select().single();
   if(error){toast('Error: '+error.message,'err');return;}
-  await loadNotifications();
-  // Re-open the same conv to show new message
+  // Add to local store immediately (don't wait for next poll)
+  if(data){
+    if(!_lastKnownIds)_lastKnownIds=new Set();
+    _lastKnownIds.add(data.id);
+    _notifData.unshift(data);
+  }
+  buildConvList();
+  // Re-open the same conv to show new message + update read state
   openConv('user:'+to);
 }
 
@@ -8713,10 +8788,12 @@ async function markRead(id){
   const me=getAuth();
   const n=_notifData.find(x=>x.id===id); if(!n)return;
   if((n.read_by||[]).includes(me))return;
-  const newReadBy=[...(n.read_by||[]),me];
-  await sb.from('notifications').update({read_by:newReadBy}).eq('id',id);
-  n.read_by=newReadBy;
-  updateBellBadge(); renderNotifications();
+  // Update local first for instant UI response
+  n.read_by=[...(n.read_by||[]),me];
+  updateBellBadge();
+  buildConvList(); // refresh sidebar badge counts
+  // Then sync to DB
+  await sb.from('notifications').update({read_by:n.read_by}).eq('id',id);
 }
 
 async function deleteNotif(id,isOwn){
