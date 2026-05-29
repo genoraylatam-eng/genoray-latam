@@ -2569,14 +2569,27 @@ function _canChangeRep(){
 
 function _getSalesRepOptions(selected){
   const currentUser=getAuth()||'';
-  const allReps=(masterCache.userPerms||[]).filter(u=>u.is_active).map(u=>({
+  let allReps=(masterCache.userPerms||[]).map(u=>({
     id:u.username, name:u.display_name||u.username
   }));
-  // Always show ALL active reps — restriction is on the select element, not options
-  const reps=allReps.length>0?allReps:[{id:currentUser,name:currentUser}];
-  if(!reps.some(r=>r.id===currentUser)&&currentUser) reps.unshift({id:currentUser,name:currentUser});
+  // Fallback: if cache empty, try to include known users
+  if(!allReps.length){
+    allReps=[{id:'mitchel',name:'Mitchel'},{id:'chris',name:'Chris'}];
+  }
+  if(!allReps.some(r=>r.id===currentUser)&&currentUser) allReps.unshift({id:currentUser,name:currentUser});
   const sel=selected||(piFS.ed?.sales_rep)||currentUser;
-  return reps.map(r=>`<option value="${esc(r.id)}" ${sel===r.id?'selected':''}>${esc(r.name)}</option>`).join('');
+  return allReps.map(r=>`<option value="${esc(r.id)}" ${sel===r.id?'selected':''}>${esc(r.name)}</option>`).join('');
+}
+
+// Refresh user list and re-render sales rep dropdown if open
+async function _refreshSalesRepDropdown(){
+  const{data}=await sb.from('user_permissions').select('username,display_name,role,user_type,can_change_rep').eq('is_active',true);
+  if(data) masterCache.userPerms=data;
+  const sel=document.getElementById('pif-sales-rep');
+  if(sel){
+    const curVal=sel.value;
+    sel.innerHTML=_getSalesRepOptions(curVal);
+  }
 }
 
 // ── AUTO-CREATE COLLECTIONS ON SHIPMENT ──────────────────────────────────────
@@ -4338,12 +4351,17 @@ const PAYMENT_PRESETS=[
   {label:'D/P', value:'D/P'},
 ];
 
-function openPI(id=null){
+async function openPI(id=null){
   if(!guardEdit('pi'))return;
   piFS={id,items:[],ed:{},seller:'korea'};
   document.getElementById('pi-modal-title').textContent=id?'Edit PI':'New Proforma Invoice';
   const _histBtn=document.getElementById('pi-hist-btn');
   if(_histBtn) _histBtn.style.display=id?'inline-block':'none';
+  // Pre-load ALL active users before rendering form
+  const{data:allUsers}=await sb.from('user_permissions')
+    .select('username,display_name,role,user_type,can_change_rep')
+    .eq('is_active',true);
+  if(allUsers&&allUsers.length) masterCache.userPerms=allUsers;
   // Add history button if editing
   const piHistBtn=document.getElementById('pi-hist-btn');
   if(piHistBtn){
@@ -4462,6 +4480,7 @@ function renderPIForm(){
   }
 
   renderPILines();
+
 }
 
 function showBuyerInfo(dist){
@@ -6821,7 +6840,7 @@ async function loadUserPermissions(username){
     SECTIONS.forEach(s=>_userPerms['perm_'+s.key]='view');
   }
   // Cache all users for Sales Rep dropdown + contact info
-  sb.from('user_permissions').select('username,display_name,role,user_type,email,phone,whatsapp').eq('is_active',true)
+  sb.from('user_permissions').select('username,display_name,role,user_type,email,phone,whatsapp,can_change_rep').eq('is_active',true)
     .then(({data})=>{ if(data)masterCache.userPerms=data; });
   applyPermissions();
   // Sales Rep: check for No Action PIs after load
