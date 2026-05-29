@@ -1120,43 +1120,43 @@ tr[data-paid="true"] td{opacity:.55}
     </div>
 
     <!-- NOTIFICATIONS / MESSAGES -->
-    <div id="page-notifications" class="page" style="padding:0;flex-direction:column;height:calc(100vh - 56px)">
+    <div id="page-notifications" class="page">
 
       <!-- Top Bar -->
-      <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1.5px solid var(--g100);background:#fff;flex-shrink:0">
-        <h1 style="font-size:15px;font-weight:800;margin:0;flex:1">🔔 Messages & Notifications</h1>
-        <button onclick="runDelayCheck()" style="padding:6px 12px;background:#fef3c7;color:#92400e;border:1.5px solid #fcd34d;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">⚠️ Check Delays</button>
-        <button onclick="openNewMessageForm()" style="padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">✉️ New Message</button>
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1.5px solid var(--g100);background:#fff;flex-shrink:0;flex-wrap:wrap">
+        <h1 style="font-size:15px;font-weight:800;margin:0;flex:1;min-width:120px">🔔 Messages</h1>
+        <button onclick="runDelayCheck()" style="padding:6px 10px;background:#fef3c7;color:#92400e;border:1.5px solid #fcd34d;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">⚠️ Delays</button>
+        <button onclick="openNewMessageForm()" style="padding:6px 12px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">✉️ New</button>
       </div>
 
-      <!-- Main layout: left list + right thread (mobile: stacked) -->
-      <div style="display:flex;flex:1;overflow:hidden">
+      <!-- Body: JS-controlled mobile/desktop layout -->
+      <div id="msg-body" style="display:flex;flex:1;overflow:hidden;height:calc(100% - 52px)">
 
         <!-- LEFT: Conversation list -->
-        <div id="conv-list" style="width:220px;min-width:180px;border-right:1.5px solid var(--g100);overflow-y:auto;background:#fafafa;flex-shrink:0;transition:all .2s">
-          <div style="padding:8px 10px;font-size:10px;font-weight:800;color:var(--g400);text-transform:uppercase;letter-spacing:.06em">Conversations</div>
+        <div id="conv-list" style="background:#fafafa;border-right:1.5px solid var(--g100);width:220px;min-width:180px">
+          <div onclick="toggleConvList()" style="padding:8px 12px;font-size:11px;font-weight:800;color:var(--g500);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none">
+            <span>Conversations</span>
+            <span id="conv-toggle-btn" style="display:none;font-size:16px;color:var(--blue)">▼</span>
+          </div>
           <div id="conv-items"></div>
         </div>
 
         <!-- RIGHT: Message thread -->
-        <div id="thread-panel" style="flex:1;display:flex;flex-direction:column;min-width:0;background:#fff">
-          <!-- Thread header -->
-          <div id="thread-header" style="padding:10px 16px;border-bottom:1px solid var(--g100);font-size:13px;font-weight:700;color:var(--g700);background:#fff;flex-shrink:0;display:flex;align-items:center;gap:8px">
-            <button id="back-to-list" onclick="showConvList()" style="display:none;border:none;background:none;font-size:18px;cursor:pointer;padding:0 4px">←</button>
-            <span>Select a conversation</span>
+        <div id="thread-panel" style="flex:1;display:flex;flex-direction:column;min-width:0;background:#fff;overflow:hidden">
+          <div id="thread-header" style="padding:10px 14px;border-bottom:1px solid var(--g100);font-size:13px;font-weight:700;color:var(--g700);background:#fff;flex-shrink:0;display:flex;align-items:center;gap:8px">
+            <button id="back-to-list" onclick="showConvList()" style="display:none;border:none;background:none;font-size:20px;cursor:pointer;padding:0;line-height:1;color:var(--blue)">←</button>
+            <span id="thread-title">Select a conversation</span>
           </div>
-          <!-- Thread messages -->
-          <div id="thread-messages" style="flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:8px">
-            <div style="text-align:center;color:var(--g300);font-size:13px;margin-top:40px">👈 Select a conversation</div>
+          <div id="thread-messages" style="flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:6px">
+            <div style="text-align:center;color:var(--g300);font-size:13px;margin-top:40px">Select a conversation</div>
           </div>
-          <!-- Reply box -->
-          <div id="thread-reply" style="display:none;padding:10px 16px;border-top:1px solid var(--g100);background:#fff;flex-shrink:0">
-            <div style="display:flex;gap:8px;align-items:flex-end">
+          <div id="thread-reply" style="display:none;padding:8px 12px;border-top:1px solid var(--g100);background:#fff;flex-shrink:0">
+            <div style="display:flex;gap:6px;align-items:flex-end">
               <textarea id="reply-input" rows="2" placeholder="Type a reply..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendReply();}"
-                style="flex:1;padding:8px 12px;border:1.5px solid var(--g200);border-radius:10px;font-size:13px;resize:none;font-family:inherit;outline:none"></textarea>
-              <button onclick="sendReply()" style="padding:8px 16px;background:var(--blue);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0">Send</button>
+                style="flex:1;padding:8px 10px;border:1.5px solid var(--g200);border-radius:10px;font-size:13px;resize:none;font-family:inherit;outline:none;min-width:0"></textarea>
+              <button onclick="sendReply()" style="padding:8px 14px;background:var(--blue);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0">Send</button>
             </div>
-            <div style="font-size:10px;color:var(--g400);margin-top:4px">Enter to send · Shift+Enter for new line</div>
+            <div style="font-size:10px;color:var(--g400);margin-top:3px">Enter to send · Shift+Enter for new line</div>
           </div>
         </div>
 
@@ -1654,10 +1654,8 @@ function loadPage(p){
   if(p==='help')return loadHelp();
   if(p==='pricing')return loadPricingPage();
   if(p==='notifications'){
-    const el=document.getElementById('notif-list');
-    if(el)el.innerHTML='<div style="text-align:center;padding:40px;color:var(--g400)">⏳ Loading...</div>';
-    setNotifTab(_notifTab||'all');
     loadNotifications();
+    setTimeout(applyMessengerLayout, 100);
     return;
   }
   if(p==='admin'){loadAdminUsers();loadDeleteRequests();return;}
@@ -6768,13 +6766,23 @@ async function generatePriceListPDF(dist){
   .sig-b{border-top:1px solid #cbd5e1;padding-top:6px;font-size:9px;color:#64748b}
   @media print{body{width:8.5in}}
 /* ── MESSENGER MOBILE ── */
-@media (max-width: 600px) {
-  #page-notifications { height: calc(100vh - 110px) !important; }
-  #conv-list { width: 100% !important; min-width: 100% !important; border-right: none !important; }
-  #thread-panel { display: none !important; }
-  #conv-list.mobile-hidden { display: none !important; }
-  #thread-panel.mobile-visible { display: flex !important; width: 100%; }
-  #back-to-list { display: inline-block !important; }
+#page-notifications { display: flex; flex-direction: column; }
+#msg-body { display: flex; flex: 1; overflow: hidden; }
+#conv-list { flex-shrink: 0; }
+@media (max-width: 768px) {
+  #msg-body { flex-direction: column; }
+  #conv-list {
+    width: 100% !important;
+    min-width: unset !important;
+    border-right: none !important;
+    border-bottom: 1.5px solid var(--g100);
+    max-height: 45px;
+    overflow: hidden;
+    transition: max-height .25s ease;
+  }
+  #conv-list.expanded { max-height: 280px; overflow-y: auto; }
+  #thread-panel { flex: 1; min-height: 0; }
+  #conv-toggle-btn { display: flex !important; }
 }
 </style></head><body><div class="page">
   <div class="header">
@@ -7828,7 +7836,7 @@ function openConv(key){
   const replyBox=document.getElementById('thread-reply');
   if(!header||!msgs)return;
 
-  // Mobile: switch to thread view
+  // Mobile: collapse conversation list
   showThread();
 
   // Rebuild conv list to show active state
@@ -8034,21 +8042,43 @@ async function sendReply(){
   openConv('user:'+to);
 }
 
+function _isMobile(){ return window.innerWidth <= 768; }
+
+function applyMessengerLayout(){
+  const convList=document.getElementById('conv-list');
+  const toggleBtn=document.getElementById('conv-toggle-btn');
+  if(!convList)return;
+  if(_isMobile()){
+    if(toggleBtn) toggleBtn.style.display='flex';
+    // Start collapsed if a conv is active, expanded otherwise
+    if(_activeConv && !convList.classList.contains('expanded')){
+      convList.classList.remove('expanded');
+    } else if(!_activeConv){
+      convList.classList.add('expanded');
+    }
+  } else {
+    if(toggleBtn) toggleBtn.style.display='none';
+    convList.classList.remove('expanded');
+  }
+}
+
+function toggleConvList(){
+  if(!_isMobile())return;
+  const convList=document.getElementById('conv-list');
+  const toggleBtn=document.getElementById('conv-toggle-btn');
+  convList.classList.toggle('expanded');
+  if(toggleBtn) toggleBtn.textContent=convList.classList.contains('expanded')?'▲':'▼';
+}
+
 function showConvList(){
-  if(window.innerWidth > 600) return;
-  const convList = document.getElementById('conv-list');
-  const threadPanel = document.getElementById('thread-panel');
-  if(convList) { convList.classList.remove('mobile-hidden'); }
-  if(threadPanel) { threadPanel.classList.remove('mobile-visible'); }
-  _activeConv = null;
+  _activeConv=null;
+  const convList=document.getElementById('conv-list');
+  if(convList&&_isMobile()) convList.classList.add('expanded');
 }
 
 function showThread(){
-  if(window.innerWidth > 600) return;
-  const convList = document.getElementById('conv-list');
-  const threadPanel = document.getElementById('thread-panel');
-  if(convList) convList.classList.add('mobile-hidden');
-  if(threadPanel) threadPanel.classList.add('mobile-visible');
+  const convList=document.getElementById('conv-list');
+  if(convList&&_isMobile()) convList.classList.remove('expanded');
 }
 
 function toggleAlertGroup(key){
@@ -8242,6 +8272,10 @@ async function showPIHistory(piNumber){
   `,'Change History');
 }
 
+
+window.addEventListener('resize', ()=>{
+  if(activePage==='notifications') applyMessengerLayout();
+});
 
 // ── STARTUP 
 (function(){
