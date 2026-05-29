@@ -7796,7 +7796,8 @@ function renderAlertThread(el){
             </div>
             <div style="display:flex;gap:4px;flex-shrink:0">
               ${!isRead?`<button onclick="markRead('${n.id}')" style="padding:2px 7px;border:1px solid var(--g200);border-radius:5px;background:#fff;font-size:10px;cursor:pointer">✓</button>`:''}
-              ${piNumber&&!replies.length?`<button onclick="openDelayResponse('${n.id}','${esc(piNumber)}','${esc(stage)}')" style="padding:2px 9px;border:none;border-radius:5px;background:#f59e0b;color:#fff;font-size:10px;font-weight:700;cursor:pointer">📝 Respond</button>`:''}
+              ${piNumber?`<button onclick="openDelayResponse('${n.id}','${esc(piNumber)}','${esc(stage)}')" style="padding:2px 9px;border:none;border-radius:5px;background:${replies.length?'#059669':'#f59e0b'};color:#fff;font-size:10px;font-weight:700;cursor:pointer">${replies.length?'📝 Add Response':'📝 Respond'}</button>`:''}
+              <button onclick="openForwardAlert('${n.id}','${esc(piNumber)}','${esc(stage)}')" style="padding:2px 7px;border:1px solid var(--g200);border-radius:5px;background:#fff;font-size:10px;cursor:pointer" title="Forward/CC to others">📤 CC</button>
               <button onclick="deleteNotif('${n.id}','false')" style="padding:2px 5px;border:1px solid var(--g100);border-radius:5px;background:#fff;font-size:10px;cursor:pointer;color:var(--g300)">🗑</button>
             </div>
           </div>
@@ -7816,6 +7817,71 @@ function renderAlertThread(el){
     </div>`;
   }).join('');
   el.scrollTop=0;
+}
+
+function openForwardAlert(notifId, piNumber, stage){
+  const me=getAuth();
+  const stageLbl={no_action:'No Action',hqpo_delay:'Awaiting Shipment',col_delay:'Collection Pending'}[stage]||stage;
+  sb.from('user_permissions').select('username,display_name').eq('is_active',true).then(({data:users})=>{
+    const others=(users||[]).filter(u=>u.username!==me);
+    const recipOpts=others.map(u=>`<option value="${u.username}">${u.display_name||u.username} (@${u.username})</option>`).join('');
+    openModal(`
+      <h3 style="margin:0 0 4px;font-size:15px;font-weight:800">📤 Forward Alert / CC</h3>
+      <div style="font-size:12px;color:var(--g500);background:var(--g50);padding:8px 12px;border-radius:7px;margin-bottom:14px">
+        📎 <strong>${esc(piNumber)}</strong> · ${esc(stageLbl)}
+      </div>
+      <div style="display:grid;gap:12px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Forward to <span style="color:var(--red)">*</span></label>
+          <select id="fwd-to" multiple style="width:100%;padding:8px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;height:100px">${recipOpts}</select>
+          <div style="font-size:10px;color:var(--g400);margin-top:3px">Hold Cmd/Ctrl to select multiple</div>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Message / Instructions</label>
+          <textarea id="fwd-msg" rows="3" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit"
+            placeholder="e.g. Please follow up on this deal and respond with an action plan."></textarea>
+        </div>
+        <div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+            <input type="checkbox" id="fwd-action-req" checked style="width:14px;height:14px">
+            Request response / action plan from recipients
+          </label>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+        <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
+        <button onclick="sendForwardAlert('${notifId}','${esc(piNumber)}','${esc(stage)}')" style="padding:9px 22px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">📤 Send</button>
+      </div>
+    `,'Forward Alert');
+  });
+}
+
+async function sendForwardAlert(notifId, piNumber, stage){
+  const me=getAuth();
+  const sel=document.getElementById('fwd-to');
+  const recipients=[...sel.selectedOptions].map(o=>o.value);
+  if(!recipients.length){toast('Please select at least one recipient','err');return;}
+  const msg=(document.getElementById('fwd-msg')?.value||'').trim();
+  const actionReq=document.getElementById('fwd-action-req')?.checked;
+  const stageLbl={no_action:'No Action',hqpo_delay:'Awaiting Shipment',col_delay:'Collection Pending'}[stage]||stage;
+
+  const inserts=recipients.map(to=>({
+    type: actionReq?'alert':'message',
+    title: (actionReq?'📋 Action Required':'📤 FYI')+' — '+piNumber,
+    message: [msg||'Please review this delayed deal and respond with an action plan.',
+      'Deal: '+piNumber, 'Delay Type: '+stageLbl,
+      actionReq?'\n⚠️ Response required within 24 hours.':''].filter(Boolean).join('\n'),
+    from_user: me,
+    to_user: to,
+    related_page: 'pi',
+    related_id: piNumber+'_'+stage,
+  }));
+
+  const{error}=await sb.from('notifications').insert(inserts);
+  if(error){toast('Error: '+error.message,'err');return;}
+  closeModal();
+  toast('✅ Forwarded to '+recipients.length+' recipient(s)');
+  await loadNotifications();
 }
 
 async function sendReply(){
