@@ -1309,6 +1309,9 @@ tr[data-paid="true"] td{opacity:.55}
           <button onclick="runDelayCheck()" style="padding:9px 18px;background:rgba(255,165,0,.2);color:#fff;border:1.5px solid rgba(255,165,0,.4);border-radius:var(--rsm);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px">
             <span style="font-size:15px">⚠️</span> Check Delays
           </button>
+          <button onclick="if(confirm('미응답 알림을 모두 지금 다시 발송할까요?'))runDelayCheck(false,true)" style="padding:9px 18px;background:rgba(239,68,68,.25);color:#fff;border:1.5px solid rgba(239,68,68,.5);border-radius:var(--rsm);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px">
+            <span style="font-size:15px">📢</span> Resend All
+          </button>
           <button onclick="openTestEmailForm()" style="padding:9px 18px;background:rgba(255,255,255,.1);color:#fff;border:1.5px solid rgba(255,255,255,.25);border-radius:var(--rsm);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px">
             <span style="font-size:15px">📧</span> Test Email
           </button>
@@ -7677,19 +7680,20 @@ const DELAY_RULES = {
   no_action:  { days:7,  label:'No Action',              icon:'🚫', stage:'No movement on PI (no PO/HQPO/Shipment)', escalate:1 },
   hqpo_delay: { days:30, label:'Awaiting Shipment',      icon:'⏳', stage:'PI has activity but no Shipment yet',     escalate:1 },
   col_delay:  { days:30, label:'Collection Pending',     icon:'💰', stage:'Shipped but not yet collected',           escalate:1 },
+  col_setup:  { days:0,  label:'Collection Incomplete',  icon:'📝', stage:'Collection record needs payment schedule / details filled in', escalate:1 },
 };
 
 // ── DELAY CHECK ───────────────────────────────────────────────────────────────
-async function runDelayCheck(onlyEscalate=false){
+async function runDelayCheck(onlyEscalate=false, forceResend=false){
   const me=getAuth(); if(!me)return;
-  showPageLoading('Checking delays...');
+  showPageLoading('Checking alerts...');
 
   const [piR,poR,hqR,shR,colR,notifR] = await Promise.all([
     sb.from('pi').select('pi_number,date,distributor,sales_rep,status').neq('status','Cancelled'),
     sb.from('po').select('pi_number,date'),
     sb.from('hq_po').select('pi_number,date'),
     sb.from('shipments').select('pi_number,date'),
-    sb.from('collections').select('pi_number,status'),
+    sb.from('collections').select('pi_number,status,invoice_amount_usd,collected_amount_usd,pay1_amount,bl_date'),
     sb.from('notifications').select('related_id,created_at,read_by,from_user').eq('type','alert'),
   ]);
 
@@ -7751,23 +7755,23 @@ async function runDelayCheck(onlyEscalate=false){
       toInsert.push({
         type:'alert',
         title:rule.icon+' '+rule.label+' — '+num,
-        message:'Distributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n⚠️ Please reply with reason and action plan within 24 hours.',
+        message:'Distributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n⚠️ 이 건을 처리한 뒤 반드시 Messages에서 사유와 조치 계획을 응답해 주세요. 응답이 등록되어야 알림이 종료됩니다.',
         from_user:'system',
         to_user:rep,
         related_page:'pi',
         related_id:key,
       });
     } else {
-      // Check if last alert was >24h ago and unread/no response
+      // Check if last alert was >24h ago and unread/no response (forceResend bypasses the 24h wait)
       const lastSent=prev[prev.length-1];
       const hoursSince=(Date.now()-lastSent.at)/3600000;
       const hasResponse=prev.some(n=>n.read);
-      if(hoursSince>=24&&!hasResponse){
-        // Escalation
+      if((forceResend||hoursSince>=24)&&!hasResponse){
+        // Escalation / reminder
         toInsert.push({
           type:'alert',
-          title:'🔴 ESCALATION: '+rule.label+' — '+num,
-          message:'Distributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n🚨 No response received in 24 hours. Immediate action required.\nPlease respond NOW with reason and action plan.',
+          title:'🔴 미응답 독촉: '+rule.label+' — '+num,
+          message:'Distributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n🚨 아직 응답이 없습니다. 즉시 Messages에서 사유와 조치 계획을 응답하고 이 건을 완료해 주세요.',
           from_user:'system',
           to_user:rep,
           related_page:'pi',
@@ -7776,12 +7780,60 @@ async function runDelayCheck(onlyEscalate=false){
         // Also alert admin
         toInsert.push({
           type:'alert',
-          title:'🔴 Admin Alert: No response — '+num,
-          message:'Sales Rep @'+(rep||'unknown')+' has not responded to delay alert for '+num+' ('+stageDays+'d delayed).',
+          title:'🔴 Admin Alert: 미응답 — '+num,
+          message:'담당자 @'+(rep||'unknown')+' 가 '+num+' ('+stageDays+'일 지연) 알림에 아직 응답하지 않았습니다.',
           from_user:'system',
           to_user:null, // send to admin only - filter by role on read
           related_page:'pi',
           related_id:key+'_esc',
+        });
+      }
+    }
+  }
+
+  // ── Collection-incomplete checks (records that need details filled in) ──
+  for(const c of colRows){
+    const num=c.pi_number; if(!num)continue;
+    const inv=parseFloat(c.invoice_amount_usd||0);
+    const got=parseFloat(c.collected_amount_usd||0);
+    const needsSetup = !c.pay1_amount && !c.bl_date;     // schedule never filled
+    const stillOwed  = inv>0 && (inv-got)>0;             // balance remaining
+    if(!needsSetup && !(stillOwed && c.status!=='Collected')) continue;
+    if(c.status==='Collected') continue;
+
+    const piRec=piRows.find(p=>p.pi_number===num)||{};
+    const rep=piRec.sales_rep||null;
+    const dist=piRec.distributor||'';
+    const rule=DELAY_RULES.col_setup;
+    const key=num+'_col_setup';
+    const prev=sentMap[key]||[];
+    const outstanding=Math.max(0,inv-got);
+    const detail='Distributor: '+dist+'\nOutstanding: $'+Math.round(outstanding).toLocaleString()+
+      (needsSetup?'\n⚠️ 수금 스케줄·결제조건·선적일이 비어 있습니다.':'\n⚠️ 미수금이 남아 있습니다.');
+
+    if(prev.length===0){
+      toInsert.push({
+        type:'alert',
+        title:rule.icon+' '+rule.label+' — '+num,
+        message:detail+'\n\n⚠️ 수금 내역을 모두 입력/수금 완료한 뒤 반드시 Messages에서 응답해 주세요.',
+        from_user:'system', to_user:rep, related_page:'collections', related_id:key,
+      });
+    } else {
+      const lastSent=prev[prev.length-1];
+      const hoursSince=(Date.now()-lastSent.at)/3600000;
+      const hasResponse=prev.some(n=>n.read);
+      if((forceResend||hoursSince>=24)&&!hasResponse){
+        toInsert.push({
+          type:'alert',
+          title:'🔴 미응답 독촉: '+rule.label+' — '+num,
+          message:detail+'\n\n🚨 아직 응답이 없습니다. 즉시 수금 내역을 처리하고 Messages에서 응답해 주세요.',
+          from_user:'system', to_user:rep, related_page:'collections', related_id:key,
+        });
+        toInsert.push({
+          type:'alert',
+          title:'🔴 Admin Alert: 수금 미응답 — '+num,
+          message:'담당자 @'+(rep||'unknown')+' 가 '+num+' 수금 알림에 아직 응답하지 않았습니다.',
+          from_user:'system', to_user:null, related_page:'collections', related_id:key+'_esc',
         });
       }
     }
@@ -7812,10 +7864,10 @@ async function runDelayCheck(onlyEscalate=false){
   }
 
   const parts=[];
-  if(inserted) parts.push(inserted+' new alert(s)');
-  if(resend.length) parts.push(resend.length+' resent (no response)');
-  if(!parts.length){toast('✅ All delays already notified');await loadNotifications();return;}
-  toast('⚠️ '+parts.join(', '),'err');
+  if(inserted) parts.push(inserted+'건 신규 발송');
+  if(resend.length) parts.push(resend.length+'건 재발송(미응답)');
+  if(!parts.length){toast('✅ 모든 알림이 이미 발송되었고 미응답 건이 없습니다');await loadNotifications();return;}
+  toast('📢 '+parts.join(', '),'err');
   await loadNotifications();
 }
 
@@ -8186,14 +8238,14 @@ function renderAlertThread(el){
       <div style="font-size:11px;font-weight:700;color:var(--g400);padding:4px 0;text-transform:uppercase;letter-spacing:.04em">→ @${esc(user)}</div>
       ${userAlerts.map(n=>{
         const isRead=(n.read_by||[]).includes(me);
-        const stageKeys=['no_action','hqpo_delay','col_delay','po_delay'];
+        const stageKeys=['no_action','hqpo_delay','col_delay','col_setup','po_delay'];
         let piNumber='',stage='';
         for(const sk of stageKeys){
           if((n.related_id||'').endsWith('_'+sk)){
             piNumber=(n.related_id||'').slice(0,-(sk.length+1)); stage=sk; break;
           }
         }
-        const stageLbl={no_action:'No Action',hqpo_delay:'Awaiting Shipment',col_delay:'Collection Pending'}[stage]||stage;
+        const stageLbl={no_action:'No Action',hqpo_delay:'Awaiting Shipment',col_delay:'Collection Pending',col_setup:'Collection Incomplete'}[stage]||stage;
         const delayDays=(n.message||'').match(/Delayed: (\d+)/)?.[1]||'';
         const replies=(_delayResponses||[]).filter(r=>r.notification_id===n.id);
         const isEsc=n.title.startsWith('🔴');
@@ -8238,7 +8290,7 @@ function renderAlertThread(el){
 
 function openForwardAlert(notifId, piNumber, stage){
   const me=getAuth();
-  const stageLbl={no_action:'No Action',hqpo_delay:'Awaiting Shipment',col_delay:'Collection Pending'}[stage]||stage;
+  const stageLbl={no_action:'No Action',hqpo_delay:'Awaiting Shipment',col_delay:'Collection Pending',col_setup:'Collection Incomplete'}[stage]||stage;
   sb.from('user_permissions').select('username,display_name').eq('is_active',true).then(({data:users})=>{
     const others=(users||[]).filter(u=>u.username!==me);
     const recipOpts=others.map(u=>`<option value="${u.username}">${u.display_name||u.username} (@${u.username})</option>`).join('');
@@ -8280,7 +8332,7 @@ async function sendForwardAlert(notifId, piNumber, stage){
   if(!recipients.length){toast('Please select at least one recipient','err');return;}
   const msg=(document.getElementById('fwd-msg')?.value||'').trim();
   const actionReq=document.getElementById('fwd-action-req')?.checked;
-  const stageLbl={no_action:'No Action',hqpo_delay:'Awaiting Shipment',col_delay:'Collection Pending'}[stage]||stage;
+  const stageLbl={no_action:'No Action',hqpo_delay:'Awaiting Shipment',col_delay:'Collection Pending',col_setup:'Collection Incomplete'}[stage]||stage;
 
   const inserts=recipients.map(to=>({
     type: actionReq?'alert':'message',
