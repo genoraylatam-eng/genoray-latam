@@ -1005,6 +1005,7 @@ tr[data-paid="true"] td{opacity:.55}
           <thead><tr>
             <th class="sortable" onclick="sortTbl('collections','collection_id')">ID</th>
             <th class="sortable" onclick="sortTbl('collections','pi_number')">PI No.</th>
+            <th>HQ PO No.</th>
             <th class="sortable" onclick="sortTbl('collections','distributor')">Distributor</th>
             <th class="sortable" onclick="sortTbl('collections','country')">Country</th>
             <th class="sortable" onclick="sortTbl('collections','invoice_amount_usd')">Invoice</th>
@@ -2167,12 +2168,29 @@ async function checkMissingCollections(){
 
   if(missing.length>0){
     if(titleEl)titleEl.textContent=`⚠️ ${missing.length} shipped PI${missing.length>1?'s':''} have no Collections record`;
-    if(listEl)listEl.textContent=missing.map(m=>m.pi_number).join(' · ');
+    if(listEl){
+      // Each PI is clickable → opens a NEW collection form prefilled for that PI
+      listEl.innerHTML=missing.map(m=>
+        `<span class="pi-link" style="margin-right:8px" onclick="openCollectionForPI('${esc(m.pi_number)}')">${esc(m.pi_number)}</span>`
+      ).join('· ');
+    }
     banner.style.display='flex';
     window._missingCollections=missing.map(m=>piMap[m.pi_number]||{pi_number:m.pi_number});
   } else {
     banner.style.display='none';
   }
+}
+
+// Open a NEW collection form, prefilled from the given PI (used by the warning banner)
+async function openCollectionForPI(piNumber){
+  await loadXRef();
+  await openForm('collections');
+  setTimeout(()=>{
+    const piEl=document.getElementById('col-pi');
+    if(piEl){ piEl.value=piNumber; piEl.dispatchEvent(new Event('input')); }
+    // auto-fill the schedule if we now have terms + B/L date
+    setTimeout(()=>{ try{ colAutoFillSchedule(); }catch(e){} }, 250);
+  }, 300);
 }
 
 async function autoAddMissingCollections(){
@@ -2394,6 +2412,51 @@ async function checkSalesRepAlerts(userPerms){
 
   // Show in-app notification toast + panel
   showSalesRepAlertPanel(noActionPIs, userPerms, alertMsg);
+}
+
+// ── DAILY INCOMPLETE-COLLECTIONS ALERT ────────────────────────────────────────
+// Reminds the rep every day (once per day) about collection records that are
+// not fully set up or still have an outstanding balance. Keeps nagging until done.
+async function checkIncompleteCollections(userPerms){
+  if(!userPerms)return;
+  const username=userPerms.username||getAuth();
+  if(!username)return;
+
+  const {data:cols=[]}=await sb.from('collections').select('*');
+  if(!cols||!cols.length)return;
+
+  // A collection is "incomplete" if: missing schedule setup OR still has outstanding balance
+  const today=new Date(); today.setHours(0,0,0,0);
+  const incomplete=cols.filter(c=>{
+    const inv=parseFloat(c.invoice_amount_usd||0);
+    const got=parseFloat(c.collected_amount_usd||0);
+    const outstanding=inv-got;
+    const noSchedule=!c.pay1_amount && !c.bl_date;       // never set up
+    const stillOwed=inv>0 && outstanding>0;              // money still due
+    return noSchedule || stillOwed;
+  }).map(c=>{
+    const inv=parseFloat(c.invoice_amount_usd||0);
+    const got=parseFloat(c.collected_amount_usd||0);
+    return {...c, outstanding:Math.max(0,inv-got)};
+  }).sort((a,b)=>b.outstanding-a.outstanding);
+
+  if(!incomplete.length)return;
+
+  // Once-per-day throttle (separate key from the PI alert)
+  const lastKey=`gl_colalert_${username}`;
+  const todayStr=today.toISOString().slice(0,10);
+  if(localStorage.getItem(lastKey)===todayStr)return;
+  localStorage.setItem(lastKey,todayStr);
+
+  const total=incomplete.length;
+  const totalOut=incomplete.reduce((s,c)=>s+c.outstanding,0);
+  const alertMsg=`💰 Daily Collections Alert — ${total} record${total>1?'s':''} need attention\n`+
+    `Outstanding total: $${Math.round(totalOut).toLocaleString()}\n\n`+
+    incomplete.slice(0,5).map(c=>`• ${c.pi_number} — $${Math.round(c.outstanding).toLocaleString()} outstanding`).join('\n')+
+    (total>5?`\n...and ${total-5} more`:'')+
+    `\n\nLogin: https://genoray-latam.vercel.app`;
+
+  showSalesRepAlertPanel(incomplete.map(c=>({pi_number:c.pi_number,days:0,amount_usd:c.outstanding,distributor:c.distributor})), userPerms, alertMsg);
 }
 
 function showSalesRepAlertPanel(pis, userPerms, alertMsg){
@@ -3959,7 +4022,7 @@ async function loadXRef(){
   const[{data:pi=[]},{data:po=[]},{data:hq=[]},{data:sh=[]},{data:col=[]}]=await Promise.all([
     sb.from('pi').select('pi_number,status,payment_terms,sales_rep'),
     sb.from('po').select('pi_number,po_number,status'),
-    sb.from('hq_po').select('hq_po_number,pi_number,po_number'),
+    sb.from('hq_po').select('id,hq_po_number,pi_number,po_number'),
     sb.from('shipments').select('pi_number,hq_po_number,date,etd,eta,status,amount_usd'),
     sb.from('collections').select('pi_number,invoice_amount_usd,collected_amount_usd,status')
   ]);
@@ -4307,9 +4370,18 @@ function rowHTML(page,r){
       daysBadge='<span style="color:var(--green);font-size:11px">✓ Paid</span>';
     }
     const isPaid=outstanding<=0;
+    // Find linked HQ PO number for this PI
+    const hqRec=(xref&&xref.hq||[]).find(h=>h.pi_number===r.pi_number);
+    const hqNo=hqRec?hqRec.hq_po_number:null;
+    const hqCell=hqNo
+      ? '<td><span class="pi-link" onclick="openForm(\'hqpo\',\''+(hqRec.id||'')+'\')">'+hqNo+'</span></td>'
+      : '<td style="color:var(--g400)">—</td>';
+    // ID is clickable → opens the collection detail form
+    const idCell='<td><span class="pi-link" onclick="openForm(\'collections\',\''+r.id+'\')">'+r.collection_id+'</span></td>';
     return '<tr'+(isPaid?' data-paid="true"':'')+'>'
-      +'<td>'+r.collection_id+'</td>'
+      +idCell
       +'<td>'+piLink(r.pi_number,r.pi_number)+'</td>'
+      +hqCell
       +'<td>'+(r.distributor||'-')+'</td>'
       +'<td>'+(r.country||'-')+'</td>'
       +'<td>$'+fmt(invAmt)+'</td>'
@@ -5316,6 +5388,24 @@ async function saveForm(){
   if(!data.hq_po_number&&formState.page==='hqpo')data.hq_po_number=`HQ-${yr}-${rnd()}`;
   if(!data.shipment_number&&formState.page==='shipments')data.shipment_number=`SH-${yr}-${rnd()}`;
   if(!data.collection_id&&formState.page==='collections')data.collection_id=`COL-${yr}-${rnd()}`;
+  // Collections: require the essentials so reps don't leave records incomplete
+  if(formState.page==='collections'){
+    const miss=[];
+    if(!data.pi_number) miss.push('PI Number');
+    if(!data.invoice_amount_usd) miss.push('Invoice Amount');
+    if(!data.payment_terms) miss.push('Payment Terms');
+    if(!data.bl_date) miss.push('Shipping / B/L Date');
+    // If any installment has an amount, it must also have a due date (and vice-versa)
+    for(let i=1;i<=3;i++){
+      const amt=data['pay'+i+'_amount'], due=data['pay'+i+'_due'];
+      if(amt&&!due) miss.push(`${i}차 예정일(Due)`);
+      if(due&&!amt) miss.push(`${i}차 금액`);
+    }
+    if(miss.length){
+      toast('⚠️ 필수 입력: '+miss.join(', '),'err');
+      btn.textContent='Save';btn.disabled=false;return;
+    }
+  }
   // Products: validate required fields + auto-generate code from division/category
   if(formState.page==='products'){
     const errs=validateProductForm(data);
@@ -7036,6 +7126,10 @@ async function loadUserPermissions(username){
   // Sales Rep: check for No Action PIs after load
   if(_userPerms&&(_userPerms.user_type==='sales_rep'||_userPerms.role!=='admin')){
     setTimeout(()=>checkSalesRepAlerts(_userPerms), 2000);
+  }
+  // Everyone (incl. admin) gets the daily collections reminder until all are settled
+  if(_userPerms){
+    setTimeout(()=>checkIncompleteCollections(_userPerms), 3500);
   }
 }
 
