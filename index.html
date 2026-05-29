@@ -7470,30 +7470,88 @@ async function runDelayCheck(onlyEscalate=false){
 
 // ── DELAY RESPONSE FORM ───────────────────────────────────────────────────────
 function openDelayResponse(notifId, piNumber, stage){
+  const me=getAuth();
+  const isAdmin=getRole()==='admin'||ADMIN_USERS.includes(me);
   const rule=DELAY_RULES[stage]||{icon:'⚠️',label:'Delay',stage:stage};
-  openModal(`
-    <h3 style="margin:0 0 4px;font-size:15px;font-weight:800">${rule.icon} ${esc(rule.label)}</h3>
-    <div style="font-size:12px;color:var(--g500);margin-bottom:16px">PI: <strong>${esc(piNumber)}</strong> · Stage: ${esc(rule.stage)}</div>
-    <div style="display:grid;gap:12px">
-      <div>
-        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Reason for Delay <span style="color:var(--red)">*</span></label>
-        <textarea id="dr-reason" rows="3" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit" placeholder="Explain why this is delayed..."></textarea>
+
+  // Find who received this alert
+  const notif=_notifData.find(n=>n.id===notifId);
+  const alertTo=notif?.to_user; // the Sales Rep
+
+  if(isAdmin && alertTo && alertTo!==me){
+    // Admin → Send message TO the Sales Rep
+    openModal(`
+      <h3 style="margin:0 0 4px;font-size:15px;font-weight:800">💬 Message to @${esc(alertTo)}</h3>
+      <div style="font-size:12px;background:var(--g50);padding:8px 12px;border-radius:8px;margin-bottom:14px">
+        📎 <strong>${esc(piNumber)}</strong> · ${esc(rule.label)}
       </div>
-      <div>
-        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Action Plan <span style="color:var(--red)">*</span></label>
-        <textarea id="dr-plan" rows="3" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit" placeholder="What steps will you take to resolve this?"></textarea>
+      <div style="display:grid;gap:12px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Message to Sales Rep <span style="color:var(--red)">*</span></label>
+          <textarea id="dr-admin-msg" rows="4" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit"
+            placeholder="e.g. Please follow up on this deal immediately and provide an update by end of day."></textarea>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Expected Response By</label>
+          <input id="dr-admin-date" type="date" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box">
+        </div>
       </div>
-      <div>
-        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Expected Resolution Date</label>
-        <input id="dr-date" type="date" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box">
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+        <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
+        <button onclick="sendAdminMessageToRep('${notifId}','${esc(piNumber)}','${esc(stage)}','${esc(alertTo)}')" style="padding:9px 22px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">📤 Send to @${esc(alertTo)}</button>
       </div>
-    </div>
-    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
-      <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
-      <button onclick="submitDelayResponse('${notifId}','${esc(piNumber)}','${esc(stage)}')" style="padding:9px 22px;background:#f59e0b;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">📤 Submit Response</button>
-    </div>
-  `,'Delay Response Required');
-  setTimeout(()=>document.getElementById('dr-reason')?.focus(),80);
+    `,'Message to Sales Rep');
+    setTimeout(()=>document.getElementById('dr-admin-msg')?.focus(),80);
+  } else {
+    // Sales Rep → Submit their own response
+    openModal(`
+      <h3 style="margin:0 0 4px;font-size:15px;font-weight:800">${rule.icon} ${esc(rule.label)}</h3>
+      <div style="font-size:12px;color:var(--g500);margin-bottom:16px">PI: <strong>${esc(piNumber)}</strong> · Stage: ${esc(rule.stage)}</div>
+      <div style="display:grid;gap:12px">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Reason for Delay <span style="color:var(--red)">*</span></label>
+          <textarea id="dr-reason" rows="3" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit" placeholder="Explain why this is delayed..."></textarea>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Action Plan <span style="color:var(--red)">*</span></label>
+          <textarea id="dr-plan" rows="3" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit" placeholder="What steps will you take to resolve this?"></textarea>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Expected Resolution Date</label>
+          <input id="dr-date" type="date" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+        <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
+        <button onclick="submitDelayResponse('${notifId}','${esc(piNumber)}','${esc(stage)}')" style="padding:9px 22px;background:#f59e0b;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">📤 Submit Response</button>
+      </div>
+    `,'Delay Response Required');
+    setTimeout(()=>document.getElementById('dr-reason')?.focus(),80);
+  }
+}
+
+async function sendAdminMessageToRep(notifId, piNumber, stage, repUsername){
+  const me=getAuth();
+  const msg=(document.getElementById('dr-admin-msg')?.value||'').trim();
+  const date=document.getElementById('dr-admin-date')?.value||null;
+  if(!msg){toast('Please enter a message','err');return;}
+  const rule=DELAY_RULES[stage]||{label:stage};
+  // Send direct message to the Sales Rep
+  const{error}=await sb.from('notifications').insert({
+    type:'message',
+    title:'📋 Follow-up required — '+piNumber,
+    message:msg+(date?'\nPlease respond by: '+date:'')+'\n['+rule.label+']',
+    from_user:me,
+    to_user:repUsername,
+    related_page:'pi',
+    related_id:piNumber,
+  });
+  if(error){toast('Error: '+error.message,'err');return;}
+  await markRead(notifId);
+  closeModal();
+  toast('✅ Message sent to @'+repUsername);
+  await loadNotifications();
+  if(activePage==='notifications') openConv('user:'+repUsername);
 }
 
 async function submitDelayResponse(notifId,piNumber,stage){
