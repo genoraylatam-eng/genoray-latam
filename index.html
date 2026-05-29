@@ -1428,6 +1428,7 @@ tr[data-paid="true"] td{opacity:.55}
   <div class="modal" style="width:860px">
     <div class="modal-head">
       <span class="modal-title" id="pi-modal-title">New Proforma Invoice</span>
+      <button id="pi-hist-btn" onclick="showPIHistory(piFS.ed?.pi_number)" style="display:none;padding:4px 12px;border:1px solid var(--g200);border-radius:6px;background:#fff;font-size:11px;cursor:pointer">📋 History</button>
       <button class="modal-close" onclick="closePIForm()">×</button>
     </div>
     <div class="modal-body" id="pi-modal-body"></div>
@@ -2558,29 +2559,27 @@ async function savePIStatusNote(piNum){
 }
 
 // ── SALES REP OPTIONS ────────────────────────────────────────────────────────
+function _canChangeRep(){
+  const me=getAuth();
+  const isAdmin=getRole()==='admin'||ADMIN_USERS.includes(me);
+  if(isAdmin)return true;
+  const perm=masterCache.userPerms?.find(u=>u.username===me);
+  return perm?.can_change_rep===true;
+}
+
 function _getSalesRepOptions(selected){
-  const currentUser = getAuth()||'';
-  const isAdmin = currentUser==='mitchel'||currentUser==='admin'||
-                  (window._userPerms&&window._userPerms.role==='admin');
-  
-  // All known reps from user_permissions display names
-  const allReps = (masterCache.userPerms||[]).map(u=>({
-    id: u.username, 
-    name: u.display_name||u.username
+  const currentUser=getAuth()||'';
+  const canChange=_canChangeRep();
+  const allReps=(masterCache.userPerms||[]).filter(u=>u.is_active).map(u=>({
+    id:u.username, name:u.display_name||u.username
   }));
-  
-  // If no userPerms cached yet, use current user only
-  const reps = allReps.length > 0 ? allReps : [{id:currentUser, name:currentUser}];
-  
-  // Non-admin: only see themselves
-  const filtered = isAdmin ? reps : reps.filter(r=>r.id===currentUser);
-  // Always include current user even if not in list
-  const hasCurrentUser = filtered.some(r=>r.id===currentUser);
-  if(!hasCurrentUser && currentUser){
-    filtered.unshift({id:currentUser, name:currentUser});
+  const reps=allReps.length>0?allReps:[{id:currentUser,name:currentUser}];
+  // Only authorized users see all reps; others locked to themselves
+  const filtered=canChange?reps:reps.filter(r=>r.id===currentUser);
+  if(!filtered.some(r=>r.id===currentUser)&&currentUser){
+    filtered.unshift({id:currentUser,name:currentUser});
   }
-  
-  return filtered.map(r=>`<option value="${esc(r.id)}" ${(selected||currentUser)===r.id?'selected':''}>${esc(r.name)}</option>`).join('');
+  return filtered.map(r=>`<option value="${esc(r.id)}" ${(selected||(piFS.ed?.sales_rep)||currentUser)===r.id?'selected':''}>${esc(r.name)}</option>`).join('');
 }
 
 // ── AUTO-CREATE COLLECTIONS ON SHIPMENT ──────────────────────────────────────
@@ -4346,6 +4345,19 @@ function openPI(id=null){
   if(!guardEdit('pi'))return;
   piFS={id,items:[],ed:{},seller:'korea'};
   document.getElementById('pi-modal-title').textContent=id?'Edit PI':'New Proforma Invoice';
+  const _histBtn=document.getElementById('pi-hist-btn');
+  if(_histBtn) _histBtn.style.display=id?'inline-block':'none';
+  // Add history button if editing
+  const piHistBtn=document.getElementById('pi-hist-btn');
+  if(piHistBtn){
+    const piRec2=(cache.pi||[]).find(r=>r.id===id);
+    if(id&&piRec2?.pi_number){
+      piHistBtn.style.display='inline-flex';
+      piHistBtn.onclick=()=>showPIHistory(piRec2.pi_number);
+    } else {
+      piHistBtn.style.display='none';
+    }
+  }
   if(id){
     const piRec=(cache.pi||[]).find(r=>r.id===id);
     Promise.all([
@@ -4430,10 +4442,7 @@ function renderPIForm(){
     <div class="fg"><label>Delivery</label><input id="pif-delivery" value="${d.delivery||'4 weeks after receipt of payment'}"></div>
     <div class="fg"><label>Authorized By (Seller)</label><input id="pif-auth" value="${d.authorized_by||'Christopher Yoon'}"></div>
     <div class="fg"><label style="font-weight:700"><span style="color:var(--red)">*</span> Sales Rep <span style="font-size:10px;color:var(--g400);font-weight:400">(required · not printed)</span></label>
-      <select id="pif-sales-rep" required style="border-color:var(--purple);background:#faf5ff;font-weight:600;color:var(--g900)">
-        <option value="">— Select —</option>
-        ${_getSalesRepOptions(d.sales_rep)}
-      </select>
+      <select id="pif-sales-rep" required style="border-color:var(--purple);background:#faf5ff;font-weight:600;color:var(--g900)" ${!_canChangeRep()&&piFS.id?'disabled title="Locked — contact admin to reassign"':''}>\n        <option value="">— Select —</option>\n        ${_getSalesRepOptions(d.sales_rep)}\n      </select>\n      ${!_canChangeRep()&&piFS.id?'<div style="font-size:10px;color:var(--amber);margin-top:2px">🔒 Only admin or authorized users can change the assigned rep</div>':''}
     </div>
     <div class="fg full"><label>Notes / Remarks</label><textarea id="pif-notes">${d.notes||''}</textarea></div>
   </div>`;
@@ -4608,6 +4617,7 @@ async function savePI(){
     })));
   }
   toast('PI saved!','ok');btn.textContent='Save PI';btn.disabled=false;
+  await _recordPIHistory(payload, piFS.ed, piFS.id);
   closePIForm();loadTable('pi');
 }
 
@@ -6969,6 +6979,7 @@ async function loadAdminUsers(){
       ${SEC_LABELS.map(s=>`<th style="padding:8px 4px;text-align:center;font-weight:600;color:var(--g500);font-size:11px;min-width:58px">${s.short}</th>`).join('')}
       <th style="padding:8px 6px;text-align:center;font-weight:700;color:var(--g600);font-size:11px">Export</th>
       <th style="padding:8px 6px;text-align:center;font-weight:700;color:var(--g600);font-size:11px">Delete</th>
+            <th style="padding:8px 6px;font-weight:700;color:var(--g600);font-size:11px">Change Rep</th>
       <th style="padding:8px 6px;text-align:center;font-weight:700;color:var(--g600);font-size:11px">Status</th>
       <th style="padding:8px 14px;min-width:90px"></th>
     </tr>
@@ -7056,6 +7067,11 @@ async function loadAdminUsers(){
       <td style="padding:6px;text-align:center">${isAdmin
         ?'<span style="color:#059669;font-weight:800;font-size:14px">✓</span>'
         :`<input type="checkbox"${u.can_delete?' checked':''} onchange="updateUserPerm('${u.username}','can_delete',this.checked)" style="width:15px;height:15px;cursor:pointer">`}
+      </td>
+      <!-- Change Rep -->
+      <td style="padding:6px;text-align:center">${isAdmin
+        ?'<span style="color:#059669;font-weight:800;font-size:14px">✓</span>'
+        :`<input type="checkbox"${u.can_change_rep?' checked':''} onchange="updateUserPerm('${u.username}','can_change_rep',this.checked)" style="width:15px;height:15px;cursor:pointer">`}
       </td>
       <!-- Status -->
       <td style="padding:6px;text-align:center">
@@ -8110,6 +8126,75 @@ async function sendNewMessage(){
   closeModal(); toast('✅ Message sent!');
   await loadNotifications();
 }
+
+// ── PI HISTORY ────────────────────────────────────────────────────────────────
+async function _recordPIHistory(newData, oldData, isEdit){
+  const me=getAuth();
+  const piNum=newData.pi_number||oldData?.pi_number||'';
+  if(!piNum)return;
+
+  const tracked=['sales_rep','status','amount_usd','distributor','payment_terms',
+                 'date','notes','validity','incoterms','port_of_discharge'];
+  const changes=[];
+
+  if(isEdit&&oldData){
+    // Track field-level changes
+    tracked.forEach(f=>{
+      const oldV=String(oldData[f]||'');
+      const newV=String(newData[f]||'');
+      if(oldV!==newV){
+        changes.push({
+          pi_number:piNum, changed_by:me,
+          field_changed:f,
+          old_value:oldV||'(empty)',
+          new_value:newV||'(empty)',
+          change_summary:`${f}: "${oldV||'empty'}" → "${newV||'empty'}"`,
+        });
+      }
+    });
+  } else {
+    // New PI created
+    changes.push({
+      pi_number:piNum, changed_by:me,
+      field_changed:'created',
+      old_value:null,
+      new_value:piNum,
+      change_summary:`PI created by @${me}`,
+    });
+  }
+
+  if(changes.length){
+    await sb.from('pi_history').insert(changes);
+  }
+}
+
+async function showPIHistory(piNumber){
+  const{data,error}=await sb.from('pi_history')
+    .select('*').eq('pi_number',piNumber)
+    .order('changed_at',{ascending:false}).limit(50);
+  if(error||!data?.length){
+    openModal('<div style="padding:20px;text-align:center;color:var(--g400)">No history yet</div>','Change History');
+    return;
+  }
+  const rows=data.map(h=>{
+    const ago=fmtAgo(h.changed_at);
+    const isRepChange=h.field_changed==='sales_rep';
+    return`<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--g100)">
+      <div style="width:28px;height:28px;border-radius:50%;background:${isRepChange?'#fef3c7':'var(--g100)'};display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">
+        ${h.field_changed==='created'?'✨':isRepChange?'👤':'✏️'}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700;color:var(--g900)">${esc(h.change_summary||h.field_changed)}</div>
+        <div style="font-size:11px;color:var(--g400);margin-top:2px">@${esc(h.changed_by)} · ${ago}</div>
+      </div>
+    </div>`;
+  }).join('');
+  openModal(`
+    <h3 style="margin:0 0 14px;font-size:15px;font-weight:800">📋 Change History — ${esc(piNumber)}</h3>
+    <div style="max-height:400px;overflow-y:auto">${rows}</div>
+  `,'Change History');
+}
+
 
 // ── STARTUP 
 (function(){
