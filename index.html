@@ -8205,7 +8205,7 @@ async function loadNotifications(){
     query=sb.from('notifications').select('*').order('created_at',{ascending:false}).limit(300);
   } else {
     query=sb.from('notifications').select('*')
-      .or('to_user.is.null,to_user.eq.'+me+',from_user.eq.'+me)
+      .or('to_user.is.null,to_user.eq.'+me+',to_user.eq.__all__,from_user.eq.'+me)
       .order('created_at',{ascending:false}).limit(200);
   }
   const [{data,error}, {data:responses}]=await Promise.all([
@@ -8292,7 +8292,7 @@ function buildConvList(){
   const el=document.getElementById('conv-items');
   if(!el)return;
 
-  // ── Badge counts ───────────────────────────────────────────────────────────
+  // ── Badge counts ──────────────────────────────────────────────────────────
   const alerts=_notifData.filter(n=>n.type==='alert');
   const myAlerts=alerts.filter(n=>n.to_user===me&&n.from_user!==me);
   const alertUnread=myAlerts.filter(n=>!(n.read_by||[]).includes(me)).length;
@@ -8303,10 +8303,22 @@ function buildConvList(){
     (n.from_user===me||n.from_user==='system')&&n.to_user&&n.to_user!==me&&
     !(_delayResponses||[]).some(r=>r.notification_id===n.id)
   ).length;
-  const anns=_notifData.filter(n=>n.to_user===null&&n.type!=='alert');
+
+  // Announcements = to_user null, type != alert
+  const anns=_notifData.filter(n=>n.to_user===null&&n.type!=='alert'&&n.type!=='team');
   const annUnread=anns.filter(n=>n.from_user!==me&&!(n.read_by||[]).includes(me)).length;
+
+  // Team Chat = type 'team' OR (to_user === '__all__')
+  const teamMsgs=_notifData.filter(n=>n.type==='team'||n.to_user==='__all__');
+  const teamUnread=teamMsgs.filter(n=>n.from_user!==me&&!(n.read_by||[]).includes(me)).length;
+
+  // 1-on-1 Direct Messages
   const myMsgs={};
-  _notifData.filter(n=>n.type==='message'&&(n.from_user===me||n.to_user===me)).forEach(n=>{
+  _notifData.filter(n=>
+    n.type==='message'&&
+    n.to_user!==null&&n.to_user!=='__all__'&&
+    (n.from_user===me||n.to_user===me)
+  ).forEach(n=>{
     const other=n.from_user===me?n.to_user:n.from_user;
     if(!other||other==='system')return;
     if(!myMsgs[other])myMsgs[other]={msgs:[],unread:0};
@@ -8319,76 +8331,94 @@ function buildConvList(){
   );
   const dmUnread=dmList.reduce((s,[,v])=>s+v.unread,0);
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  function convItem(key,icon,label,unread,needsReply,preview){
+  // ── Item renderer ─────────────────────────────────────────────────────────
+  function convItem(key,icon,label,unread,needsReply,preview,bgColor){
     const act=_activeConv===key;
     let badge='';
     if(!act){
       if(unread>0) badge+=`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 7px;border-radius:10px">${unread}</span>`;
       if(needsReply>0) badge+=`<span style="background:#f59e0b;color:#fff;font-size:9px;font-weight:800;padding:1px 7px;border-radius:10px;margin-left:2px">${needsReply}</span>`;
     }
-    const bold=(unread+needsReply)>0&&!act;
-    return`<div onclick="openConv('${key}')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;background:${act?'var(--blue)':'transparent'};color:${act?'#fff':'var(--g900)'};border-bottom:1px solid var(--g100);transition:background .1s"
-      onmouseover="if(!this.style.background.includes('var(--blue)'))this.style.background='var(--g50)'"
-      onmouseout="if(!this.style.background.includes('var(--blue)'))this.style.background='transparent'">
-      <div style="width:38px;height:38px;border-radius:50%;background:${act?'rgba(255,255,255,.2)':'var(--g100)'};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;flex-grow:0">${icon}</div>
+    const hasBadge=(unread+needsReply)>0&&!act;
+    return`<div onclick="openConv('${key}')"
+      style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;
+        background:${act?'var(--blue)':'transparent'};color:${act?'#fff':'var(--g900)'};
+        border-bottom:1px solid var(--g100);transition:background .12s"
+      onmouseover="if(!this.style.background.includes('blue'))this.style.background='var(--g50)'"
+      onmouseout="if(!this.style.background.includes('blue'))this.style.background='transparent'">
+      <div style="width:40px;height:40px;border-radius:50%;background:${act?'rgba(255,255,255,.2)':bgColor||'var(--g100)'};
+        display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${icon}</div>
       <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:4px;justify-content:space-between">
-          <span style="font-size:13px;font-weight:${bold?700:500};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${label}</span>
+        <div style="display:flex;align-items:center;gap:4px;justify-content:space-between;margin-bottom:2px">
+          <span style="font-size:13px;font-weight:${hasBadge?700:500};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${label}</span>
           <span style="display:flex;gap:2px;align-items:center;flex-shrink:0">${badge}</span>
         </div>
         ${preview?`<div style="font-size:11px;opacity:.55;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</div>`:''}
       </div>
     </div>`;
   }
-  function sectionHdr(label,badgeN,plusFn){
-    const b=badgeN?`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:10px">${badgeN}</span>`:'';
-    const plus=plusFn?`<button onclick="${plusFn};event.stopPropagation()" style="width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;border:none;font-size:15px;cursor:pointer;line-height:1;flex-shrink:0">+</button>`:'';
-    return`<div style="display:flex;align-items:center;gap:6px;padding:8px 14px 5px;background:var(--g50);border-bottom:1px solid var(--g100)">
-      <span style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;flex:1">${label}</span>${b}${plus}
-    </div>`;
-  }
 
   let html='';
 
-  // ── System Alerts ─────────────────────────────────────────────────────────
-  html+=sectionHdr('System');
+  // ── SYSTEM ────────────────────────────────────────────────────────────────
+  html+=`<div style="padding:7px 14px 4px;font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;background:var(--g50)">System</div>`;
   const alertPrev=alertUnread?`🔴 ${alertUnread} new alerts`:
     alertNeedsReply?`🟡 ${alertNeedsReply} need your response`:
     sentPending?`📤 ${sentPending} awaiting reply`:'No new alerts';
-  html+=convItem('alerts','⚠️','System Alerts',alertUnread,alertNeedsReply,alertPrev);
+  html+=convItem('alerts','⚠️','System Alerts',alertUnread,alertNeedsReply,alertPrev,'#fef3c7');
 
-  // ── Announcements (ALL users) ──────────────────────────────────────────────
-  html+=sectionHdr('Announcements',annUnread,"openAnnouncementForm()");
+  // ── ANNOUNCEMENTS — single clickable item with + button inline ────────────
+  // Entire header row IS the clickable item; + opens compose
+  const annAct=_activeConv==='announcements';
   const lastAnn=[...anns].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];
-  const annPrev=lastAnn?`${lastAnn.from_user===me?'You':'@'+lastAnn.from_user}: ${esc((lastAnn.message||'').slice(0,32))}`:'Tap + to post an announcement';
-  html+=convItem('announcements','📢','Announcements',annUnread,0,annPrev);
+  const annPrev=lastAnn?`${lastAnn.from_user===me?'You':'@'+lastAnn.from_user}: ${esc((lastAnn.message||'').slice(0,32))}`:'Tap + to post';
+  const annBadge=annUnread?`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 7px;border-radius:10px">${annUnread}</span>`:'';
+  html+=`<div style="display:flex;align-items:center;padding:7px 14px 4px;background:var(--g50);margin-top:2px">
+    <span style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;flex:1">Announcements</span>
+    ${annBadge}
+    <button onclick="openAnnouncementForm();event.stopPropagation()" title="New Announcement"
+      style="margin-left:6px;width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;border:none;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">+</button>
+  </div>`;
+  html+=convItem('announcements','📢','Announcements',annUnread,0,annPrev,'#e0e7ff');
 
-  // ── Direct Messages (ALL users) ───────────────────────────────────────────
-  html+=sectionHdr('Direct Messages',dmUnread,"openNewMessageForm()");
+  // ── DIRECT MESSAGES ───────────────────────────────────────────────────────
+  const dmTotBadge=teamUnread+dmUnread;
+  html+=`<div style="display:flex;align-items:center;padding:7px 14px 4px;background:var(--g50);margin-top:2px">
+    <span style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;flex:1">Direct Messages</span>
+    ${dmTotBadge?`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:10px">${dmTotBadge}</span>`:''}
+    <button onclick="openNewMessageForm();event.stopPropagation()" title="New Chat"
+      style="margin-left:6px;width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;border:none;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">+</button>
+  </div>`;
+
+  // Team Chat (group room — all users)
+  const lastTeam=[...teamMsgs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];
+  const teamPrev=lastTeam?`${lastTeam.from_user===me?'You':'@'+lastTeam.from_user}: ${esc((lastTeam.message||'').slice(0,30))}`:'Group chat for all team members';
+  html+=convItem('team','👥','Team Chat (All)',teamUnread,0,teamPrev,'#d1fae5');
+
+  // 1-on-1 chats
   if(dmList.length){
     html+=dmList.map(([other,{msgs,unread}])=>{
       const last=[...msgs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];
       const prev=last?(last.from_user===me?`You: ${esc((last.message||'').slice(0,30))}`:esc((last.message||'').slice(0,35))):'';
-      return convItem('user:'+other,'💬','@'+other,unread,0,prev);
+      return convItem('user:'+other,'💬','@'+other,unread,0,prev,'#dbeafe');
     }).join('');
-  } else {
-    html+=`<div style="padding:16px 14px;text-align:center;color:var(--g400)">
-      <div style="font-size:22px;margin-bottom:4px">💬</div>
-      <div style="font-size:12px">No chats yet — tap <strong>+</strong></div>
-    </div>`;
+  }
+
+  // Empty state if no 1-on-1 chats
+  if(!dmList.length){
+    html+=`<div style="padding:10px 14px 14px;text-align:center;color:var(--g300);font-size:11px">Tap <strong>+</strong> to start a 1-on-1 chat</div>`;
   }
 
   el.innerHTML=html;
 
   // Update global badge
-  const tot=alertUnread+alertNeedsReply+annUnread+dmUnread;
+  const tot=alertUnread+alertNeedsReply+annUnread+teamUnread+dmUnread;
   const badgeEl=document.getElementById('conv-unread-total');
   if(badgeEl){badgeEl.textContent=tot>99?'99+':tot;badgeEl.style.display=tot?'inline':'none';}
   updateBellBadge();
 
-  // Auto-open: reset stale then open default
-  const valid=new Set(['alerts','announcements',...dmList.map(([u])=>'user:'+u)]);
+  // Auto-open
+  const valid=new Set(['alerts','announcements','team',...dmList.map(([u])=>'user:'+u)]);
   if(!_activeConv||!valid.has(_activeConv)){_activeConv=null;openConv('alerts');}
 }
 
@@ -8416,6 +8446,23 @@ function openConv(key){
       myUnread.forEach(n=>sb.from('notifications').update({read_by:n.read_by}).eq('id',n.id));
     }
     renderAlertThread(msgs);
+  } else if(key==='team'){
+    // Team Chat — group conversation for all team members
+    header.innerHTML=`<span style="display:flex;align-items:center;gap:8px;width:100%">
+      <span style="font-size:14px;font-weight:700">👥 Team Chat</span>
+      <span style="font-size:11px;color:${_activeConv==='team'?'rgba(255,255,255,.6)':'var(--g400)'};margin-left:2px">All members</span>
+    </span>`;
+    setReplyMode('team');
+    const teamMsgs=_notifData.filter(n=>n.type==='team'||n.to_user==='__all__')
+      .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+    renderMsgThread(msgs,teamMsgs,me,'__all__');
+    // Mark unread
+    const tmRead=teamMsgs.filter(n=>n.from_user!==me&&!(n.read_by||[]).includes(me));
+    if(tmRead.length){
+      tmRead.forEach(n=>{n.read_by=[...(n.read_by||[]),me];});
+      buildConvList(); updateBellBadge();
+      tmRead.forEach(n=>sb.from('notifications').update({read_by:n.read_by}).eq('id',n.id));
+    }
   } else if(key==='announcements'){
     const isAdmin=getRole()==='admin'||ADMIN_USERS.includes(me);
     header.innerHTML=`<span style="display:flex;align-items:center;gap:8px;width:100%">
@@ -8436,7 +8483,10 @@ function openConv(key){
     renderAnnThread(msgs,anns,me);
   } else if(key.startsWith('user:')){
     const user=key.slice(5);
-    header.innerHTML=`<span style="display:flex;align-items:center;gap:8px;width:100%"><span>💬 @${esc(user)}</span><button onclick="clearConversation('${esc(user)}')" style="margin-left:auto;padding:2px 8px;font-size:10px;border:1px solid var(--g200);border-radius:5px;background:#fff;color:var(--g500);cursor:pointer">🗑 Clear</button></span>`;
+    header.innerHTML=`<span style="display:flex;align-items:center;gap:8px;width:100%">
+      <span style="font-size:14px;font-weight:700">💬 @${esc(user)}</span>
+      <button onclick="clearConversation('${esc(user)}')" style="margin-left:auto;padding:3px 8px;font-size:10px;border:1px solid var(--g200);border-radius:5px;background:#fff;color:var(--g400);cursor:pointer">🗑 Clear</button>
+    </span>`;
     setReplyMode('chat', user);
     // Get ONLY messages strictly between me and this user (no cross-user leakage)
     const thread=_notifData.filter(n=>
@@ -8606,17 +8656,14 @@ function renderAnnThread(el,anns,me){
     const isOwn=n.from_user===me;
     const canDelete=isOwn||role==='admin';
     const ago=fmtAgo(n.created_at);
-    const typeIcon={info:'ℹ️',announcement:'📢',warning:'⚠️',message:'💬'}[n.type]||'📢';
-    // Own messages: right-aligned (same as chat)
-    // Others' messages: left-aligned with delete if admin
-    return`<div style="display:flex;flex-direction:column;align-items:${isOwn?'flex-end':'flex-start'};gap:2px;margin-bottom:2px">
+    // FIX: width:100% on outer wrapper + max-width on the flex row → prevents vertical letter display
+    return`<div style="width:100%;display:flex;flex-direction:column;align-items:${isOwn?'flex-end':'flex-start'};gap:2px;margin-bottom:8px">
       ${!isOwn?`<div style="font-size:10px;color:var(--g400);padding:0 4px;font-weight:600">@${esc(n.from_user||'system')}</div>`:''}
-      ${isOwn?`<div style="font-size:10px;color:rgba(255,255,255,.0);padding:0 4px;text-align:right">You</div>`:''}
-      <div style="display:flex;align-items:flex-end;gap:5px;flex-direction:${isOwn?'row-reverse':'row'}">
-        <div style="max-width:75%;padding:8px 12px;border-radius:${isOwn?'14px 14px 4px 14px':'14px 14px 14px 4px'};background:${isOwn?'var(--blue)':'var(--g100)'};color:${isOwn?'#fff':'var(--g900)'};font-size:13px;line-height:1.5;word-break:break-word">
+      <div style="display:flex;align-items:flex-end;gap:6px;flex-direction:${isOwn?'row-reverse':'row'};max-width:78%">
+        <div style="padding:9px 13px;border-radius:${isOwn?'16px 16px 4px 16px':'16px 16px 16px 4px'};background:${isOwn?'var(--blue)':'var(--g100)'};color:${isOwn?'#fff':'var(--g900)'};font-size:13px;line-height:1.5;word-break:break-word;overflow-wrap:anywhere;min-width:40px">
           ${esc(n.message||n.title||'')}
         </div>
-        ${canDelete?`<button onclick="deleteOneAnn('${n.id}')" title="Delete" style="padding:2px 4px;background:none;border:none;font-size:13px;cursor:pointer;color:var(--g300);opacity:0.5;flex-shrink:0" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5">🗑</button>`:''}
+        ${canDelete?`<button onclick="deleteOneAnn('${n.id}')" title="Delete" style="padding:2px 4px;background:none;border:none;font-size:13px;cursor:pointer;color:var(--g300);opacity:0;flex-shrink:0;transition:opacity .15s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">🗑</button>`:''}
       </div>
       <div style="font-size:10px;color:var(--g400);padding:0 4px">${ago}</div>
     </div>`;
@@ -9061,7 +9108,18 @@ function closeUnreadBanner(){
 function setReplyMode(mode, toUser){
   const inner=document.getElementById('thread-reply-inner');
   if(!inner)return;
-  if(mode==='chat'){
+  if(mode==='team'){
+    // Team Chat input — sends to all users
+    inner.innerHTML=`
+      <textarea id="reply-input" rows="2" placeholder="Message Team Chat..." 
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendTeamMessage();}"
+        style="flex:1;padding:8px 10px;border:1.5px solid var(--g200);border-radius:10px;font-size:16px;resize:none;font-family:inherit;outline:none;min-width:0;transition:border-color .15s"
+        onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--g200)'"></textarea>
+      <button onclick="sendTeamMessage()" style="padding:8px 16px;background:#059669;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0">Send</button>`;
+    const box=document.getElementById('thread-reply');
+    if(box)box.dataset.to='__all__';
+    setTimeout(()=>document.getElementById('reply-input')?.focus(),50);
+  } else if(mode==='chat'){
     inner.innerHTML=`
       <textarea id="reply-input" rows="2" placeholder="Type a message..." 
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendReply();}"
@@ -9119,6 +9177,28 @@ async function sendAnnouncement(){
   toast('✅ Announcement posted');
 }
 
+async function sendTeamMessage(){
+  const me=getAuth();
+  const input=document.getElementById('reply-input');
+  const text=(input?.value||'').trim();
+  if(!text)return;
+  input.value='';
+  const{data,error}=await sb.from('notifications').insert({
+    type:'team', title:'👥 Team message from @'+me,
+    message:text, from_user:me, to_user:'__all__',
+  }).select().single();
+  if(error){toast('Error: '+error.message,'err');return;}
+  if(data){
+    if(!_lastKnownIds)_lastKnownIds=new Set();
+    _lastKnownIds.add(data.id);
+    _notifData.unshift(data);
+  }
+  buildConvList();
+  _activeConv='team';
+  openConv('team');
+  setTimeout(()=>document.getElementById('reply-input')?.focus(),100);
+}
+
 async function sendReply(){
   const me=getAuth();
   const input=document.getElementById('reply-input');
@@ -9127,8 +9207,10 @@ async function sendReply(){
   const text=(input?.value||'').trim();
   if(!text||!to)return;
   input.value='';
+  // Detect if this is a team message (to='__all__')
+  const msgType=to==='__all__'?'team':'message';
   const{data,error}=await sb.from('notifications').insert({
-    type:'message', title:'💬 '+me, message:text,
+    type:msgType, title:(msgType==='team'?'👥 Team: ':'💬 ')+me, message:text,
     from_user:me, to_user:to,
   }).select().single();
   if(error){toast('Error: '+error.message,'err');return;}
