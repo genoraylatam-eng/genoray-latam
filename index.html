@@ -8970,7 +8970,7 @@ let _lastKnownIds=new Set();  // track IDs already seen to detect genuinely new 
 function startRealtimeNotifications(){
   const me=getAuth(); if(!me)return;
 
-  // Seed known IDs from current data (don't alert for already-loaded messages)
+  // Seed known IDs from current data
   _lastKnownIds=new Set((_notifData||[]).map(n=>n.id));
 
   // Clean up existing channel
@@ -8979,9 +8979,125 @@ function startRealtimeNotifications(){
   _realtimeChannel=sb.channel('notif-rt-'+me)
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications'},
       payload=>_onNewNotif(payload.new))
-    .subscribe(status=>{
-      console.log('[Realtime] status:',status);
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'notifications'},
+      ()=>{ if(activePage==='notifications') loadNotifications(); })
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'notifications'},
+      ()=>{ if(activePage==='notifications') loadNotifications(); })
+    .subscribe(status=>{console.log('[Realtime-Notif] status:',status);});
+
+  // Start data realtime separately
+  startRealtimeData();
+}
+
+// ── Realtime for ALL business data tables ─────────────────────────────────────
+let _dataChannel=null;
+let _pendingRefresh={}; // debounce: table → timeout id
+
+function startRealtimeData(){
+  if(_dataChannel){try{sb.removeChannel(_dataChannel);}catch(e){}}
+
+  // Map table → which page shows it
+  const tablePages={
+    pi:['pi','pipeline','report','dashboard'],
+    po:['po','dashboard'],
+    hq_po:['hqpo','dashboard'],
+    shipments:['shipments','dashboard'],
+    collections:['collections','dashboard'],
+    delay_responses:['notifications'],
+    user_permissions:['notifications'], // for contact list
+  };
+
+  const tableLabels={
+    pi:'PI',po:'PO',hq_po:'HQ PO',shipments:'Shipments',
+    collections:'Collections',delay_responses:'Responses',user_permissions:'Users',
+  };
+
+  let ch=sb.channel('data-rt');
+
+  Object.entries(tablePages).forEach(([table,pages])=>{
+    ['INSERT','UPDATE','DELETE'].forEach(event=>{
+      ch=ch.on('postgres_changes',{event,schema:'public',table},
+        payload=>_onDataChange(table,pages,tableLabels[table],payload));
     });
+  });
+
+  _dataChannel=ch.subscribe(status=>{
+    console.log('[Realtime-Data] status:',status);
+  });
+}
+
+function _onDataChange(table,pages,label,payload){
+  const me=getAuth(); if(!me)return;
+
+  // Debounce: wait 800ms after last change before refreshing
+  // (multiple changes in quick succession = one reload)
+  clearTimeout(_pendingRefresh[table]);
+  _pendingRefresh[table]=setTimeout(async()=>{
+    // Reload data for this table
+    if(table==='user_permissions'){
+      await loadAllUsers();
+      if(activePage==='notifications') buildConvList();
+      return;
+    }
+    if(table==='delay_responses'){
+      // Reload delay responses and update notifications
+      const{data}=await sb.from('delay_responses').select('*').order('responded_at',{ascending:true});
+      _delayResponses=data||[];
+      if(activePage==='notifications') renderNotifications();
+      return;
+    }
+
+    // For business data: reload the relevant page if active
+    if(pages.includes(activePage)){
+      // Silent data reload (no spinner) — just call loadPage logic
+      await _silentReloadPage(activePage);
+      // Small toast — only if someone else changed it
+      const changer=payload?.new?.updated_by||payload?.new?.sales_rep||payload?.old?.sales_rep||'';
+      if(changer!==me){
+        showDataToast(label, payload.eventType);
+      }
+    } else if(pages.includes('dashboard')&&activePage==='dashboard'){
+      // Dashboard is always worth updating
+      await _silentReloadPage('dashboard');
+    }
+
+    // Always update dashboard cache if it's a data table
+    if(table!=='notifications'&&table!=='user_permissions'&&table!=='delay_responses'){
+      // Refresh dashboard numbers silently even if not on dashboard
+      _refreshDashboardCounters();
+    }
+  }, 800);
+}
+
+async function _silentReloadPage(page){
+  // Reload data for the given page without showing loading spinner
+  try {
+    if(page==='dashboard')     { loadDash(); return; }
+    if(page==='pipeline')      { await loadPI(false); return; }
+    if(page==='pi')            { await loadPI(false); return; }
+    if(page==='po')            { await loadPO(false); return; }
+    if(page==='hqpo')          { await loadHQPO(false); return; }
+    if(page==='shipments')     { await loadShipments(false); return; }
+    if(page==='collections')   { await loadCollections(false); return; }
+    if(page==='notifications') { await loadNotifications(); return; }
+  } catch(e){ console.warn('[Realtime] Silent reload failed:',e); }
+}
+
+function _refreshDashboardCounters(){
+  // If dashboard data is in DOM, silently update KPI numbers
+  // Done by re-running loadDash in background
+  if(typeof loadDash==='function') loadDash();
+}
+
+function showDataToast(label, eventType){
+  const icons={INSERT:'➕',UPDATE:'✏️',DELETE:'🗑️'};
+  const icon=icons[eventType]||'🔄';
+  const toastEl=document.getElementById('toast');
+  if(!toastEl)return;
+  toastEl.textContent=`${icon} ${label} updated`;
+  toastEl.className='show';
+  clearTimeout(toastEl._t);
+  toastEl._t=setTimeout(()=>toastEl.className='',3000);
 }
 
 function _onNewNotif(notif){
