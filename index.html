@@ -1398,7 +1398,7 @@ tr[data-paid="true"] td{opacity:.55}
       <!-- Top Bar -->
       <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1.5px solid var(--g100);background:#fff;flex-shrink:0;flex-wrap:wrap">
         <h1 style="font-size:15px;font-weight:800;margin:0;flex:1;min-width:100px">🔔 Messages</h1>
-        <button onclick="openNewMessageForm()" style="padding:6px 12px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">✉️ New</button>
+        <button id="new-msg-btn" onclick="openNewMessageForm()" style="padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .2s">✉️ <span id="new-msg-count">New</span></button>
       </div>
       <!-- Admin-only Delay Tools Bar (hidden for non-admin) -->
       <div id="notif-admin-bar" style="display:none;align-items:center;gap:8px;padding:8px 16px;background:linear-gradient(135deg,#1e3a8a,#2563eb);flex-shrink:0;flex-wrap:wrap">
@@ -9140,7 +9140,13 @@ function buildConvList(){
 
   // ── Team Chat badges ──────────────────────────────────────────────────────
   const teamMsgs=_notifData.filter(n=>n.type==='team'||n.to_user==='__all__');
-  const teamUnread=teamMsgs.filter(n=>n.from_user!==me&&!(n.read_by||[]).includes(me)).length;
+  // Only count messages from real human users (not system/auto senders)
+  const SYSTEM_SENDERS=['system','admin'];
+  const teamUnread=teamMsgs.filter(n=>
+    n.from_user!==me&&                              // not my own message
+    !SYSTEM_SENDERS.includes(n.from_user)&&         // not from system/admin
+    !(n.read_by||[]).includes(me)                   // I haven't read it
+  ).length;
 
   // ── 1-on-1 DM messages (index by other user) ──────────────────────────────
   const dmIndex={};
@@ -9149,6 +9155,7 @@ function buildConvList(){
     (n.from_user===me||n.to_user===me)
   ).forEach(n=>{
     const other=n.from_user===me?n.to_user:n.from_user;
+    // Skip system/admin auto-messages from creating phantom DM threads
     if(!other||other==='system')return;
     if(!dmIndex[other])dmIndex[other]={msgs:[],unread:0};
     dmIndex[other].msgs.push(n);
@@ -9363,6 +9370,21 @@ function buildConvList(){
   const tot=alertUnread+alertNeedsReply+teamUnread+Object.values(dmIndex).reduce((s,v)=>s+v.unread,0);
   const badgeEl2=document.getElementById('conv-unread-total');
   if(badgeEl2){badgeEl2.textContent=tot>99?'99+':tot;badgeEl2.style.display=tot?'inline':'none';}
+
+  // ── Update New button: show unread msg count (not alerts) ────────────────
+  const msgUnreadOnly=teamUnread+Object.values(dmIndex).reduce((s,v)=>s+v.unread,0);
+  const newBtn=document.getElementById('new-msg-btn');
+  const newCount=document.getElementById('new-msg-count');
+  if(newBtn&&newCount){
+    if(msgUnreadOnly>0){
+      newCount.textContent=msgUnreadOnly+' New';
+      newBtn.style.background='#ef4444'; // red = unread
+    } else {
+      newCount.textContent='0 New';
+      newBtn.style.background='var(--blue)'; // blue = all read
+    }
+  }
+
   updateBellBadge();
 
   // Auto-open
