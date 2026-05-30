@@ -497,6 +497,9 @@ tr:hover td{background:var(--g50)}
 /* Collections paid row toggle */
 #collections-table.hide-paid tr[data-paid="true"]{display:none}
 tr[data-paid="true"] td{opacity:.55}
+/* ── CONV LIST: WhatsApp style ─────────────────────────────────────────────── */
+#conv-items{background:#fff}
+#conv-items [onclick]:hover{background:var(--g50)!important}
 /* ── ALERT CARD MOBILE ────────────────────────────────────────────────────── */
 .alrt-card{border-radius:10px;overflow:hidden;margin-bottom:6px;background:#fff}
 .alrt-head{display:flex;align-items:center;gap:6px;padding:8px 10px;flex-wrap:nowrap}
@@ -8267,21 +8270,7 @@ function renderNotifications(){
     const isAdmin=getRole()==='admin'||ADMIN_USERS.includes(getAuth());
     adminBar.style.display=isAdmin?'flex':'none';
   }
-  buildConvList();
-  // Only re-open _activeConv if it still exists in the conv list
-  // (messages may have been deleted, making the conv disappear)
-  if(_activeConv){
-    const convItems=document.querySelectorAll('#conv-items [onclick]');
-    const activeStillExists=[...convItems].some(el=>
-      el.getAttribute('onclick')&&el.getAttribute('onclick').includes("'"+_activeConv+"'")
-    );
-    if(activeStillExists){
-      openConv(_activeConv);
-    } else {
-      _activeConv=null; // Reset — conv no longer exists
-      // buildConvList already auto-opens first available conv
-    }
-  }
+  buildConvList(); // handles auto-open and stale conv reset internally
 }
 
 function buildConvList(){
@@ -8289,108 +8278,111 @@ function buildConvList(){
   const el=document.getElementById('conv-items');
   if(!el)return;
 
-  const convs=[];
-
-  // 1. System Alerts
+  // ── 1. System Alerts counting ─────────────────────────────────────────────
   const alerts=_notifData.filter(n=>n.type==='alert');
-  // Count ONLY alerts specifically sent TO me (excludes: sent-by-me, broadcast to_user=null)
   const receivedAlerts=alerts.filter(n=>n.to_user===me&&n.from_user!==me);
-  const alertUnread=receivedAlerts.filter(n=>!(n.read_by||[]).includes(me)).length; // 🔴 not yet opened
-  const alertNeedsReply=receivedAlerts.filter(n=>                                    // 🟡 opened, no response
-    (n.read_by||[]).includes(me)&&
-    !(_delayResponses||[]).some(r=>r.notification_id===n.id)
+  const alertUnread=receivedAlerts.filter(n=>!(n.read_by||[]).includes(me)).length;
+  const alertNeedsReply=receivedAlerts.filter(n=>
+    (n.read_by||[]).includes(me)&&!(_delayResponses||[]).some(r=>r.notification_id===n.id)
   ).length;
-  convs.push({
-    key:'alerts',icon:'⚠️',label:'System Alerts',
-    unread:alertUnread,
-    needsReply:alertNeedsReply,
-    type:'alerts'
-  });
+  const sentAlerts=alerts.filter(n=>n.from_user===me||n.from_user==='system');
+  const sentPending=sentAlerts.filter(n=>!(_delayResponses||[]).some(r=>r.notification_id===n.id)&&n.to_user!==null).length;
 
-  // 2. Announcements — unread only (regular read logic)
-  const anns=_notifData.filter(n=>n.to_user===null&&n.type!=='alert');
-  // Only count announcements FROM others (not from me, not from system admin escalations)
-  const annUnread=anns.filter(n=>
-    n.from_user!==me&&
-    n.from_user!=='system'&&
-    !(n.read_by||[]).includes(me)
-  ).length;
-  if(anns.length) convs.push({key:'announcements',icon:'📢',label:'Announcements',unread:annUnread,needsReply:0,type:'announcements'});
-
-  // 3. Per-person conversations — ONLY messages where I am sender OR receiver
-  //    (Admin sees all DB messages, but must only show OWN conversations here)
+  // ── 2. Direct Messages (only my conversations) ────────────────────────────
   const userMsgs={};
   _notifData.filter(n=>
-    n.type==='message'&&
-    (n.from_user===me||n.to_user===me) // ← KEY FIX: only my conversations
+    n.type==='message'&&(n.from_user===me||n.to_user===me)
   ).forEach(n=>{
     const other=n.from_user===me?n.to_user:n.from_user;
     if(!other||other==='system')return;
-    if(!userMsgs[other])userMsgs[other]={msgs:[],unread:0,lastFrom:null};
+    if(!userMsgs[other])userMsgs[other]={msgs:[],unread:0};
     userMsgs[other].msgs.push(n);
-    // Badge: ONLY messages sent TO me by the other person, that I haven't read
     if(n.from_user!==me&&n.to_user===me&&!(n.read_by||[]).includes(me)) userMsgs[other].unread++;
-    if(!userMsgs[other].lastFrom||new Date(n.created_at)>new Date(userMsgs[other].lastFrom.created_at))
-      userMsgs[other].lastFrom=n;
+  });
+  const dmList=Object.entries(userMsgs).sort((a,b)=>{
+    const la=Math.max(...a[1].msgs.map(n=>new Date(n.created_at)));
+    const lb=Math.max(...b[1].msgs.map(n=>new Date(n.created_at)));
+    return lb-la;
   });
 
-  Object.entries(userMsgs).sort((a,b)=>{
-    const la=a[1].msgs[0]?.created_at||''; const lb=b[1].msgs[0]?.created_at||'';
-    return lb.localeCompare(la);
-  }).forEach(([user,{msgs,unread,lastFrom}])=>{
-    // Sort so most recent is first for preview
-    const sorted=[...msgs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
-    convs.push({key:'user:'+user,icon:'💬',label:'@'+user,unread,needsReply:0,type:'user',user,last:sorted[0]});
-  });
-
-  // Render conversation items in left panel
-  el.innerHTML=convs.map(c=>{
-    const isActive=_activeConv===c.key;
-    const hasAny=(isActive?0:(c.unread||0))+(c.needsReply||0)>0;
+  // ── Render helpers ─────────────────────────────────────────────────────────
+  const mkBadge=(unread,needsReply,isActive)=>{
+    if(isActive) return needsReply?`<span style="background:rgba(255,255,255,.3);color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px">${needsReply}</span>`:'';
+    let b='';
+    if(unread>0) b+=`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px">${unread}</span>`;
+    if(needsReply>0) b+=`<span style="background:#f59e0b;color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;margin-left:2px">${needsReply}</span>`;
+    return b;
+  };
+  const mkItem=(key,avatarIcon,label,unread,needsReply,preview,avatarBg)=>{
+    const isActive=_activeConv===key;
+    const hasUnread=(isActive?0:unread)+needsReply>0;
     const bg=isActive?'var(--blue)':'transparent';
     const col=isActive?'#fff':'var(--g900)';
-
-    // Badge: red when unread, nothing when all read (active conv always shows 0)
-    let badges='';
-    if(isActive){
-      // Active: show nothing (already reading it)
-      if(c.needsReply) badges+=`<span style="background:rgba(255,255,255,.25);color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0">${c.needsReply}</span>`;
-    } else {
-      // Inactive: 🔴 only if truly unread
-      if((c.unread||0)>0) badges+=`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0">${c.unread}</span>`;
-      // 🟡 needs reply (alerts only)
-      if(c.needsReply>0) badges+=`<span style="background:#f59e0b;color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0;margin-left:2px">${c.needsReply}</span>`;
-    }
-
-    const preview=c.type==='user'&&c.last?esc((c.last.message||c.last.title||'').slice(0,35)):'';
-    return`<div onclick="openConv('${c.key}')" style="padding:9px 12px;cursor:pointer;border-radius:8px;margin:2px 6px;background:${bg};color:${col};transition:background .1s"
-      onmouseover="if('${c.key}'!=='${_activeConv||''}')this.style.background='var(--g100)'"
-      onmouseout="if('${c.key}'!=='${_activeConv||''}')this.style.background='${isActive?'var(--blue)':'transparent'}'">
-      <div style="display:flex;align-items:center;gap:7px">
-        <span style="font-size:14px;flex-shrink:0">${c.icon}</span>
-        <span style="font-size:12px;font-weight:${hasAny?'800':'600'};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.label)}</span>
-        <span style="display:flex;gap:2px;align-items:center;flex-shrink:0">${badges}</span>
+    return`<div onclick="openConv('${key}')" style="padding:10px 14px 10px 12px;cursor:pointer;background:${bg};color:${col};transition:background .12s;display:flex;gap:10px;align-items:center;border-bottom:1px solid ${isActive?'transparent':'var(--g100)'}"
+      onmouseover="if(!this.getAttribute('data-active'))this.style.background='var(--g50)'"
+      onmouseout="if(!this.getAttribute('data-active'))this.style.background='transparent'"
+      ${isActive?'data-active="1"':''}>
+      <div style="width:40px;height:40px;border-radius:50%;background:${isActive?'rgba(255,255,255,.2)':avatarBg||'var(--g200)'};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${avatarIcon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:2px">
+          <span style="font-size:13px;font-weight:${hasUnread?'700':'500'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>
+          <span style="display:flex;gap:2px;align-items:center;flex-shrink:0">${mkBadge(unread,needsReply,isActive)}</span>
+        </div>
+        ${preview?`<div style="font-size:11px;opacity:.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</div>`:''}
       </div>
-      ${preview?`<div style="font-size:11px;opacity:.65;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:21px">${preview}</div>`:''}
     </div>`;
-  }).join('');
+  };
 
-  // Update global header badge (unread + needs-reply combined)
-  const totalUnread=convs.reduce((s,c)=>s+(c.unread||0),0);
-  const totalNeedsReply=convs.reduce((s,c)=>s+(c.needsReply||0),0);
-  const totalBadge=document.getElementById('conv-unread-total');
-  if(totalBadge){
-    const tot=totalUnread+totalNeedsReply;
-    totalBadge.textContent=tot>99?'99+':tot;
-    totalBadge.style.display=tot?'inline':'none';
-    totalBadge.style.background=totalUnread?'#ef4444':'#f59e0b';
+  let html='';
+
+  // ── SECTION: System Notifications ─────────────────────────────────────────
+  html+=`<div style="padding:8px 14px 4px;font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;background:var(--g50)">Notifications</div>`;
+  html+=mkItem(
+    'alerts','⚠️','System Alerts',
+    alertUnread,alertNeedsReply,
+    sentPending?`📤 ${sentPending} alerts pending reply`:alertUnread?`${alertUnread} unread`:'No new alerts',
+    '#fef3c7'
+  );
+
+  // ── SECTION: Direct Messages ──────────────────────────────────────────────
+  const totalDMUnread=dmList.reduce((s,[,v])=>s+v.unread,0);
+  html+=`<div style="padding:10px 14px 4px;display:flex;align-items:center;justify-content:space-between;background:var(--g50)">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.07em">Messages</span>
+      ${totalDMUnread?`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px">${totalDMUnread}</span>`:''}
+    </div>
+    <button onclick="openNewMessageForm()" title="New chat" style="width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;border:none;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0">+</button>
+  </div>`;
+
+  if(dmList.length){
+    html+=dmList.map(([other,{msgs,unread}])=>{
+      const sorted=[...msgs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+      const last=sorted[0];
+      const isSent=last&&last.from_user===me;
+      const preview=last?(isSent?`You: ${esc((last.message||'').slice(0,32))}`:esc((last.message||'').slice(0,40))):'';
+      return mkItem('user:'+other,'💬','@'+other,unread,0,preview,'#dbeafe');
+    }).join('');
+  } else {
+    html+=`<div style="padding:20px 14px;text-align:center;color:var(--g300)">
+      <div style="font-size:24px;margin-bottom:6px">💬</div>
+      <div style="font-size:12px">No conversations yet</div>
+      <div style="font-size:11px;margin-top:2px">Tap <strong>+</strong> to start chatting</div>
+    </div>`;
   }
 
-  // Auto-open: open first conv if nothing selected, OR if current selection no longer exists
-  const convKeys=new Set(convs.map(c=>c.key));
-  if(!_activeConv||!convKeys.has(_activeConv)){
-    _activeConv=null; // Reset stale selection
-    if(convs.length) openConv(convs[0].key);
+  el.innerHTML=html;
+
+  // Update global badge
+  const totalUnread=alertUnread+alertNeedsReply+totalDMUnread;
+  const badge=document.getElementById('conv-unread-total');
+  if(badge){badge.textContent=totalUnread>99?'99+':totalUnread;badge.style.display=totalUnread?'inline':'none';badge.style.background=(alertUnread+totalDMUnread)>0?'#ef4444':'#f59e0b';}
+  updateBellBadge();
+
+  // Auto-open: reset stale selection
+  const validKeys=new Set(['alerts',...dmList.map(([u])=>'user:'+u)]);
+  if(!_activeConv||!validKeys.has(_activeConv)){
+    _activeConv=null;
+    openConv('alerts'); // default to System Alerts
   }
 }
 
@@ -8407,7 +8399,7 @@ function openConv(key){
 
   if(key==='alerts'){
     // System alerts view — always show compose bar in new-message mode
-    header.innerHTML='<span>⚠️ System Alerts</span>';
+    header.innerHTML='<span style="display:flex;align-items:center;gap:8px;width:100%"><span style="font-size:15px;font-weight:700">⚠️ System Alerts</span></span>';
     setReplyMode('new');
     // Mark MY unread alerts as read (local first → instant badge update)
     const myUnread=_notifData.filter(n=>n.type==='alert'&&n.to_user===me&&!(n.read_by||[]).includes(me));
