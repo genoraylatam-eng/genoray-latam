@@ -550,6 +550,31 @@ tr:hover td{background:var(--g50)}
 }
 
 
+/* ── Like button & read receipts ──────────────────────────────── */
+.msg-like-bar{display:flex;align-items:center;gap:6px;margin-top:3px;padding:0 4px;flex-wrap:wrap}
+.msg-like-btn{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:2px 7px;border-radius:20px;
+  border:1.5px solid var(--g200);background:#fff;
+  font-size:11px;cursor:pointer;color:var(--g500);
+  transition:all .15s;line-height:1.4;white-space:nowrap;
+  font-family:inherit;
+}
+.msg-like-btn:hover{border-color:#60a5fa;color:#2563eb;background:#eff6ff}
+.msg-like-btn.liked{border-color:#60a5fa;color:#2563eb;background:#eff6ff;font-weight:700}
+.msg-like-btn .lk-who{font-size:10px;color:var(--g400);font-weight:500}
+.msg-read-receipt{font-size:9.5px;color:var(--g400);display:flex;align-items:center;gap:3px}
+.msg-read-receipt .rr-seen{color:#3b82f6;font-weight:600}
+.msg-read-receipt .rr-double{color:#3b82f6;font-size:12px;line-height:1;font-weight:700}
+
+/* Alert read receipt */
+.alrt-seen-badge{
+  display:inline-flex;align-items:center;gap:3px;
+  font-size:9px;color:var(--g400);padding:1px 5px;
+  background:var(--g100);border-radius:4px;
+}
+.alrt-seen-badge .s-eye{font-size:10px}
+
 /* ── Korean date placeholder fix ──────────────────────────────────── */
 /* Hides "연도. 월. 일." shown by Korean-locale browsers on empty date inputs */
 input[type="date"]:not(.date-has-val):not(:focus)::-webkit-datetime-edit {
@@ -9310,6 +9335,13 @@ function openConv(key){
   }
 }
 
+// ── Resolve username → display name ──────────────────────────────────
+function _resolveDisplay(username){
+  if(!username) return '';
+  const u=(_allUsers||[]).find(u=>u.username===username);
+  return u?.display_name||username;
+}
+
 function renderMsgThread(el,msgs,me,otherUser){
   if(!msgs.length){
     el.innerHTML='<div style="text-align:center;color:var(--g300);font-size:13px;margin-top:40px">No messages yet<br><span style="font-size:11px;margin-top:6px;display:block">Start the conversation! 👋</span></div>';
@@ -9324,7 +9356,43 @@ function renderMsgThread(el,msgs,me,otherUser){
     const ago=fmtAgo(n.created_at);
     const senderName=!isOwn&&isTeam?`<div style="font-size:10px;font-weight:700;color:var(--g400);margin-bottom:2px;padding-left:2px">@${esc(n.from_user||'')}</div>`:'';
 
-    // FIX: width:100% on outer wrapper prevents bubble from shrinking incorrectly
+    // ── Likes ─────────────────────────────────────────────────────────
+    const likes=n.likes||[];
+    const iLiked=likes.includes(me);
+    const likeCount=likes.length;
+    const likeNames=likes.slice(0,3).map(u=>_resolveDisplay(u));
+    const likeExtra=likes.length>3?` +${likes.length-3}`:'';
+    const likeWho=likeCount>0?`<span style="font-size:10px;color:var(--g400);margin-left:2px">${likeNames.join(', ')}${likeExtra}</span>`:'';
+    const likeBtn=`<button class="msg-like-btn${iLiked?' liked':''}"
+      onclick="toggleLike('${n.id}','${otherUser||''}',event)"
+      title="${iLiked?'Remove like':'Like'}">
+      ${iLiked?'👍':'👍'}${likeCount>0?` ${likeCount}`:''}
+    </button>${likeWho}`;
+
+    // ── Read receipt (own messages only) ──────────────────────────────
+    let readReceipt='';
+    if(isOwn){
+      const readers=(n.read_by||[]).filter(u=>u!==me);
+      if(isTeam){
+        if(readers.length>0){
+          const rNames=readers.slice(0,3).map(u=>_resolveDisplay(u));
+          const rExtra=readers.length>3?` +${readers.length-3}`:'';
+          readReceipt=`<div class="msg-read-receipt" style="justify-content:flex-end">
+            <span class="rr-double">✓✓</span>
+            <span class="rr-seen">Seen by ${rNames.join(', ')}${rExtra}</span>
+          </div>`;
+        }
+      } else {
+        const seenByOther=readers.length>0;
+        readReceipt=`<div class="msg-read-receipt" style="justify-content:flex-end">
+          ${seenByOther
+            ?'<span class="rr-double">✓✓</span><span class="rr-seen">Seen</span>'
+            :'<span style="color:var(--g300)">✓</span><span>Sent</span>'
+          }
+        </div>`;
+      }
+    }
+
     return`<div style="width:100%;display:flex;flex-direction:column;align-items:${isOwn?'flex-end':'flex-start'};gap:1px;margin-bottom:2px">
       ${senderName}
       <div style="display:flex;align-items:flex-end;gap:6px;flex-direction:${isOwn?'row-reverse':'row'};max-width:86%;min-width:0">
@@ -9341,12 +9409,47 @@ function renderMsgThread(el,msgs,me,otherUser){
           onmouseover="this.style.opacity=1;this.style.background='var(--g100)'"
           onmouseout="this.style.opacity=.35;this.style.background='none'">🗑</button>`:''}
       </div>
-      <div style="font-size:10px;color:var(--g400);padding:0 4px;margin-top:1px">${ago}</div>
+      <div class="msg-like-bar" style="justify-content:${isOwn?'flex-end':'flex-start'}">
+        ${likeBtn}
+        <span style="font-size:10px;color:var(--g400)">${ago}</span>
+      </div>
+      ${readReceipt}
     </div>`;
   }).join('');
 
-  // Always scroll to latest message
   requestAnimationFrame(()=>{ el.scrollTop=el.scrollHeight; });
+}
+
+// ── Toggle Like ────────────────────────────────────────────────────────────
+async function toggleLike(msgId,otherUser,evt){
+  evt&&evt.stopPropagation();
+  const me=getAuth();
+  const n=_notifData.find(x=>x.id===msgId);
+  if(!n)return;
+  const cur=n.likes||[];
+  const iLiked=cur.includes(me);
+  n.likes=iLiked?cur.filter(u=>u!==me):[...cur,me]; // optimistic
+
+  // Re-render immediately
+  const isTeam=otherUser==='__all__';
+  const el=document.getElementById('thread-messages');
+  function getMsgs(){
+    if(isTeam) return _notifData.filter(x=>x.type==='team'||x.to_user==='__all__').sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+    return _notifData.filter(x=>x.type==='message'&&((x.from_user===me&&x.to_user===otherUser)||(x.from_user===otherUser&&x.to_user===me))).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+  }
+  if(el) renderMsgThread(el,getMsgs(),me,otherUser);
+
+  // Persist to Supabase
+  const{error}=await sb.from('notifications').update({likes:n.likes}).eq('id',msgId);
+  if(error){
+    n.likes=cur; // rollback
+    if((error.message||'').toLowerCase().includes('likes')){
+      toast('⚠️ Please add likes column to notifications table in Supabase (type: jsonb, default [])','err',7000);
+    } else {
+      toast('Error: '+error.message,'err');
+    }
+    if(el) renderMsgThread(el,getMsgs(),me,otherUser);
+  }
 }
 
 async function deleteChatMsg(id,otherUser){
@@ -9583,6 +9686,7 @@ function renderAlertThread(el){
             <div class="alrt-badges">
               ${delayDays?`<span class="alrt-badge alrt-delay">${delayDays}d</span>`:''}
               ${isEsc?'<span class="alrt-badge alrt-esc">ESC</span>':''}
+              ${(n.read_by||[]).includes(n.to_user)?'<span class="alrt-badge" style="background:#eff6ff;color:#1d4ed8;font-size:9px">👁 Seen</span>':''}
               ${needsResp
                 ?'<span class="alrt-badge alrt-wait">⚠️ Reply Required</span>'
                 :'<span class="alrt-badge alrt-replied">✓ Replied</span>'}
