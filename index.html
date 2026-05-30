@@ -1677,7 +1677,7 @@ async function init(){
     await loadNotifications();
     startRealtimeNotifications();          // live push — no manual refresh needed
     checkUnreadOnLogin();                  // show banner if unread on login
-    // Auto-send is handled by scheduled EST timer below
+    initAutoScheduler();                   // start 8AM/5PM EST auto-send scheduler
     setInterval(checkDeleteAlarm, 60000);
     setInterval(loadNotifications, 30000); // fallback poll every 30s (realtime is primary)
   } catch(err){
@@ -8330,7 +8330,7 @@ function buildConvList(){
       if(c.needsReply) badges+=`<span style="background:rgba(255,255,255,.25);color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0">${c.needsReply}</span>`;
     } else {
       // Inactive: 🔴 only if truly unread
-      if((c.unread||0)>0) badges+=`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0">${effectiveUnread}</span>`;
+      if((c.unread||0)>0) badges+=`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0">${c.unread}</span>`;
       // 🟡 needs reply (alerts only)
       if(c.needsReply>0) badges+=`<span style="background:#f59e0b;color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0;margin-left:2px">${c.needsReply}</span>`;
     }
@@ -9301,6 +9301,172 @@ updateBellBadge=function(){
 document.addEventListener('keydown',function(e){
   if(e.key==='Escape') closeSidebar();
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// SCHEDULED AUTO-SEND: 8AM and 5PM US Eastern Time (UTC-4/5)
+// Runs automatically every day. Sends alerts and marks them "[Auto]"
+// ════════════════════════════════════════════════════════════════════════════
+let _autoSchedulerInited=false;
+
+function initAutoScheduler(){
+  if(_autoSchedulerInited)return;
+  _autoSchedulerInited=true;
+
+  // Target hours in US Eastern time: 8 AM and 5 PM
+  const EST_TARGETS=[8,17];
+
+  function msToNextTarget(){
+    // Get current UTC time, calculate offset for US Eastern (EST=-5, EDT=-4)
+    const now=new Date();
+    const utcH=now.getUTCHours(), utcM=now.getUTCMinutes(), utcS=now.getUTCSeconds();
+    // Approximate EST offset: -5h standard, -4h daylight (Mar–Nov)
+    const month=now.getUTCMonth()+1;
+    const estOffset=(month>=3&&month<=11)?-4:-5;
+    const localH=((utcH+estOffset)+24)%24;
+    const localM=utcM, localS=utcS;
+    const secNow=localH*3600+localM*60+localS;
+
+    // Find next target
+    let minMs=Infinity;
+    for(const tH of EST_TARGETS){
+      const secTarget=tH*3600;
+      let diffS=secTarget-secNow;
+      if(diffS<=60)diffS+=86400; // already passed (add 24h), 60s buffer to avoid double-fire
+      minMs=Math.min(minMs,diffS*1000);
+    }
+    return minMs;
+  }
+
+  function scheduleNext(){
+    const ms=msToNextTarget();
+    const mins=Math.round(ms/60000);
+    console.log('[AutoScheduler] Next auto-send in',mins,'min');
+    setTimeout(async ()=>{
+      await _autoSendDelayAlerts();
+      scheduleNext(); // reschedule after firing
+    },ms);
+  }
+
+  scheduleNext();
+  console.log('[AutoScheduler] ✅ Initialized — fires at 8AM and 5PM US Eastern');
+}
+
+async function _autoSendDelayAlerts(){
+  const me=getAuth(); if(!me)return;
+  console.log('[AutoScheduler] 🚀 Running auto delay check...');
+
+  const [piR,poR,hqR,shR,colR,notifR]=await Promise.all([
+    sb.from('pi').select('pi_number,date,distributor,sales_rep,status')
+      .neq('status','Cancelled').neq('status','Completed'),
+    sb.from('po').select('pi_number,date'),
+    sb.from('hq_po').select('pi_number'),
+    sb.from('shipments').select('pi_number,date,status'),
+    sb.from('collections').select('pi_number,status,invoice_amount_usd,collected_amount_usd,pay1_amount,bl_date'),
+    sb.from('notifications').select('related_id,created_at,read_by,from_user').eq('type','alert'),
+  ]);
+
+  const piRows=piR.data||[],poRows=poR.data||[],hqRows=hqR.data||[];
+  const shRows=shR.data||[],colRows=colR.data||[];
+  const existNotifs=notifR.data||[];
+
+  const sentMap={};
+  existNotifs.forEach(n=>{
+    if(!n.related_id)return;
+    if(!sentMap[n.related_id])sentMap[n.related_id]=[];
+    sentMap[n.related_id].push({at:new Date(n.created_at),read:n.read_by&&n.read_by.length>0});
+  });
+
+  const poSet=new Set(poRows.map(r=>r.pi_number));
+  const hqSet=new Set(hqRows.map(r=>r.pi_number));
+  const shSet=new Set(shRows.map(r=>r.pi_number));
+  const shDateSet=new Set(shRows.filter(r=>r.date&&r.status!=='Preparing').map(r=>r.pi_number));
+  const colOk=new Set(colRows.filter(r=>r.status==='Collected').map(r=>r.pi_number));
+  const today=new Date(); today.setHours(0,0,0,0);
+  const dd=(d)=>Math.floor((today-new Date(d))/86400000);
+
+  const toInsert=[];
+
+  // PI loop (same rules as manual check)
+  for(const p of piRows){
+    if(!p.date)continue;
+    const num=p.pi_number,rep=p.sales_rep||null,dist=p.distributor||'';
+    const dPI=dd(p.date);
+    const hasAct=poSet.has(num)||hqSet.has(num)||shSet.has(num);
+    let stage=null,stageDays=0;
+    if(!hasAct){
+      if(dPI>=DELAY_RULES.no_action.days){stage='no_action';stageDays=dPI;}
+    } else if(!shSet.has(num)){
+      if(dPI>=DELAY_RULES.hqpo_delay.days){stage='hqpo_delay';stageDays=dPI;}
+    } else if(shDateSet.has(num)&&!colOk.has(num)){
+      const sr=shRows.find(r=>r.pi_number===num&&r.date&&r.status!=='Preparing');
+      if(sr){const d=dd(sr.date);if(d>=DELAY_RULES.col_delay.days){stage='col_delay';stageDays=d;}}
+    }
+    if(!stage)continue;
+    const key=num+'_'+stage;
+    const rule=DELAY_RULES[stage];
+    const prev=sentMap[key]||[];
+    const lastSent=prev[prev.length-1];
+    const hoursSince=lastSent?(Date.now()-lastSent.at)/3600000:Infinity;
+    const hasResp=prev.some(n=>n.read);
+    // Auto: send first alert OR re-send if ≥24h and no response
+    if(prev.length===0){
+      toInsert.push({type:'alert',
+        title:'[Auto] '+rule.icon+' '+rule.label+' — '+num,
+        message:'[Auto-sent by system]\nDistributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n⚠️ Please respond in Messages with reason and action plan.',
+        from_user:'system',to_user:rep,related_page:'pi',related_id:key});
+    } else if(hoursSince>=24&&!hasResp){
+      toInsert.push({type:'alert',
+        title:'[Auto] 🔴 미응답 독촉: '+rule.label+' — '+num,
+        message:'[Auto re-sent by system]\nDistributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n🚨 No response yet. Please respond immediately.',
+        from_user:'system',to_user:rep,related_page:'pi',related_id:key});
+    }
+  }
+
+  // col_setup loop
+  const activePIs=new Set(piRows.map(p=>p.pi_number));
+  for(const c of colRows){
+    const num=c.pi_number; if(!num||!activePIs.has(num))continue;
+    if(c.status==='Collected')continue;
+    const inv=parseFloat(c.invoice_amount_usd||0);
+    const got=parseFloat(c.collected_amount_usd||0);
+    const needsSetup=!c.pay1_amount&&!c.bl_date;
+    const stillOwed=inv>0&&(inv-got)>0;
+    if(!needsSetup&&!stillOwed)continue;
+    const piRec=piRows.find(p=>p.pi_number===num)||{};
+    const rep=piRec.sales_rep||null,dist=piRec.distributor||'';
+    const rule=DELAY_RULES.col_setup;
+    const key=num+'_col_setup';
+    const prev=sentMap[key]||[];
+    const lastSent=prev[prev.length-1];
+    const hoursSince=lastSent?(Date.now()-lastSent.at)/3600000:Infinity;
+    const hasResp=prev.some(n=>n.read);
+    if(prev.length===0){
+      toInsert.push({type:'alert',
+        title:'[Auto] '+rule.icon+' '+rule.label+' — '+num,
+        message:'[Auto-sent by system]\nDistributor: '+dist+'\n⚠️ Collection schedule/details need to be filled in.\n\nPlease respond in Messages.',
+        from_user:'system',to_user:rep,related_page:'collections',related_id:key});
+    } else if(hoursSince>=24&&!hasResp){
+      toInsert.push({type:'alert',
+        title:'[Auto] 🔴 미응답 독촉: '+rule.label+' — '+num,
+        message:'[Auto re-sent by system]\nDistributor: '+dist+'\n🚨 No response yet. Please handle collection details immediately.',
+        from_user:'system',to_user:rep,related_page:'collections',related_id:key});
+    }
+  }
+
+  if(!toInsert.length){
+    console.log('[AutoScheduler] ✅ No new alerts needed');
+    return;
+  }
+
+  const{error}=await sb.from('notifications').insert(toInsert);
+  if(error){console.error('[AutoScheduler] ❌ Insert error:',error);return;}
+  console.log('[AutoScheduler] ✅ Auto-sent',toInsert.length,'alerts');
+  await loadNotifications();
+  // Show toast only if user is currently logged in and looking at the app
+  if(document.hasFocus&&document.hasFocus()){
+    toast('🤖 Auto: '+toInsert.length+' delay alerts sent');
+  }
+}
 
 // ── Swipe-right to open sidebar (touch devices) ──────────────────────────────
 (function initSwipe(){
