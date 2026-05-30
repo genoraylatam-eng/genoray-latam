@@ -1352,6 +1352,7 @@ tr[data-paid="true"] td{opacity:.55}
         <button id="pdiv-den" onclick="setProdDiv('dental')" style="padding:7px 18px;border:1px solid var(--g200);border-radius:var(--rsm);background:#fff;color:var(--g600);font-size:12px;font-weight:700;cursor:pointer">🦷 Dental</button>
         <div style="flex:1"></div>
         <button class="btn btn-primary hide-on-view" onclick="openForm('products')">+ Add Product</button>
+        <button class="btn btn-secondary btn-sm" onclick="openAliasManager()" style="border-color:#7c3aed;color:#7c3aed;font-weight:700">🔀 Aliases</button>
       </div>
       <!-- Products grouped display -->
       <div id="products-grouped"></div>
@@ -1954,14 +1955,20 @@ async function init(){
     // (If the distributors/products load fails, permissions — incl. the Admin menu — must still apply.)
     const savedUser=getAuth();
     if(savedUser) loadUserPermissions(savedUser);
-    const [r1,r2]=await Promise.all([
+    const [r1,r2,r3]=await Promise.all([
       sb.from('distributors').select('*').order('company_name'),
-      sb.from('products').select('*').order('product_name')
+      sb.from('products').select('*').order('product_name'),
+      sb.from('product_aliases').select('*').order('alias_model')
     ]);
     if(r1.error) throw new Error('Distributors: '+r1.error.message);
     if(r2.error) throw new Error('Products: '+r2.error.message);
     masterCache.distributors=r1.data||[];
     masterCache.products=r2.data||[];
+    masterCache.aliases=r3.data||[];
+    // Build fast alias lookup map: alias_model → canonical_model
+    window._aliasMap={};
+    (masterCache.aliases||[]).forEach(a=>{ _aliasMap[a.alias_model.trim()]=a.canonical_model.trim(); });
+    console.log('[Aliases] Loaded',Object.keys(_aliasMap).length,'alias mappings:',_aliasMap);
     setStatus('Connected');
     loadDash();
     await Promise.all([loadNotifications(), loadAllUsers()]);
@@ -2012,7 +2019,7 @@ function doLogin(){
 
 
 // ── STATE ────────────────────────────────────────────────────────────────────
-let activePage='dashboard',formState={table:'',id:null,page:''},cache={_xref:null},masterCache={distributors:[],products:[],userPerms:[]};
+let activePage='dashboard',formState={table:'',id:null,page:''},cache={_xref:null},masterCache={distributors:[],products:[],userPerms:[],aliases:[]};
 const today=new Date(); today.setHours(0,0,0,0);
 let piFS={id:null,items:[],ed:{},seller:'korea'};
 const TBL={hqpo:'hq_po'};
@@ -4070,10 +4077,19 @@ function showRepDrill(yr){
 
 function setModelTab(tab){} // kept for compatibility
 
+// ── Product Alias Resolution ──────────────────────────────────────────────
+// Converts any alias model name to its canonical name before aggregation.
+// e.g. "Unique FD" → "Oscar 15", "Unique Class" → "Oscar Classic"
+function resolveModel(modelName){
+  if(!modelName)return modelName;
+  const m=modelName.trim();
+  return (window._aliasMap&&window._aliasMap[m])||m;
+}
+
 function parseModels(shipsAll, yr, filterFn){
   const stats={};
   shipsAll.filter(r=>r.date&&r.date.startsWith(String(yr))&&filterFn(r)).forEach(r=>{
-    const models=(r.models||'').split(',').map(m=>m.trim()).filter(Boolean);
+    const models=(r.models||'').split(',').map(m=>resolveModel(m.trim())).filter(Boolean);
     const n=models.length||1;
     const amt=r.amount_usd||0, qty=r.quantity||0;
     models.forEach(m=>{
@@ -4142,6 +4158,79 @@ function renderModelSection(shipsAll, yrA, yrB, yrC, divFilter, filterFn, _tab){
 }
 
 
+
+// ── Product Alias Manager ─────────────────────────────────────────────────────
+async function openAliasManager(){
+  const aliases=masterCache.aliases||[];
+  const html=`
+  <div style="max-width:640px;width:95vw">
+    <div class="modal-head"><span class="modal-title">🔀 Product Alias Mapping</span><button onclick="closeModal()" class="modal-x">×</button></div>
+    <div class="modal-body">
+      <div style="background:#faf5ff;border-left:3px solid #7c3aed;padding:10px 14px;font-size:12px;color:#5b21b6;margin-bottom:16px;border-radius:0 6px 6px 0">
+        <strong>What is this?</strong> Some distributors import Genoray products under their own brand names.
+        Alias mappings ensure these models are counted as the same product in all reports and dashboards.
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:var(--g50)">
+          <th style="padding:8px 12px;text-align:left;border-bottom:2px solid var(--g200)">Alias (Distributor Name)</th>
+          <th style="padding:8px 12px;text-align:left;border-bottom:2px solid var(--g200)">= Canonical (Genoray) Model</th>
+          <th style="padding:8px 12px;text-align:left;border-bottom:2px solid var(--g200)">Distributor</th>
+          <th style="padding:8px 12px;border-bottom:2px solid var(--g200)"></th>
+        </tr></thead>
+        <tbody id="alias-tbody">
+          ${aliases.map(a=>`<tr style="border-bottom:1px solid var(--g100)">
+            <td style="padding:8px 12px;font-weight:600;color:#7c3aed">${esc(a.alias_model)}</td>
+            <td style="padding:8px 12px;font-weight:600;color:var(--blue)">→ ${esc(a.canonical_model)}</td>
+            <td style="padding:8px 12px;color:var(--g500)">${esc(a.distributor||'—')}</td>
+            <td style="padding:8px 12px;text-align:right"><button onclick="deleteAlias('${a.id}')" style="background:none;border:none;cursor:pointer;color:var(--g400);font-size:16px" title="Delete">🗑</button></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--g200)">
+        <div style="font-size:12px;font-weight:700;color:var(--g600);margin-bottom:10px">＋ Add New Alias</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:end">
+          <div><label style="font-size:11px;color:var(--g500);display:block;margin-bottom:3px">Alias Model (Distributor Name)</label>
+            <input id="alias-in-alias" placeholder="e.g. Unique FD" style="width:100%;padding:7px 10px;border:1px solid var(--g200);border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+          <div><label style="font-size:11px;color:var(--g500);display:block;margin-bottom:3px">Canonical (Genoray) Model</label>
+            <input id="alias-in-canon" placeholder="e.g. Oscar 15" style="width:100%;padding:7px 10px;border:1px solid var(--g200);border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+          <div><label style="font-size:11px;color:var(--g500);display:block;margin-bottom:3px">Distributor</label>
+            <input id="alias-in-dist" placeholder="e.g. IMEX" style="width:100%;padding:7px 10px;border:1px solid var(--g200);border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+        </div>
+        <button onclick="saveAlias()" style="margin-top:10px;padding:8px 20px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">Save Alias</button>
+      </div>
+    </div>
+  </div>`;
+  openModal(html);
+}
+
+async function saveAlias(){
+  const alias=document.getElementById('alias-in-alias')?.value?.trim();
+  const canon=document.getElementById('alias-in-canon')?.value?.trim();
+  const dist=document.getElementById('alias-in-dist')?.value?.trim();
+  if(!alias||!canon){toast('Please fill in both alias and canonical model names','warn');return;}
+  const{data,error}=await sb.from('product_aliases').insert({alias_model:alias,canonical_model:canon,distributor:dist||null}).select();
+  if(error){toast('Error: '+error.message,'err');return;}
+  masterCache.aliases=[...masterCache.aliases,...(data||[])];
+  window._aliasMap=window._aliasMap||{};
+  window._aliasMap[alias]=canon;
+  toast('✅ Alias saved: '+alias+' → '+canon,'ok');
+  closeModal();
+  openAliasManager();
+}
+
+async function deleteAlias(id){
+  if(!confirm('Delete this alias mapping?'))return;
+  const{error}=await sb.from('product_aliases').delete().eq('id',id);
+  if(error){toast('Error: '+error.message,'err');return;}
+  masterCache.aliases=masterCache.aliases.filter(a=>a.id!==id);
+  // Rebuild aliasMap
+  window._aliasMap={};
+  (masterCache.aliases||[]).forEach(a=>{_aliasMap[a.alias_model.trim()]=a.canonical_model.trim();});
+  toast('Alias deleted','ok');
+  closeModal();
+  openAliasManager();
+}
+// ─────────────────────────────────────────────────────────────────────────────
 // ── GOALS PAGE ────────────────────────────────────────────────────────────────
 let goalView='combined'; // 'combined' | 'split'
 let goalFS={id:null,items:[],ed:{}};
