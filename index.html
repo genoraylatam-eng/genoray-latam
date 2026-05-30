@@ -9065,29 +9065,24 @@ function updateBellBadge(){
   const me=getAuth();
   const badge=document.getElementById('notif-badge');
   if(!badge)return;
-  // 🔴 Unread messages RECEIVED by me (strictly to_user===me, from others)
+  const localRead=_getLocalRead(me);  // ← localStorage fallback
   const unreadMsgs=_notifData.filter(n=>
-    n.type==='message'&&
-    n.to_user===me&&          // must be addressed TO me
-    n.from_user!==me&&        // not my own messages
-    !(n.read_by||[]).includes(me)  // I haven't read it
+    n.type==='message'&&n.to_user===me&&n.from_user!==me&&
+    !_isRead(n,me,localRead)
   ).length;
-  // 🔴 Unread alerts RECEIVED by me (not sent by me)
   const unreadAlerts=_notifData.filter(n=>
-    n.type==='alert'&&n.to_user===me&&
-    n.from_user!==me&&!(n.read_by||[]).includes(me)
+    n.type==='alert'&&n.to_user===me&&n.from_user!==me&&
+    !_isRead(n,me,localRead)
   ).length;
-  // 🟡 Alerts received, opened, but no response yet
   const needsReply=_notifData.filter(n=>
     n.type==='alert'&&n.to_user===me&&n.from_user!==me&&
-    (n.read_by||[]).includes(me)&&
+    _isRead(n,me,localRead)&&
     !(_delayResponses||[]).some(r=>r.notification_id===n.id)
   ).length;
   const total=unreadMsgs+unreadAlerts+needsReply;
   if(total>0){
     badge.textContent=total>99?'99+':total;
     badge.style.display='flex';
-    // Red if truly unread, amber if just needs-reply
     badge.style.background=(unreadMsgs+unreadAlerts)>0?'#ef4444':'#f59e0b';
   } else {
     badge.style.display='none';
@@ -9121,17 +9116,38 @@ function renderNotifications(){
   buildConvList(); // handles auto-open and stale conv reset internally
 }
 
+// ── Read-state helpers (localStorage fallback) ───────────────────────────
+// Supabase RLS may block read_by updates → we persist locally too
+function _getLocalRead(me){
+  try{ return new Set(JSON.parse(localStorage.getItem('cps_read_'+me)||'[]')); }
+  catch(e){ return new Set(); }
+}
+function _addLocalRead(me, ids){
+  try{
+    const s=_getLocalRead(me);
+    ids.forEach(id=>s.add(id));
+    localStorage.setItem('cps_read_'+me,JSON.stringify([...s]));
+  }catch(e){}
+}
+function _isRead(n, me, localRead){
+  return (n.read_by||[]).includes(me) || localRead.has(n.id);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function buildConvList(){
   const me=getAuth();
   const el=document.getElementById('conv-items');
   if(!el)return;
 
+  // ── localStorage read-state (persists even if Supabase RLS blocks update) ─
+  const localRead=_getLocalRead(me);
+
   // ── System Alerts badges ──────────────────────────────────────────────────
   const alerts=_notifData.filter(n=>n.type==='alert');
   const myAlerts=alerts.filter(n=>n.to_user===me&&n.from_user!==me);
-  const alertUnread=myAlerts.filter(n=>!(n.read_by||[]).includes(me)).length;
+  const alertUnread=myAlerts.filter(n=>!_isRead(n,me,localRead)).length;
   const alertNeedsReply=myAlerts.filter(n=>
-    (n.read_by||[]).includes(me)&&!(_delayResponses||[]).some(r=>r.notification_id===n.id)
+    _isRead(n,me,localRead)&&!(_delayResponses||[]).some(r=>r.notification_id===n.id)
   ).length;
   const sentPending=alerts.filter(n=>
     (n.from_user===me||n.from_user==='system')&&n.to_user&&n.to_user!==me&&
@@ -9140,12 +9156,11 @@ function buildConvList(){
 
   // ── Team Chat badges ──────────────────────────────────────────────────────
   const teamMsgs=_notifData.filter(n=>n.type==='team'||n.to_user==='__all__');
-  // Only count messages from real human users (not system/auto senders)
   const SYSTEM_SENDERS=['system','admin'];
   const teamUnread=teamMsgs.filter(n=>
-    n.from_user!==me&&                              // not my own message
-    !SYSTEM_SENDERS.includes(n.from_user)&&         // not from system/admin
-    !(n.read_by||[]).includes(me)                   // I haven't read it
+    n.from_user!==me&&
+    !SYSTEM_SENDERS.includes(n.from_user)&&
+    !_isRead(n,me,localRead)          // ← checks BOTH DB + localStorage
   ).length;
 
   // ── 1-on-1 DM messages (index by other user) ──────────────────────────────
@@ -9155,11 +9170,10 @@ function buildConvList(){
     (n.from_user===me||n.to_user===me)
   ).forEach(n=>{
     const other=n.from_user===me?n.to_user:n.from_user;
-    // Skip system/admin auto-messages from creating phantom DM threads
     if(!other||other==='system')return;
     if(!dmIndex[other])dmIndex[other]={msgs:[],unread:0};
     dmIndex[other].msgs.push(n);
-    if(n.from_user!==me&&n.to_user===me&&!(n.read_by||[]).includes(me)) dmIndex[other].unread++;
+    if(n.from_user!==me&&n.to_user===me&&!_isRead(n,me,localRead)) dmIndex[other].unread++;
   });
 
   // ── Item renderer ─────────────────────────────────────────────────────────
@@ -9412,6 +9426,7 @@ function openConv(key){
     const myUnread=_notifData.filter(n=>n.type==='alert'&&n.to_user===me&&!(n.read_by||[]).includes(me));
     if(myUnread.length){
       myUnread.forEach(n=>{n.read_by=[...(n.read_by||[]),me];});
+      _addLocalRead(me,myUnread.map(n=>n.id));  // ← persist to localStorage
       buildConvList();   // refresh 🔴 → 🟡 immediately
       updateBellBadge();
       myUnread.forEach(n=>sb.from('notifications').update({read_by:n.read_by}).eq('id',n.id));
@@ -9431,6 +9446,7 @@ function openConv(key){
     const tmRead=teamMsgs.filter(n=>n.from_user!==me&&!(n.read_by||[]).includes(me));
     if(tmRead.length){
       tmRead.forEach(n=>{n.read_by=[...(n.read_by||[]),me];});
+      _addLocalRead(me,tmRead.map(n=>n.id));  // ← persist to localStorage
       buildConvList(); updateBellBadge();
       tmRead.forEach(n=>sb.from('notifications').update({read_by:n.read_by}).eq('id',n.id));
     }
@@ -9453,9 +9469,9 @@ function openConv(key){
     const toRead=thread.filter(n=>n.from_user!==me&&n.to_user===me&&!(n.read_by||[]).includes(me));
     if(toRead.length){
       toRead.forEach(n=>{n.read_by=[...(n.read_by||[]),me];}); // instant local update
+      _addLocalRead(me,toRead.map(n=>n.id));  // ← persist to localStorage
       buildConvList();   // immediately refresh counts in sidebar
       updateBellBadge(); // immediately update bell
-      // Background DB sync (no await — don't block UI)
       toRead.forEach(n=>sb.from('notifications').update({read_by:n.read_by}).eq('id',n.id));
     }
   } else if(key.startsWith('admin-monitor:')){
@@ -10062,9 +10078,27 @@ function startRealtimeNotifications(){
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications'},
       payload=>_onNewNotif(payload.new))
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'notifications'},
-      ()=>{ if(activePage==='notifications') loadNotifications(); })
+      payload=>{
+        // Smart merge: update the single record in _notifData, preserve local read state
+        const updated=payload.new;
+        if(!updated||!updated.id)return;
+        const idx=(_notifData||[]).findIndex(n=>n.id===updated.id);
+        const localRead=_getLocalRead(me);
+        // Merge: if we locally marked as read, keep it even if DB hasn't caught up
+        if(localRead.has(updated.id)&&!(updated.read_by||[]).includes(me)){
+          updated.read_by=[...(updated.read_by||[]),me];
+        }
+        if(idx>=0){ _notifData[idx]=updated; }
+        else { (_notifData||[]).push(updated); }
+        if(activePage==='notifications') buildConvList();
+        updateBellBadge();
+      })
     .on('postgres_changes',{event:'DELETE',schema:'public',table:'notifications'},
-      ()=>{ if(activePage==='notifications') loadNotifications(); })
+      payload=>{
+        if(payload.old?.id) _notifData=(_notifData||[]).filter(n=>n.id!==payload.old.id);
+        if(activePage==='notifications') buildConvList();
+        updateBellBadge();
+      })
     .subscribe(status=>{console.log('[Realtime-Notif] status:',status);});
 
   // Start data realtime separately
