@@ -1474,8 +1474,9 @@ tr[data-paid="true"] td{opacity:.55}
     <div id="page-help" class="page">
       <div class="panel" style="margin-bottom:14px">
         <div class="panel-head" style="gap:12px;flex-wrap:wrap">
-          <span class="panel-title" style="font-size:15px">📖 Genoray LATAM — User Manual <span style="font-size:12px;font-weight:400;color:var(--g400)">v1.0</span></span>
-          <div class="search-box" style="flex:1;max-width:340px">
+          <span class="panel-title" style="font-size:15px">📖 Genoray LATAM — User Manual <span style="font-size:12px;font-weight:400;color:var(--g400)">v2.1</span></span>
+          <div id="help-lang-bar" style="display:flex;align-items:center"></div>
+          <div class="search-box" style="flex:1;max-width:300px">
             <span>🔍</span>
             <input id="help-search" placeholder="Search manual..." oninput="helpSearch(this.value)" style="width:100%">
           </div>
@@ -1744,6 +1745,16 @@ const PAGE_TITLES={dashboard:'Dashboard',pipeline:'Pipeline & Backlog',report:'R
 // ── NAV ──────────────────────────────────────────────────────────────────────
 function navigateTo(p){
   if(!p)return;
+  // ── Admin page guard: non-admin users cannot access admin page ──
+  if(p==='admin'){
+    const role=getRole();
+    const me=getAuth()||'';
+    const isAdm=role==='admin'||(typeof ADMIN_USERS!=='undefined'&&ADMIN_USERS.includes(me));
+    if(!isAdm){
+      console.warn('[Auth] Admin page blocked for non-admin user');
+      p='dashboard'; // silently redirect to dashboard
+    }
+  }
   activePage=p;
   // Nav items
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -1782,7 +1793,12 @@ function loadPage(p){
     }, 100);
     return;
   }
-  if(p==='admin'){loadAdminUsers();loadDeleteRequests();return;}
+  if(p==='admin'){
+    const _r=getRole(),_m=getAuth()||'';
+    const _isAdm=_r==='admin'||(typeof ADMIN_USERS!=='undefined'&&ADMIN_USERS.includes(_m));
+    if(!_isAdm){navigateTo('dashboard');return;}
+    loadAdminUsers();loadDeleteRequests();return;
+  }
   loadTable(p);
 }
 
@@ -5697,261 +5713,783 @@ function closeStatusHelp(){
 
 
 // ── USER MANUAL ──────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// USER MANUAL — Bilingual (EN / KO) + Admin-only filtering
+// ══════════════════════════════════════════════════════════════════════════════
+let _manualLang = localStorage.getItem('gl_manualLang') || 'en';
+
+function setManualLang(lang){
+  _manualLang = lang;
+  localStorage.setItem('gl_manualLang', lang);
+  loadHelp();
+}
+
 const MANUAL_SECTIONS = [
-  {
-    id:'gs', icon:'🚀', title:'Getting Started',
-    sub:'Login, accounts, and navigation',
-    content:`
-      <div class="hs-h3">System Overview</div>
-      <p class="hs-p">Genoray LATAM Sales Management is a web-based system for managing the full sales lifecycle — from Proforma Invoice through shipment and collection. Access it from any browser at <strong>genoray-latam.vercel.app</strong>.</p>
-      <div class="hs-h3">Login</div>
-      <p class="hs-p">Enter your username and password. The system supports two roles:</p>
-      <ul class="hs-ul">
-        <li><strong>Admin</strong> — full access to all data and settings (shown as orange ADMIN badge)</li>
-        <li><strong>User</strong> — view and enter data, no delete access</li>
-      </ul>
-      <p class="hs-p">Sessions are maintained via localStorage so you stay logged in between browser refreshes. Auto-logout after 60 minutes of inactivity.</p>
-      <div class="hs-h3">Navigation</div>
-      <p class="hs-p">Use the left sidebar to navigate between sections. On mobile, tap the hamburger menu (☰) or use the bottom navigation bar. The year badge (e.g. <strong>2026</strong>) in the top bar shows the active data year.</p>
-      <div class="hs-h3">Page Sections</div>
-      <ul class="hs-ul">
-        <li><strong>Overview:</strong> Dashboard · Pipeline & Backlog · Report</li>
-        <li><strong>Sales:</strong> PI · PO · HQ PO · Shipments · Collections</li>
-        <li><strong>Master Data:</strong> Distributors · Products · Annual Goals · Pricing</li>
-      </ul>
-    `
-  },
-  {
-    id:'dash', icon:'📊', title:'Dashboard',
-    sub:'KPI cards, revenue charts, and country analysis',
-    content:`
-      <div class="hs-h3">KPI Cards</div>
-      <p class="hs-p">Five cards at the top show key metrics for the selected year. <strong>Click any card to see the detailed breakdown:</strong></p>
-      <ul class="hs-ul">
-        <li><strong>📈 Revenue</strong> — click to see all shipment records sorted by date</li>
-        <li><strong>🎯 Goal Achievement</strong> — shows achievement % vs annual target</li>
-        <li><strong>✅ Collected</strong> — click to see all paid collection records</li>
-        <li><strong>⏳ Outstanding (A/R)</strong> — click to see unpaid invoices sorted by amount</li>
-        <li><strong>📋 Active PI</strong> — click to see all unshipped PIs with status</li>
-      </ul>
-      <div class="hs-h3">Monthly Revenue vs Goal Chart</div>
-      <p class="hs-p">Dual-axis SVG chart showing monthly revenue bars and cumulative revenue/goal lines. Controls:</p>
-      <ul class="hs-ul">
-        <li><strong>Single Year / Compare Years</strong> — toggle single vs multi-year view</li>
-        <li><strong>All / Medical / Dental</strong> — filter by division</li>
-        <li>Year dropdown (2026, 2025, etc.)</li>
-        <li>Cumulative goal line shows dots and quarterly labels ($xxxK)</li>
-        <li>Goal bar labels show monthly target amounts</li>
-      </ul>
-      <div class="hs-h3">Goal Achievement by Country</div>
-      <p class="hs-p">Shows each country's YTD revenue vs monthly/annual goal. Use the <strong>All / Medical / Dental</strong> tabs and the <strong>View month</strong> selector to drill into any month.</p>
-      <div class="hs-h3">Sales by Country / Division / Rep</div>
-      <p class="hs-p">Horizontal bar charts showing relative revenue share. Division chart includes Medical, Dental, and Both categories.</p>
-    `
-  },
-  {
-    id:'pipeline', icon:'🔄', title:'Pipeline & Backlog',
-    sub:'Track active PIs from creation to collection',
-    content:`
-      <div class="hs-h3">Overview</div>
-      <p class="hs-p">Pipeline & Backlog shows all active PIs that have not yet been fully collected. It gives a consolidated view of the sales funnel across PI → PO → HQ PO → Shipment → Collection stages.</p>
-      <div class="hs-h3">Status Stages</div>
-      <ul class="hs-ul">
-        <li><strong>Pending</strong> — PI issued, no PO yet</li>
-        <li><strong>In Progress</strong> — PO or HQ PO created</li>
-        <li><strong>Shipped</strong> — shipment recorded</li>
-        <li><strong>Completed</strong> — fully collected</li>
-      </ul>
-      <div class="hs-h3">Auto Status</div>
-      <p class="hs-p">Status is calculated automatically from cross-referenced data — you never need to set it manually. Click the <strong>?</strong> button on any table header to see the exact rules.</p>
-    `
-  },
-  {
-    id:'report', icon:'📈', title:'Report',
-    sub:'Multi-year comparison, division analysis, model performance',
-    content:`
-      <div class="hs-h3">Year Comparison</div>
-      <p class="hs-p">Select up to three years for comparison:</p>
-      <ul class="hs-ul">
-        <li><strong>Year A</strong> (blue) — primary year, default 2026</li>
-        <li><strong>Year B</strong> (green) — comparison year, default 2025</li>
-        <li><strong>Year C</strong> (amber) — optional third year, default 2024</li>
-      </ul>
-      <p class="hs-p">Year C columns appear automatically when selected. All tables update instantly.</p>
-      <div class="hs-h3">Division Filter</div>
-      <p class="hs-p">Three tabs at top-left: <strong>All / Medical / Dental</strong>. Distributors with "Both" division appear in both Medical and Dental tabs.</p>
-      <div class="hs-h3">Revenue Cards</div>
-      <p class="hs-p"><strong>Click any Revenue card</strong> to expand a detailed shipment table showing all records for that year — sorted by date with PI number, distributor, country, model, quantity, and amount.</p>
-      <div class="hs-h3">Tables</div>
-      <ul class="hs-ul">
-        <li><strong>Quarterly</strong> — Q1–Q4 revenue, goal, achievement%, YoY growth</li>
-        <li><strong>Monthly</strong> — same breakdown by month</li>
-        <li><strong>Country</strong> — revenue by country across selected years</li>
-        <li><strong>Distributor Performance</strong> — Year A revenue vs target by distributor</li>
-        <li><strong>Model Performance</strong> — compact table showing revenue, qty, share% for all shipped models. Shows Year A vs B vs C columns. Division-filter aware.</li>
-      </ul>
-      <div class="hs-h3">Column Headers</div>
-      <p class="hs-p">All column headers automatically update to show the actual selected years (e.g. "Rev 2026 vs Rev 2025") rather than generic "Year A / Year B" labels.</p>
-    `
-  },
-  {
-    id:'pi', icon:'📋', title:'PI Management',
-    sub:'Create, manage, and print Proforma Invoices',
-    content:`
-      <div class="hs-h3">Creating a PI</div>
-      <p class="hs-p">Click <strong>+ New PI</strong>. Key fields:</p>
-      <ul class="hs-ul">
-        <li><strong>PI Number</strong> — auto-generated from distributor code + date</li>
-        <li><strong>Seller</strong> — Genoray Korea or Genoray America</li>
-        <li><strong>Distributor</strong> — select from master list (auto-fills country)</li>
-        <li><strong>Payment Terms</strong> — preset buttons or custom entry</li>
-        <li><strong>Products</strong> — add line items with model, qty, unit price</li>
-      </ul>
-      <div class="hs-h3">Printing a PI</div>
-      <p class="hs-p">Click the PI number link in the table to open the print preview. The print form includes:</p>
-      <ul class="hs-ul">
-        <li>Genoray company header (Korea or America) with full banking details</li>
-        <li>IBK banking info (Korea) or BOA (America)</li>
-        <li>Product line items with totals</li>
-        <li>Signature section</li>
-      </ul>
-      <p class="hs-p">Click <strong>🖨️ Print / Save PDF</strong> to export as PDF.</p>
-      <div class="hs-h3">Auto Status Rules</div>
-      <p class="hs-p">PI status is calculated automatically: <em>Shipped</em> if shipment exists · <em>In Progress</em> if HQ PO or PO exists · <em>Pending</em> if no linked records · <em>Cancelled</em> if manually set.</p>
-    `
-  },
-  {
-    id:'po', icon:'📦', title:'PO Management',
-    sub:'Purchase orders from distributors',
-    content:`
-      <div class="hs-h3">Creating a PO</div>
-      <p class="hs-p">Click <strong>+ New PO</strong>. Select a PI from the dropdown — distributor, country, and amount auto-fill. Enter the distributor's PO number and date.</p>
-      <div class="hs-h3">Auto Status</div>
-      <p class="hs-p">PO status is auto-calculated: <em>Completed</em> if shipment exists · <em>In Progress</em> if HQ PO linked · <em>Pending</em> otherwise.</p>
-    `
-  },
-  {
-    id:'hqpo', icon:'🏭', title:'HQ PO',
-    sub:'Purchase orders to Genoray headquarters',
-    content:`
-      <div class="hs-h3">Creating an HQ PO</div>
-      <p class="hs-p">Click <strong>+ New HQ PO</strong>. HQ PO numbers follow the format <strong>LM-XXXX</strong>. Select the linked PI and PO. Enter ETD (estimated departure) and ETA (estimated arrival).</p>
-      <div class="hs-h3">Auto Status</div>
-      <p class="hs-p">Status is calculated from ETD/ETA dates: <em>Delivered</em> if past ETA · <em>In Transit</em> if between ETD and ETA · <em>Preparing</em> if before ETD.</p>
-    `
-  },
-  {
-    id:'shipments', icon:'🚢', title:'Shipments',
-    sub:'Record shipments and track delivery',
-    content:`
-      <div class="hs-h3">Creating a Shipment</div>
-      <p class="hs-p">Click <strong>+ New Shipment</strong>. Select a PI — all related info auto-fills. Enter:</p>
-      <ul class="hs-ul">
-        <li><strong>Shipment Date</strong> — use YYYY-MM-DD format. This determines which year's revenue it counts toward.</li>
-        <li><strong>Models & Quantity</strong> — separate multiple models with commas</li>
-        <li><strong>Amount (USD)</strong> — shipment value</li>
-      </ul>
-      <div class="hs-h3">Revenue Year</div>
-      <p class="hs-p">Revenue is counted by shipment date. To record 2025 shipments, enter dates starting with 2025- (e.g. 2025-06-15).</p>
-      <div class="hs-h3">Auto Status</div>
-      <p class="hs-p"><em>Completed</em> if fully collected · <em>Arrived</em> if past ETA · <em>In Transit</em> if between ETD and ETA.</p>
-    `
-  },
-  {
-    id:'collections', icon:'💰', title:'Collections',
-    sub:'Track invoices, payments, due dates, and overdue alerts',
-    content:`
-      <div class="hs-h3">Overdue Alert Panel</div>
-      <p class="hs-p">A red alert panel at the top of Collections automatically appears when any outstanding invoice is past its due date. Shows: PI number, distributor, country, outstanding amount, due date, and days overdue.</p>
-      <div class="hs-h3">Due Date Calculation</div>
-      <p class="hs-p">Due dates are automatically calculated from the PI's payment terms + shipment date:</p>
-      <ul class="hs-ul">
-        <li><em>100% TT before shipment</em> → no outstanding expected</li>
-        <li><em>50/50 (60d B/L)</em> → shipment date + 60 days</li>
-        <li><em>60d / 90d</em> → shipment date + 60/90 days</li>
-        <li>Default → +60 days</li>
-      </ul>
-      <div class="hs-h3">Days Column Color Coding</div>
-      <ul class="hs-ul">
-        <li>🔴 <strong>Red "OD Xd"</strong> — overdue (past due date)</li>
-        <li>🟠 <strong>Orange "Xd left"</strong> — due within 14 days</li>
-        <li>⚫ <strong>Gray "Xd"</strong> — more than 14 days remaining</li>
-        <li>🟢 <strong>"✓ Paid"</strong> — fully collected</li>
-      </ul>
-      <div class="hs-h3">Show / Hide Paid Records</div>
-      <p class="hs-p">By default, fully paid records are hidden. Click <strong>Show Paid</strong> to reveal them (shown at reduced opacity). The button turns green when paid records are visible. The panel title shows how many paid records are hidden.</p>
-      <div class="hs-h3">Auto Status</div>
-      <p class="hs-p"><em>Collected</em> if collected ≥ invoice · <em>Partial</em> if some collected · <em>Pending</em> if nothing collected.</p>
-    `
-  },
-  {
-    id:'master', icon:'🗂️', title:'Master Data',
-    sub:'Distributors, Products, Annual Goals, and Pricing',
-    content:`
-      <div class="hs-h3">Distributors</div>
-      <p class="hs-p">Manage the distributor master list. Division options:</p>
-      <ul class="hs-ul">
-        <li><strong>🏥 Medical only</strong> — C-Arm, Mammography products only</li>
-        <li><strong>🦷 Dental only</strong> — CBCT, Panoramic, Portable products only</li>
-        <li><strong>🏥+🦷 Both</strong> — handles both Medical and Dental (shown with gradient badge). Appears in both Medical and Dental filters throughout the system.</li>
-      </ul>
-      <p class="hs-p">Distributors that handle both divisions are stored as a <strong>single record</strong> with Division = "Both" — no more -M / -D suffixes needed.</p>
 
-      <div class="hs-h3">Products</div>
-      <p class="hs-p">Full product catalog (27 models) organized by Division and Category. View modes:</p>
-      <ul class="hs-ul">
-        <li><strong>All / 🏥 Medical / 🦷 Dental</strong> tabs</li>
-        <li>Left column: Main Products with price</li>
-        <li>Right column: Options / Accessories (gray background)</li>
-      </ul>
-      <p class="hs-p">When adding a new product, fill in three required sections:</p>
-      <ul class="hs-ul">
-        <li><strong>① Classification</strong> — Division, Category, Type (Product or Option). Code is auto-generated.</li>
-        <li><strong>② Product Info</strong> — Model Name (required) and Description (required)</li>
-        <li><strong>③ Pricing</strong> — Unit Price (optional, can set later)</li>
-      </ul>
+// ── 1. GETTING STARTED ───────────────────────────────────────────────────────
+{
+  id:'gs', icon:'🚀', adminOnly:false,
+  title:{en:'Getting Started', ko:'시작하기'},
+  sub:{en:'Login, roles, and navigation', ko:'로그인, 역할, 탐색 방법'},
+  content:{
+en:`
+  <div class="hs-h3">System Overview</div>
+  <p class="hs-p">Genoray LATAM Sales Management is a cloud-based web system for managing the complete sales lifecycle — from issuing a Proforma Invoice (PI) all the way through to payment collection. All data is stored in the cloud and accessible from any device at <strong style="color:var(--blue)">genoray-latam.vercel.app</strong>.</p>
 
-      <div class="hs-h3">Annual Goals</div>
-      <p class="hs-p">Set monthly sales targets by distributor and division. To enter <strong>2025 goals</strong>, set the Year field to 2025. Goals appear in Dashboard and Report achievement calculations.</p>
+  <div class="hs-h3">Login</div>
+  <p class="hs-p">Enter your username and password on the login screen. Sessions remain active for <strong>60 minutes</strong> of inactivity before auto-logout. Your login is remembered between browser refreshes.</p>
 
-      <div class="hs-h3">Pricing</div>
-      <p class="hs-p">Four tabs:</p>
-      <ul class="hs-ul">
-        <li><strong>📋 TP Reference</strong> — read-only GAI 2026 Ex-Factory prices for all 88 models. Columns: LATAM Price (SA = what LATAM pays GAI), Brazil, Mexico, LATAM Ref, Min Price, and GAI US TP (reference only). Filter by All / Medical / Dental.</li>
-        <li><strong>🏢 Distributor Prices</strong> — select a distributor, then choose Medical / Dental / All tab to see all models in a bulk-entry table. Enter offer prices directly in the table — only rows with prices entered will be saved. Live margin% and Min Price warning appear as you type. Click <strong>💾 Save All Changes</strong> to save in one batch.</li>
-        <li><strong>⚖️ Compare</strong> — select 2–3 distributors side by side. Shows offer prices for the same models with margin% and highlights the lowest price in green.</li>
-        <li><strong>🕐 History</strong> — automatic log of all price changes with old/new price and % change.</li>
-      </ul>
-      <p class="hs-p">To <strong>export a PDF price list</strong>: select a distributor → click <strong>📄 Export Price List</strong> → choose sender (Korea/America), division, year, and valid-until date → Generate PDF. Only models with offer prices are included in the export. Created date is automatic.</p>
-    `
-  },
-  {
-    id:'mobile', icon:'📱', title:'Mobile App',
-    sub:'Add to home screen for app-like experience',
-    content:`
-      <div class="hs-h3">iOS (iPhone / iPad)</div>
-      <ol class="hs-ul">
-        <li>Open <strong>genoray-latam.vercel.app</strong> in Safari</li>
-        <li>Tap the <strong>Share</strong> button (□↑)</li>
-        <li>Tap <strong>Add to Home Screen</strong></li>
-        <li>Tap <strong>Add</strong></li>
-      </ol>
-      <div class="hs-h3">Android</div>
-      <ol class="hs-ul">
-        <li>Open the URL in Chrome</li>
-        <li>Tap the three-dot menu (⋮)</li>
-        <li>Tap <strong>Add to Home screen</strong></li>
-      </ol>
-      <p class="hs-p">The app launches full-screen with a bottom navigation bar for quick access to Dashboard, Pipeline, PI, Shipments, and User Manual.</p>
-      <div class="hs-h3">Tips</div>
-      <ul class="hs-ul">
-        <li>All features work on mobile — tables scroll horizontally</li>
-        <li>PI print works best on desktop/tablet</li>
-        <li>Price List PDF export requires popup permission in browser</li>
-      </ul>
-    `
-  }
-];;
+  <div class="hs-h3">User Roles</div>
+  <table class="hs-table">
+    <tr><th>Role</th><th>What you can do</th><th>Badge</th></tr>
+    <tr><td><strong>Admin</strong></td><td>Full access — view, create, edit, delete, manage users</td><td><span class="hs-badge" style="background:#f59e0b;color:#fff">ADMIN</span></td></tr>
+    <tr><td><strong>User</strong></td><td>View, create, and edit — no delete, no admin panel</td><td>—</td></tr>
+    <tr><td><strong>Sales Rep</strong></td><td>Same as User, plus receives automatic delay alert notifications</td><td>—</td></tr>
+  </table>
+
+  <div class="hs-h3">Navigation</div>
+  <p class="hs-p">Use the <strong>left sidebar</strong> to move between pages. On mobile, tap ☰ (top-left) to open the sidebar, or use the <strong>bottom navigation bar</strong> for quick access to key pages. The year badge in the top bar (e.g. <strong>2026</strong>) shows the active data year — click it to switch years.</p>
+
+  <div class="hs-h3">Page Structure</div>
+  <table class="hs-table">
+    <tr><th>Section</th><th>Pages</th></tr>
+    <tr><td>Overview</td><td>Dashboard · Pipeline & Backlog · Report</td></tr>
+    <tr><td>Sales</td><td>PI · PO · HQ PO · Shipments · Collections</td></tr>
+    <tr><td>Master Data</td><td>Distributors · Products · Annual Goals · Pricing</td></tr>
+    <tr><td>Team</td><td>Messages & Alerts</td></tr>
+  </table>
+`,
+ko:`
+  <div class="hs-h3">시스템 개요</div>
+  <p class="hs-p">Genoray LATAM Sales Management는 PI 발행부터 수금까지 전체 영업 과정을 관리하는 클라우드 웹 시스템입니다. 모든 데이터는 클라우드에 저장되며 어떤 기기에서도 <strong style="color:var(--blue)">genoray-latam.vercel.app</strong>으로 접속할 수 있습니다.</p>
+
+  <div class="hs-h3">로그인</div>
+  <p class="hs-p">로그인 화면에서 아이디와 비밀번호를 입력하세요. 60분 동안 활동이 없으면 자동 로그아웃됩니다. 브라우저를 새로고침해도 로그인 상태가 유지됩니다.</p>
+
+  <div class="hs-h3">사용자 역할</div>
+  <table class="hs-table">
+    <tr><th>역할</th><th>할 수 있는 것</th><th>배지</th></tr>
+    <tr><td><strong>Admin</strong></td><td>전체 접근 — 조회, 생성, 수정, 삭제, 유저 관리</td><td><span class="hs-badge" style="background:#f59e0b;color:#fff">ADMIN</span></td></tr>
+    <tr><td><strong>User</strong></td><td>조회, 생성, 수정 가능 — 삭제 및 Admin 패널 불가</td><td>—</td></tr>
+    <tr><td><strong>Sales Rep</strong></td><td>User와 동일 + 지연 알림 자동 수신</td><td>—</td></tr>
+  </table>
+
+  <div class="hs-h3">탐색 방법</div>
+  <p class="hs-p">왼쪽 사이드바로 페이지 이동. 모바일에서는 ☰(좌측 상단)을 탭해 사이드바를 열거나 <strong>하단 네비게이션 바</strong>를 이용하세요. 상단 연도 배지(예: <strong>2026</strong>)를 클릭하면 연도를 전환할 수 있습니다.</p>
+
+  <div class="hs-h3">페이지 구조</div>
+  <table class="hs-table">
+    <tr><th>섹션</th><th>페이지</th></tr>
+    <tr><td>개요</td><td>Dashboard · Pipeline & Backlog · Report</td></tr>
+    <tr><td>영업</td><td>PI · PO · HQ PO · Shipments · Collections</td></tr>
+    <tr><td>기준 데이터</td><td>Distributors · Products · Annual Goals · Pricing</td></tr>
+    <tr><td>팀</td><td>Messages & Alerts</td></tr>
+  </table>
+`}
+},
+
+// ── 2. SALES WORKFLOW ─────────────────────────────────────────────────────────
+{
+  id:'workflow', icon:'🔁', adminOnly:false,
+  title:{en:'Sales Workflow', ko:'영업 워크플로우'},
+  sub:{en:'Step-by-step: PI → PO → HQ PO → Shipment → Collection', ko:'단계별 흐름: PI → PO → HQ PO → 선적 → 수금'},
+  content:{
+en:`
+  <div class="hs-info">💡 This is the core process. Every sale follows these 5 steps in order. Each step unlocks the next.</div>
+
+  <div class="hs-h3">The Complete Sales Flow</div>
+  <div style="overflow-x:auto;margin:10px 0">
+  <table class="hs-table" style="min-width:600px">
+    <tr style="background:var(--navy);color:#fff">
+      <th style="background:var(--navy)">Step</th><th style="background:var(--navy)">What</th><th style="background:var(--navy)">Who</th><th style="background:var(--navy)">Triggers</th>
+    </tr>
+    <tr><td><span class="hs-badge" style="background:#dbeafe;color:#1e40af">① PI</span></td><td>Issue Proforma Invoice to distributor</td><td>Sales team</td><td>Distributor requests a quote / places order</td></tr>
+    <tr><td><span class="hs-badge" style="background:#dcfce7;color:#166534">② PO</span></td><td>Receive Purchase Order from distributor</td><td>Sales team</td><td>Distributor confirms and sends their PO</td></tr>
+    <tr><td><span class="hs-badge" style="background:#fef3c7;color:#92400e">③ HQ PO</span></td><td>Place order with Genoray Korea HQ</td><td>Sales team</td><td>After PO is confirmed, order goods from HQ</td></tr>
+    <tr><td><span class="hs-badge" style="background:#ede9fe;color:#5b21b6">④ Shipment</span></td><td>Record shipment when goods are shipped</td><td>Sales team</td><td>HQ ships goods — record B/L date and amount</td></tr>
+    <tr><td><span class="hs-badge" style="background:#fce7f3;color:#9d174d">⑤ Collection</span></td><td>Track payment from distributor</td><td>Sales team</td><td>Invoice is sent after shipment — track due dates and received payments</td></tr>
+  </table>
+  </div>
+
+  <div class="hs-h3">① Issuing a PI (Proforma Invoice)</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Go to <strong>PI</strong> in the sidebar → click <strong>+ New PI</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Select <strong>Seller</strong> (Genoray Korea or America), <strong>Distributor</strong> (country auto-fills), and enter <strong>Payment Terms</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Add product line items — model, quantity, unit price. Total auto-calculates.</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Save → PI Number is auto-generated (e.g. <strong>PI-ANM-260415-01</strong>)</div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">Click the PI number to open <strong>Print Preview</strong> → click 🖨️ to export PDF and send to distributor</div></div>
+  <div class="hs-tip">💡 PI Number format: PI-[Distributor Code]-[YYMMDD]-[Sequence]</div>
+
+  <div class="hs-h3">② Receiving a PO (Purchase Order)</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Go to <strong>PO</strong> → click <strong>+ New PO</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Select the <strong>PI Number</strong> — distributor, country, and amount auto-fill from PI data</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Enter the <strong>distributor's PO number</strong> and <strong>PO date</strong> from their document</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Save — PI status automatically updates to <strong>In Progress</strong></div></div>
+  <div class="hs-warn">⚠️ Always link the PO to the correct PI number. This drives the auto-status throughout the system.</div>
+
+  <div class="hs-h3">③ Placing an HQ PO</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Go to <strong>HQ PO</strong> → click <strong>+ New HQ PO</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Select linked <strong>PI</strong> and <strong>PO</strong>. HQ PO Number is auto-generated (format: <strong>LM-XXXX</strong>)</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Enter <strong>ETD</strong> (Estimated Departure from Korea) and <strong>ETA</strong> (Estimated Arrival to distributor)</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Save — HQ PO status automatically shows <em>Preparing / In Transit / Delivered</em> based on today's date vs ETD/ETA</div></div>
+
+  <div class="hs-h3">④ Recording a Shipment</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Go to <strong>Shipments</strong> → click <strong>+ New Shipment</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Select the <strong>PI Number</strong> — all details auto-fill</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Enter <strong>Shipment Date</strong> (= B/L date, format YYYY-MM-DD) — <strong>this date determines which year's revenue it counts toward</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Enter shipped <strong>models, quantities</strong>, and <strong>amount (USD)</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">Save — PI status updates to <strong>Shipped</strong>. Revenue appears in Dashboard immediately.</div></div>
+  <div class="hs-info">✅ Revenue is always based on Shipment Date. If goods shipped in December but PI was issued in November, it counts as December revenue.</div>
+
+  <div class="hs-h3">⑤ Recording Collections (Payment)</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Go to <strong>Collections</strong> → click <strong>+ New Collection</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Select the <strong>PI Number</strong> — distributor, invoice amount auto-fill</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Enter <strong>Payment Terms</strong> (e.g. 50/50 90d B/L) → click <strong>⚡ Auto-Fill</strong> to calculate due dates automatically</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Review the payment schedule (1st Advance, 2nd Balance, etc.) — edit amounts and dates if needed</div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">As payments arrive, enter <strong>Actual Date Received</strong> and update <strong>Collected (Total Received)</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">6</div><div class="hs-step-text">When Collected = Invoice Amount → status auto-changes to <strong>Collected ✅</strong> and record is hidden from default view</div></div>
+  <div class="hs-warn">⚠️ Always respond to collection delay alerts in <strong>Messages</strong> after updating the collection record.</div>
+
+  <div class="hs-h3">Auto Status Summary</div>
+  <table class="hs-table">
+    <tr><th>PI Status</th><th>Condition</th></tr>
+    <tr><td><span class="hs-badge" style="background:#fef3c7;color:#92400e">Pending</span></td><td>PI issued, no PO linked yet</td></tr>
+    <tr><td><span class="hs-badge" style="background:#dbeafe;color:#1e40af">In Progress</span></td><td>PO or HQ PO exists</td></tr>
+    <tr><td><span class="hs-badge" style="background:#ede9fe;color:#5b21b6">Shipped</span></td><td>Shipment recorded</td></tr>
+    <tr><td><span class="hs-badge" style="background:#dcfce7;color:#166534">Collected</span></td><td>Fully paid (collected ≥ invoice)</td></tr>
+    <tr><td><span class="hs-badge" style="background:#fee2e2;color:#991b1b">Cancelled</span></td><td>Manually set to cancelled</td></tr>
+  </table>
+`,
+ko:`
+  <div class="hs-info">💡 이것이 핵심 프로세스입니다. 모든 판매는 아래 5단계를 순서대로 따릅니다. 각 단계가 다음 단계를 활성화합니다.</div>
+
+  <div class="hs-h3">전체 영업 흐름</div>
+  <div style="overflow-x:auto;margin:10px 0">
+  <table class="hs-table" style="min-width:600px">
+    <tr style="background:var(--navy);color:#fff">
+      <th style="background:var(--navy)">단계</th><th style="background:var(--navy)">내용</th><th style="background:var(--navy)">담당</th><th style="background:var(--navy)">발생 시점</th>
+    </tr>
+    <tr><td><span class="hs-badge" style="background:#dbeafe;color:#1e40af">① PI</span></td><td>바이어에게 Proforma Invoice 발행</td><td>영업팀</td><td>바이어가 견적/주문을 요청할 때</td></tr>
+    <tr><td><span class="hs-badge" style="background:#dcfce7;color:#166534">② PO</span></td><td>바이어로부터 Purchase Order 수령</td><td>영업팀</td><td>바이어가 주문을 확정하고 PO를 보낼 때</td></tr>
+    <tr><td><span class="hs-badge" style="background:#fef3c7;color:#92400e">③ HQ PO</span></td><td>한국 본사에 발주</td><td>영업팀</td><td>PO 확정 후 본사에 제품 주문 시</td></tr>
+    <tr><td><span class="hs-badge" style="background:#ede9fe;color:#5b21b6">④ 선적</span></td><td>제품 출하 시 선적 정보 등록</td><td>영업팀</td><td>본사에서 출고 — B/L 날짜 및 금액 입력</td></tr>
+    <tr><td><span class="hs-badge" style="background:#fce7f3;color:#9d174d">⑤ 수금</span></td><td>바이어 대금 수령 추적</td><td>영업팀</td><td>선적 후 인보이스 발송 — 만기일 및 수령액 관리</td></tr>
+  </table>
+  </div>
+
+  <div class="hs-h3">① PI 발행 (Proforma Invoice)</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">사이드바에서 <strong>PI</strong> 클릭 → <strong>+ New PI</strong> 클릭</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text"><strong>Seller</strong>(한국/미국 법인), <strong>Distributor</strong>(선택 시 국가 자동 입력), <strong>Payment Terms</strong> 입력</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">제품 항목 추가 — 모델, 수량, 단가 입력. 합계 자동 계산.</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">저장 → PI 번호 자동 생성 (예: <strong>PI-ANM-260415-01</strong>)</div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">PI 번호 클릭 → <strong>인쇄 미리보기</strong> → 🖨️ 클릭해 PDF 내보내기 후 바이어에게 발송</div></div>
+  <div class="hs-tip">💡 PI 번호 형식: PI-[대리점코드]-[YYMMDD]-[순번]</div>
+
+  <div class="hs-h3">② PO 접수 (Purchase Order)</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text"><strong>PO</strong> 페이지 → <strong>+ New PO</strong> 클릭</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text"><strong>PI 번호</strong> 선택 — 대리점, 국가, 금액이 PI 데이터에서 자동 입력됨</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">바이어 문서에서 <strong>바이어 PO 번호</strong>와 <strong>PO 날짜</strong> 입력</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">저장 — PI 상태가 자동으로 <strong>In Progress</strong>로 변경됨</div></div>
+  <div class="hs-warn">⚠️ 반드시 올바른 PI 번호에 PO를 연결하세요. 이것이 시스템 전체의 자동 상태를 결정합니다.</div>
+
+  <div class="hs-h3">③ HQ PO 발송 (본사 발주)</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text"><strong>HQ PO</strong> 페이지 → <strong>+ New HQ PO</strong> 클릭</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">연결할 <strong>PI</strong>와 <strong>PO</strong> 선택. HQ PO 번호 자동 생성 (형식: <strong>LM-XXXX</strong>)</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text"><strong>ETD</strong>(한국 출발 예정일)와 <strong>ETA</strong>(대리점 도착 예정일) 입력</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">저장 — 오늘 날짜 기준으로 ETD/ETA와 비교해 상태 자동 표시: <em>Preparing / In Transit / Delivered</em></div></div>
+
+  <div class="hs-h3">④ 선적 등록 (Shipment)</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text"><strong>Shipments</strong> 페이지 → <strong>+ New Shipment</strong> 클릭</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text"><strong>PI 번호</strong> 선택 — 모든 정보 자동 입력</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text"><strong>선적일</strong>(= B/L 날짜, 형식 YYYY-MM-DD) 입력 — <strong>이 날짜가 해당 연도 매출의 기준이 됩니다</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">선적 <strong>모델, 수량</strong>, <strong>금액 (USD)</strong> 입력</div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">저장 — PI 상태가 <strong>Shipped</strong>로 변경. 매출이 Dashboard에 즉시 반영됨.</div></div>
+  <div class="hs-info">✅ 매출은 항상 선적일 기준입니다. PI가 11월에 발행됐더라도 12월에 선적되면 12월 매출로 집계됩니다.</div>
+
+  <div class="hs-h3">⑤ 수금 등록 (Collection)</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text"><strong>Collections</strong> 페이지 → <strong>+ New Collection</strong> 클릭</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text"><strong>PI 번호</strong> 선택 — 대리점, 인보이스 금액 자동 입력</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text"><strong>Payment Terms</strong> 입력 (예: 50/50 90d B/L) → <strong>⚡ Auto-Fill</strong> 클릭으로 납부 일정 자동 계산</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">납부 스케줄 확인 (1차 선불, 2차 잔금 등) — 금액과 날짜 필요 시 수정</div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">대금이 들어오면 <strong>실제 수령일</strong>과 <strong>Collected(총 수금액)</strong> 업데이트</div></div>
+  <div class="hs-step"><div class="hs-step-num">6</div><div class="hs-step-text">Collected = Invoice Amount가 되면 → 상태 자동 <strong>Collected ✅</strong>로 변경되고 기본 목록에서 숨겨짐</div></div>
+  <div class="hs-warn">⚠️ 수금 기록 업데이트 후 반드시 <strong>Messages</strong>에서 수금 지연 알림에 응답하세요.</div>
+
+  <div class="hs-h3">PI 자동 상태 요약</div>
+  <table class="hs-table">
+    <tr><th>PI 상태</th><th>조건</th></tr>
+    <tr><td><span class="hs-badge" style="background:#fef3c7;color:#92400e">Pending</span></td><td>PI 발행됨, 연결된 PO 없음</td></tr>
+    <tr><td><span class="hs-badge" style="background:#dbeafe;color:#1e40af">In Progress</span></td><td>PO 또는 HQ PO 존재</td></tr>
+    <tr><td><span class="hs-badge" style="background:#ede9fe;color:#5b21b6">Shipped</span></td><td>선적 기록됨</td></tr>
+    <tr><td><span class="hs-badge" style="background:#dcfce7;color:#166534">Collected</span></td><td>전액 수금 완료 (수금액 ≥ 인보이스)</td></tr>
+    <tr><td><span class="hs-badge" style="background:#fee2e2;color:#991b1b">Cancelled</span></td><td>수동으로 취소 처리됨</td></tr>
+  </table>
+`}
+},
+
+// ── 3. MESSAGES & ALERTS ──────────────────────────────────────────────────────
+{
+  id:'messages', icon:'🔔', adminOnly:false,
+  title:{en:'Messages & Alerts', ko:'메시지 & 알림'},
+  sub:{en:'Team messaging, delay alerts, and how to respond', ko:'팀 메시지, 지연 알림, 응답 방법'},
+  content:{
+en:`
+  <div class="hs-h3">What is this page?</div>
+  <p class="hs-p">The Messages page is the internal team communication hub. It has two types of content:</p>
+  <ul class="hs-ul">
+    <li><strong>💬 Direct Messages</strong> — team-to-team chat (e.g. Mitchel ↔ Chris)</li>
+    <li><strong>⚠️ System Alerts</strong> — automated delay notifications sent to Sales Reps</li>
+  </ul>
+
+  <div class="hs-h3">Screen Layout</div>
+  <p class="hs-p">The page is split into two panels:</p>
+  <ul class="hs-ul">
+    <li><strong>Left panel</strong> — conversation list (always visible). Shows all chats and System Alerts with unread count badges.</li>
+    <li><strong>Right panel</strong> — the selected conversation thread. Click any item in the left panel to open it here.</li>
+  </ul>
+  <div class="hs-tip">💡 On mobile, the left panel collapses. Both panels are always accessible — scroll up to see the conversation list, scroll down to see the thread.</div>
+
+  <div class="hs-h3">Sending a Message</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Click <strong>✉️ New</strong> (top right) to start a new conversation</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Select a recipient from the team list</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Type your message and press Send</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">The recipient sees a red badge on their 🔔 bell icon and on the Messages nav item</div></div>
+
+  <div class="hs-h3">System Delay Alerts — How They Work</div>
+  <p class="hs-p">The system automatically monitors all active PIs and Collections for delays. When a delay is detected, an alert is sent to the assigned Sales Rep in their Messages inbox.</p>
+  <table class="hs-table">
+    <tr><th>Stage</th><th>Delay Rule</th><th>Alert Sent To</th></tr>
+    <tr><td>No Action on PI</td><td>PI has no PO/HQ PO/Shipment after 15+ days</td><td>Assigned Sales Rep</td></tr>
+    <tr><td>HQ PO Delay</td><td>HQ PO exists but no shipment after 30+ days</td><td>Assigned Sales Rep</td></tr>
+    <tr><td>Collection Pending</td><td>Shipped but not collected after 30+ days</td><td>Assigned Sales Rep</td></tr>
+    <tr><td>Collection Incomplete</td><td>Collection record missing payment schedule or shipment date</td><td>Assigned Sales Rep</td></tr>
+  </table>
+
+  <div class="hs-h3">Automatic Schedule</div>
+  <p class="hs-p">Alerts are sent automatically every day at <strong>8:00 AM</strong> and <strong>5:00 PM US Eastern Time</strong> — no manual action required. If a Sales Rep has not responded to a previous alert, a <span style="color:#dc2626;font-weight:700">🔴 Follow-Up</span> reminder is sent automatically.</p>
+
+  <div class="hs-h3">How Sales Reps Should Respond</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Open <strong>Messages</strong> → click the alert in System Alerts</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Read the alert — it shows the PI number, delay stage, and number of days delayed</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Take action: update the relevant record (PO, HQ PO, Collection, etc.)</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Reply to the alert in Messages — explain the situation and action taken</div></div>
+  <div class="hs-warn">⚠️ If you do not reply, the system will escalate with a 🔴 Follow-Up alert. Always respond after handling a delay.</div>
+
+  <div class="hs-h3">Unread Badge</div>
+  <p class="hs-p">The 🔔 bell icon in the top bar shows a red badge with the count of unread messages and alerts. The badge on the Messages nav item shows the same count. Both clear automatically when you read the messages.</p>
+`,
+ko:`
+  <div class="hs-h3">이 페이지는?</div>
+  <p class="hs-p">Messages 페이지는 팀 내부 커뮤니케이션 허브입니다. 두 가지 유형의 내용이 있습니다:</p>
+  <ul class="hs-ul">
+    <li><strong>💬 Direct Messages</strong> — 팀 간 채팅 (예: Mitchel ↔ Chris)</li>
+    <li><strong>⚠️ System Alerts</strong> — 영업 담당자에게 발송되는 자동 지연 알림</li>
+  </ul>
+
+  <div class="hs-h3">화면 구성</div>
+  <p class="hs-p">페이지는 두 패널로 나뉩니다:</p>
+  <ul class="hs-ul">
+    <li><strong>왼쪽 패널</strong> — 대화 목록 (항상 표시). 모든 채팅과 System Alerts, 읽지 않은 메시지 수 표시.</li>
+    <li><strong>오른쪽 패널</strong> — 선택한 대화 스레드. 왼쪽에서 항목을 클릭하면 여기서 열림.</li>
+  </ul>
+  <div class="hs-tip">💡 모바일에서는 왼쪽 패널이 축소됩니다. 두 패널 모두 접근 가능 — 위로 스크롤하면 대화 목록, 아래로 스크롤하면 스레드.</div>
+
+  <div class="hs-h3">메시지 보내기</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">우측 상단 <strong>✉️ New</strong> 클릭 → 새 대화 시작</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">팀 목록에서 수신자 선택</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">메시지 입력 후 Send</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">수신자의 🔔 벨 아이콘과 Messages 메뉴에 빨간 배지 표시</div></div>
+
+  <div class="hs-h3">시스템 지연 알림 — 작동 방식</div>
+  <p class="hs-p">시스템이 자동으로 모든 활성 PI와 수금 건의 지연을 모니터링합니다. 지연이 감지되면 담당 영업자의 Messages 받은 편지함으로 알림이 자동 발송됩니다.</p>
+  <table class="hs-table">
+    <tr><th>단계</th><th>지연 규칙</th><th>알림 수신자</th></tr>
+    <tr><td>No Action on PI</td><td>PI 발행 후 15일 이상 PO/HQ PO/선적 없음</td><td>담당 영업자</td></tr>
+    <tr><td>HQ PO Delay</td><td>HQ PO 등록 후 30일 이상 선적 없음</td><td>담당 영업자</td></tr>
+    <tr><td>Collection Pending</td><td>선적 후 30일 이상 수금 없음</td><td>담당 영업자</td></tr>
+    <tr><td>Collection Incomplete</td><td>수금 기록에 결제 스케줄 또는 선적일 누락</td><td>담당 영업자</td></tr>
+  </table>
+
+  <div class="hs-h3">자동 발송 스케줄</div>
+  <p class="hs-p">알림은 매일 <strong>미국 동부 시간 오전 8시</strong>와 <strong>오후 5시</strong>에 자동 발송됩니다 — 수동 조작 불필요. 영업자가 이전 알림에 응답하지 않으면 <span style="color:#dc2626;font-weight:700">🔴 Follow-Up</span> 독촉 알림이 자동 발송됩니다.</p>
+
+  <div class="hs-h3">영업자 응답 방법</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text"><strong>Messages</strong> 열기 → System Alerts에서 알림 클릭</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">알림 내용 확인 — PI 번호, 지연 단계, 지연 일수 표시</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">조치 실행: 관련 기록 업데이트 (PO, HQ PO, Collection 등)</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Messages에서 알림에 답글 — 상황과 취한 조치 설명</div></div>
+  <div class="hs-warn">⚠️ 응답하지 않으면 시스템이 🔴 Follow-Up 알림으로 에스컬레이션합니다. 지연 처리 후 반드시 응답하세요.</div>
+
+  <div class="hs-h3">읽지 않음 배지</div>
+  <p class="hs-p">상단 바의 🔔 벨 아이콘에 읽지 않은 메시지/알림 수가 빨간 배지로 표시됩니다. Messages 메뉴 항목에도 동일하게 표시됩니다. 메시지를 읽으면 자동으로 사라집니다.</p>
+`}
+},
+
+// ── 4. DASHBOARD ──────────────────────────────────────────────────────────────
+{
+  id:'dash', icon:'📊', adminOnly:false,
+  title:{en:'Dashboard', ko:'대시보드'},
+  sub:{en:'KPI cards, revenue chart, country & division analysis', ko:'KPI 카드, 매출 차트, 국가·사업부 분석'},
+  content:{
+en:`
+  <div class="hs-h3">KPI Cards (Top Row)</div>
+  <p class="hs-p">Five cards show key metrics for the selected year. <strong>Click any card</strong> to see a detailed breakdown table:</p>
+  <ul class="hs-ul">
+    <li><strong>📈 Revenue</strong> — total shipped revenue for the year. Click to see all shipment records sorted by date.</li>
+    <li><strong>🎯 Goal Achievement</strong> — YTD revenue vs annual target (%). Click to see achievement by distributor.</li>
+    <li><strong>✅ Collected</strong> — total payments received. Click to see all paid collection records.</li>
+    <li><strong>⏳ Outstanding (A/R)</strong> — unpaid invoices. Click to see sorted by amount with due dates.</li>
+    <li><strong>📋 Active PI</strong> — PIs not yet fully collected. Click to see all with status.</li>
+  </ul>
+
+  <div class="hs-h3">Monthly Revenue vs Goal Chart</div>
+  <p class="hs-p">Bar chart (monthly revenue) + line chart (cumulative revenue vs goal). Controls:</p>
+  <ul class="hs-ul">
+    <li><strong>Single Year / Compare Years</strong> — toggle to overlay multiple years</li>
+    <li><strong>All / Medical / Dental</strong> — filter by division</li>
+    <li>Year dropdown to switch between 2024, 2025, 2026</li>
+  </ul>
+
+  <div class="hs-h3">Goal Achievement by Country</div>
+  <p class="hs-p">Table showing each country's YTD revenue vs monthly and annual goal. Use the <strong>View month</strong> dropdown to drill into any month. Color coding: green = on track, red = behind target.</p>
+
+  <div class="hs-h3">Sales by Country / Division / Rep</div>
+  <p class="hs-p">Horizontal bar charts showing revenue share. Division chart shows Medical vs Dental breakdown. Rep chart shows each sales rep's contribution.</p>
+`,
+ko:`
+  <div class="hs-h3">KPI 카드 (상단 행)</div>
+  <p class="hs-p">5개의 카드가 선택된 연도의 핵심 지표를 표시합니다. <strong>카드 클릭</strong> 시 세부 내역 테이블이 열립니다:</p>
+  <ul class="hs-ul">
+    <li><strong>📈 Revenue</strong> — 해당 연도 총 선적 매출. 클릭하면 날짜순 선적 기록 확인.</li>
+    <li><strong>🎯 Goal Achievement</strong> — 연간 목표 대비 YTD 매출(%). 클릭하면 대리점별 달성률 확인.</li>
+    <li><strong>✅ Collected</strong> — 총 수령 대금. 클릭하면 완납 수금 기록 확인.</li>
+    <li><strong>⏳ Outstanding (A/R)</strong> — 미수금 인보이스. 클릭하면 금액순 + 만기일 포함 정렬 확인.</li>
+    <li><strong>📋 Active PI</strong> — 아직 완전히 수금되지 않은 PI. 클릭하면 상태 포함 전체 목록 확인.</li>
+  </ul>
+
+  <div class="hs-h3">월별 매출 vs 목표 차트</div>
+  <p class="hs-p">막대 차트(월별 매출) + 선 차트(누적 매출 vs 목표). 컨트롤:</p>
+  <ul class="hs-ul">
+    <li><strong>Single Year / Compare Years</strong> — 여러 연도 중첩 표시 토글</li>
+    <li><strong>All / Medical / Dental</strong> — 사업부별 필터</li>
+    <li>연도 드롭다운으로 2024, 2025, 2026 전환</li>
+  </ul>
+
+  <div class="hs-h3">국가별 목표 달성률</div>
+  <p class="hs-p">국가별 YTD 매출 vs 월별/연간 목표를 보여주는 표. <strong>View month</strong> 드롭다운으로 특정 월 분석. 색상: 초록 = 목표 달성, 빨강 = 목표 미달.</p>
+
+  <div class="hs-h3">국가/사업부/담당자별 매출</div>
+  <p class="hs-p">매출 비중을 보여주는 수평 막대 차트. 사업부 차트는 Medical vs Dental 비율, 담당자 차트는 각 영업자 기여도 표시.</p>
+`}
+},
+
+// ── 5. PIPELINE ───────────────────────────────────────────────────────────────
+{
+  id:'pipeline', icon:'🔄', adminOnly:false,
+  title:{en:'Pipeline & Backlog', ko:'파이프라인 & 백로그'},
+  sub:{en:'Track all active PIs from creation to collection', ko:'생성부터 수금까지 모든 활성 PI 추적'},
+  content:{
+en:`
+  <div class="hs-h3">What is Pipeline?</div>
+  <p class="hs-p">Pipeline & Backlog shows every active PI that has not yet been fully collected — your entire open sales funnel in one view. Each row shows the full journey of a PI across all 5 stages.</p>
+
+  <div class="hs-h3">Columns</div>
+  <ul class="hs-ul">
+    <li><strong>PI / PO / HQ PO / Shipment / Collection</strong> — linked record numbers. Blank = not yet created.</li>
+    <li><strong>Days Since PI</strong> — how many days since the PI was issued. Long-standing PIs are highlighted.</li>
+    <li><strong>Status</strong> — auto-calculated from linked records.</li>
+  </ul>
+
+  <div class="hs-h3">Auto Status Logic</div>
+  <table class="hs-table">
+    <tr><th>Status</th><th>Condition</th></tr>
+    <tr><td><span class="hs-badge" style="background:#fef3c7;color:#92400e">Pending</span></td><td>PI exists, no PO</td></tr>
+    <tr><td><span class="hs-badge" style="background:#dbeafe;color:#1e40af">In Progress</span></td><td>PO or HQ PO exists</td></tr>
+    <tr><td><span class="hs-badge" style="background:#ede9fe;color:#5b21b6">Shipped</span></td><td>Shipment recorded</td></tr>
+    <tr><td><span class="hs-badge" style="background:#dcfce7;color:#166534">Collected</span></td><td>Fully paid</td></tr>
+  </table>
+  <p class="hs-p">Click the <strong>?</strong> button next to any column header to see the exact auto-status rules for that column.</p>
+
+  <div class="hs-h3">Sorting & Filtering</div>
+  <p class="hs-p">Click any <strong>sortable column header</strong> to sort. Use the search box to filter by PI number, distributor, or country.</p>
+`,
+ko:`
+  <div class="hs-h3">파이프라인이란?</div>
+  <p class="hs-p">Pipeline & Backlog는 아직 완전히 수금되지 않은 모든 활성 PI를 한 화면에서 보여줍니다. 각 행은 PI 한 건의 5단계 전체 여정을 표시합니다.</p>
+
+  <div class="hs-h3">컬럼 설명</div>
+  <ul class="hs-ul">
+    <li><strong>PI / PO / HQ PO / Shipment / Collection</strong> — 연결된 기록 번호. 공란 = 아직 생성되지 않음.</li>
+    <li><strong>Days Since PI</strong> — PI 발행 후 경과 일수. 오래된 PI는 강조 표시.</li>
+    <li><strong>Status</strong> — 연결된 기록에 따라 자동 계산.</li>
+  </ul>
+
+  <div class="hs-h3">자동 상태 로직</div>
+  <table class="hs-table">
+    <tr><th>상태</th><th>조건</th></tr>
+    <tr><td><span class="hs-badge" style="background:#fef3c7;color:#92400e">Pending</span></td><td>PI 존재, PO 없음</td></tr>
+    <tr><td><span class="hs-badge" style="background:#dbeafe;color:#1e40af">In Progress</span></td><td>PO 또는 HQ PO 존재</td></tr>
+    <tr><td><span class="hs-badge" style="background:#ede9fe;color:#5b21b6">Shipped</span></td><td>선적 기록됨</td></tr>
+    <tr><td><span class="hs-badge" style="background:#dcfce7;color:#166534">Collected</span></td><td>전액 수금 완료</td></tr>
+  </table>
+  <p class="hs-p">컬럼 헤더 옆 <strong>?</strong> 버튼을 클릭하면 해당 컬럼의 정확한 자동 상태 규칙을 확인할 수 있습니다.</p>
+
+  <div class="hs-h3">정렬 & 필터</div>
+  <p class="hs-p">정렬 가능한 <strong>컬럼 헤더</strong>를 클릭해 정렬. 검색창으로 PI 번호, 대리점, 국가 필터링.</p>
+`}
+},
+
+// ── 6. REPORT ─────────────────────────────────────────────────────────────────
+{
+  id:'report', icon:'📈', adminOnly:false,
+  title:{en:'Report', ko:'리포트'},
+  sub:{en:'Multi-year revenue comparison and model performance', ko:'다년도 매출 비교 및 모델 성과'},
+  content:{
+en:`
+  <div class="hs-h3">Year Comparison</div>
+  <p class="hs-p">Select up to three years to compare side by side: <strong>Year A</strong> (blue, default 2026), <strong>Year B</strong> (green, default 2025), <strong>Year C</strong> (amber, optional). All tables update instantly.</p>
+
+  <div class="hs-h3">Division Filter</div>
+  <p class="hs-p">Use the <strong>All / Medical / Dental</strong> tabs at top-left. Distributors with "Both" division appear in both Medical and Dental views.</p>
+
+  <div class="hs-h3">Tables Available</div>
+  <ul class="hs-ul">
+    <li><strong>Revenue Cards</strong> — click any card to expand a detailed shipment table for that year</li>
+    <li><strong>Quarterly</strong> — Q1–Q4 revenue, goal, achievement%, YoY growth</li>
+    <li><strong>Monthly</strong> — same breakdown by month (Jan–Dec)</li>
+    <li><strong>By Country</strong> — revenue by country across all selected years</li>
+    <li><strong>Distributor Performance</strong> — Year A revenue vs annual target by distributor</li>
+    <li><strong>Model Performance</strong> — all shipped models with revenue, quantity, and share% across years</li>
+  </ul>
+  <div class="hs-tip">💡 Column headers automatically show the actual year (e.g. "Rev 2026 vs Rev 2025") — no generic A/B labels.</div>
+`,
+ko:`
+  <div class="hs-h3">연도 비교</div>
+  <p class="hs-p">최대 3개 연도를 나란히 비교할 수 있습니다: <strong>Year A</strong>(파랑, 기본 2026), <strong>Year B</strong>(초록, 기본 2025), <strong>Year C</strong>(황색, 선택 사항). 모든 테이블이 즉시 업데이트됩니다.</p>
+
+  <div class="hs-h3">사업부 필터</div>
+  <p class="hs-p">왼쪽 상단 <strong>All / Medical / Dental</strong> 탭 사용. Division이 "Both"인 대리점은 Medical과 Dental 두 곳에 모두 표시됩니다.</p>
+
+  <div class="hs-h3">제공 테이블</div>
+  <ul class="hs-ul">
+    <li><strong>Revenue 카드</strong> — 카드 클릭 시 해당 연도의 상세 선적 테이블 펼쳐짐</li>
+    <li><strong>분기별</strong> — Q1~Q4 매출, 목표, 달성률%, 전년 대비 성장률</li>
+    <li><strong>월별</strong> — 1~12월 동일 분석</li>
+    <li><strong>국가별</strong> — 선택된 모든 연도의 국가별 매출</li>
+    <li><strong>대리점 성과</strong> — Year A 매출 vs 연간 목표 by 대리점</li>
+    <li><strong>모델 성과</strong> — 선적된 모든 모델의 매출, 수량, 점유율% (연도별)</li>
+  </ul>
+  <div class="hs-tip">💡 컬럼 헤더는 실제 연도를 자동 표시합니다 (예: "Rev 2026 vs Rev 2025") — A/B 같은 추상적 표기 없음.</div>
+`}
+},
+
+// ── 7. COLLECTIONS ────────────────────────────────────────────────────────────
+{
+  id:'collections', icon:'💰', adminOnly:false,
+  title:{en:'Collections', ko:'수금 관리'},
+  sub:{en:'Payment schedule, due dates, overdue tracking', ko:'결제 스케줄, 만기일, 연체 추적'},
+  content:{
+en:`
+  <div class="hs-h3">Creating a Collection Record</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Click <strong>+ New Collection</strong> → select PI Number (distributor and invoice amount auto-fill)</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Enter <strong>Payment Terms</strong> (e.g. <code>50/50 (90d B/L)</code>) and <strong>Shipping / B/L Date</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Click <strong>⚡ Auto-Fill</strong> — the system calculates the payment schedule automatically</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Review the schedule (1st Advance amount + due date, 2nd Balance + due date, etc.) and adjust if needed</div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">Save the record</div></div>
+
+  <div class="hs-h3">Auto-Fill Payment Rules</div>
+  <table class="hs-table">
+    <tr><th>Payment Terms</th><th>Auto-calculated Schedule</th></tr>
+    <tr><td>100% TT in advance</td><td>Full amount due on shipment date (1 payment)</td></tr>
+    <tr><td>50/50 (90d B/L)</td><td>50% on shipment date + 50% on B/L date +90 days</td></tr>
+    <tr><td>30/70 (60d B/L)</td><td>30% on shipment date + 70% on B/L date +60 days</td></tr>
+    <tr><td>L/C at Sight</td><td>Full amount on shipping document submission (1 payment)</td></tr>
+  </table>
+
+  <div class="hs-h3">Updating Payments as They Come In</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Click the Collection ID link to open the record</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Enter the <strong>Actual Date Received</strong> for each installment</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Update <strong>Collected (Total Received)</strong> — the Balance auto-calculates</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">When Collected = Invoice → click <strong>✅ All Received (Mark Fully Paid)</strong> to finalize</div></div>
+
+  <div class="hs-h3">Days Column Color Coding</div>
+  <ul class="hs-ul">
+    <li>🔴 <strong style="color:#dc2626">OD Xd</strong> — Overdue (past due date)</li>
+    <li>🟠 <strong style="color:#ea580c">Xd left</strong> — Due within 14 days (urgent)</li>
+    <li>⚫ <strong style="color:#6b7280">Xd</strong> — More than 14 days remaining</li>
+    <li>🟢 <strong style="color:#16a34a">✓ Paid</strong> — Fully collected</li>
+  </ul>
+
+  <div class="hs-h3">Show / Hide Paid Records</div>
+  <p class="hs-p">By default, fully paid records are hidden to keep the view clean. Click <strong>👁 Show Paid</strong> to reveal them (shown at reduced opacity). The header shows how many paid records are hidden.</p>
+
+  <div class="hs-h3">Overdue Alert Panel</div>
+  <p class="hs-p">A red banner automatically appears at the top when any outstanding invoice is past its due date. It shows PI number, distributor, amount overdue, and number of days past due.</p>
+`,
+ko:`
+  <div class="hs-h3">수금 기록 생성</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text"><strong>+ New Collection</strong> 클릭 → PI 번호 선택 (대리점, 인보이스 금액 자동 입력)</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text"><strong>Payment Terms</strong> 입력 (예: <code>50/50 (90d B/L)</code>) + <strong>Shipping / B/L Date</strong> 입력</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text"><strong>⚡ Auto-Fill</strong> 클릭 — 시스템이 결제 스케줄을 자동 계산</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">스케줄 확인 (1차 선불 금액+만기일, 2차 잔금+만기일 등) 및 필요 시 수정</div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">저장</div></div>
+
+  <div class="hs-h3">결제 조건별 자동 계산 규칙</div>
+  <table class="hs-table">
+    <tr><th>결제 조건</th><th>자동 계산 스케줄</th></tr>
+    <tr><td>100% TT in advance</td><td>선적일에 전액 (1회 결제)</td></tr>
+    <tr><td>50/50 (90d B/L)</td><td>선적일에 50% + B/L 날짜 +90일에 50%</td></tr>
+    <tr><td>30/70 (60d B/L)</td><td>선적일에 30% + B/L 날짜 +60일에 70%</td></tr>
+    <tr><td>L/C at Sight</td><td>선적 서류 제출 시 전액 (1회 결제)</td></tr>
+  </table>
+
+  <div class="hs-h3">대금 수령 시 업데이트</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Collection ID 링크 클릭 → 기록 열기</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">각 회차별 <strong>실제 수령일(Actual Date Received)</strong> 입력</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text"><strong>Collected(총 수금액)</strong> 업데이트 — Balance(잔액) 자동 계산</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Collected = Invoice가 되면 → <strong>✅ All Received (Mark Fully Paid)</strong> 클릭해 완납 처리</div></div>
+
+  <div class="hs-h3">Days 컬럼 색상 코드</div>
+  <ul class="hs-ul">
+    <li>🔴 <strong style="color:#dc2626">OD Xd</strong> — 연체 (만기일 초과)</li>
+    <li>🟠 <strong style="color:#ea580c">Xd left</strong> — 14일 이내 만기 (긴급)</li>
+    <li>⚫ <strong style="color:#6b7280">Xd</strong> — 14일 이상 남음</li>
+    <li>🟢 <strong style="color:#16a34a">✓ Paid</strong> — 완납</li>
+  </ul>
+
+  <div class="hs-h3">완납 기록 숨기기/보기</div>
+  <p class="hs-p">기본적으로 완납 기록은 숨겨져 있습니다. <strong>👁 Show Paid</strong>를 클릭하면 표시됩니다(옅게). 헤더에 숨겨진 완납 건 수가 표시됩니다.</p>
+
+  <div class="hs-h3">연체 알림 패널</div>
+  <p class="hs-p">만기일이 지난 미수금 인보이스가 있으면 상단에 빨간 배너가 자동 표시됩니다. PI 번호, 대리점, 연체 금액, 연체 일수가 표시됩니다.</p>
+`}
+},
+
+// ── 8. MASTER DATA ────────────────────────────────────────────────────────────
+{
+  id:'master', icon:'🗂️', adminOnly:false,
+  title:{en:'Master Data', ko:'기준 데이터'},
+  sub:{en:'Distributors, Products, Annual Goals, Pricing', ko:'대리점, 제품, 연간 목표, 가격'},
+  content:{
+en:`
+  <div class="hs-h3">Distributors</div>
+  <p class="hs-p">Manage the distributor master list. Three division options:</p>
+  <ul class="hs-ul">
+    <li><strong>🏥 Medical</strong> — C-Arm, Mammography products only</li>
+    <li><strong>🦷 Dental</strong> — CBCT, Panoramic, Portable products only</li>
+    <li><strong>🏥+🦷 Both</strong> — handles both divisions. Appears in both Medical and Dental filters throughout the system.</li>
+  </ul>
+
+  <div class="hs-h3">Products</div>
+  <p class="hs-p">Full product catalog organized by Division and Category. View: <strong>All / Medical / Dental</strong> tabs. Main Products (left column) and Options/Accessories (right, gray background).</p>
+  <p class="hs-p">When adding a new product, fill in 3 sections: ① Division + Category + Type (Product/Option) — code auto-generated. ② Model Name + Description. ③ Unit Price (optional).</p>
+
+  <div class="hs-h3">Annual Goals</div>
+  <p class="hs-p">Set monthly sales targets by distributor and division. Goals feed into Dashboard and Report achievement calculations.</p>
+  <ul class="hs-ul">
+    <li>Select the year (e.g. 2026) → select distributor → enter monthly amounts (Jan–Dec)</li>
+    <li>Annual total auto-calculates from monthly entries</li>
+    <li>Optional: add model-level quantity/price targets for detailed tracking</li>
+    <li><strong>M+D Combined view</strong> — shows Medical and Dental targets side by side for distributors with both divisions</li>
+  </ul>
+
+  <div class="hs-h3">Pricing — 4 Tabs</div>
+  <ul class="hs-ul">
+    <li><strong>📋 TP Reference</strong> — read-only GAI 2026 Ex-Factory prices. Shows LATAM Price (what LATAM pays HQ), Brazil, Mexico, LATAM Ref, Min Price, and GAI US TP columns.</li>
+    <li><strong>🏢 Distributor Prices</strong> — select a distributor, enter offer prices in bulk. Live margin% and Min Price warning shown as you type. Click <strong>💾 Save All Changes</strong> to save in one batch.</li>
+    <li><strong>⚖️ Compare</strong> — compare offer prices of 2–3 distributors for the same models. Lowest price highlighted in green.</li>
+    <li><strong>🕐 History</strong> — auto-log of all price changes with old/new price and % change.</li>
+  </ul>
+  <div class="hs-tip">💡 To export a PDF price list: select distributor → 📄 Export Price List → choose sender, division, year, valid-until date → Generate PDF.</div>
+`,
+ko:`
+  <div class="hs-h3">대리점 (Distributors)</div>
+  <p class="hs-p">대리점 기준 목록 관리. 사업부 옵션 3가지:</p>
+  <ul class="hs-ul">
+    <li><strong>🏥 Medical</strong> — C-Arm, Mammography 제품만</li>
+    <li><strong>🦷 Dental</strong> — CBCT, Panoramic, Portable 제품만</li>
+    <li><strong>🏥+🦷 Both</strong> — 두 사업부 모두 취급. 시스템 전체의 Medical/Dental 필터 양쪽에 표시됨.</li>
+  </ul>
+
+  <div class="hs-h3">제품 (Products)</div>
+  <p class="hs-p">사업부·카테고리별 전체 제품 카탈로그. 보기: <strong>All / Medical / Dental</strong> 탭. 메인 제품(왼쪽)과 옵션/부속품(오른쪽, 회색 배경).</p>
+  <p class="hs-p">신규 제품 등록 시 3개 섹션 입력: ① Division + Category + Type(Product/Option) — 코드 자동 생성. ② 모델명 + 설명. ③ 단가 (선택).</p>
+
+  <div class="hs-h3">연간 목표 (Annual Goals)</div>
+  <p class="hs-p">대리점·사업부별 월간 판매 목표 설정. 목표는 Dashboard와 Report 달성률 계산에 반영됩니다.</p>
+  <ul class="hs-ul">
+    <li>연도 선택 (예: 2026) → 대리점 선택 → 월별 금액 입력 (1~12월)</li>
+    <li>연간 합계는 월별 입력에서 자동 계산</li>
+    <li>선택 사항: 모델별 수량/단가 목표 추가로 세부 추적 가능</li>
+    <li><strong>M+D Combined view</strong> — 양 사업부 대리점의 Medical/Dental 목표를 나란히 표시</li>
+  </ul>
+
+  <div class="hs-h3">가격 관리 (Pricing) — 4개 탭</div>
+  <ul class="hs-ul">
+    <li><strong>📋 TP Reference</strong> — 읽기 전용 GAI 2026 출고가. LATAM 가격(LATAM이 HQ에 지불하는 금액), 브라질, 멕시코, LATAM 참고가, 최소가, GAI US TP 컬럼 표시.</li>
+    <li><strong>🏢 Distributor Prices</strong> — 대리점 선택 후 제안 가격 일괄 입력. 입력 시 실시간 마진%와 최소가 경고 표시. <strong>💾 Save All Changes</strong>로 일괄 저장.</li>
+    <li><strong>⚖️ Compare</strong> — 동일 모델의 2~3개 대리점 제안 가격 비교. 최저가 녹색으로 강조 표시.</li>
+    <li><strong>🕐 History</strong> — 모든 가격 변경 이력 자동 기록 (이전가/신규가, 변경률%).</li>
+  </ul>
+  <div class="hs-tip">💡 PDF 가격표 내보내기: 대리점 선택 → 📄 Export Price List → 발신처, 사업부, 연도, 유효기간 선택 → Generate PDF.</div>
+`}
+},
+
+// ── 9. ADMIN PANEL ────────────────────────────────────────────────────────────
+{
+  id:'admin', icon:'🔧', adminOnly:true,
+  title:{en:'Admin Panel', ko:'Admin 패널'},
+  sub:{en:'User management, accounts, and system tools (Admin only)', ko:'사용자 관리, 계정, 시스템 도구 (Admin 전용)'},
+  content:{
+en:`
+  <div class="hs-warn">⚠️ This section is visible to Admin users only.</div>
+
+  <div class="hs-h3">Accessing the Admin Panel</div>
+  <p class="hs-p">Click <strong>⚙ Admin</strong> in the bottom of the left sidebar. Only users with the Admin role can see this menu item.</p>
+
+  <div class="hs-h3">User Management</div>
+  <p class="hs-p">View all users and their settings. For each user you can:</p>
+  <ul class="hs-ul">
+    <li><strong>Change Role</strong> — Admin / User / Sales Rep</li>
+    <li><strong>Change User Type</strong> — affects what alerts they receive</li>
+    <li><strong>Resend Credentials</strong> — generates a QR code + message with username and temporary password to share via WhatsApp/Email</li>
+    <li><strong>Reset Password</strong> — issue a new temporary password</li>
+    <li><strong>Disable Account</strong> — revoke access without deleting</li>
+  </ul>
+
+  <div class="hs-h3">Creating a New User</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Click <strong>+ New User</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Enter username, display name, role, and user type</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">A temporary password is auto-generated</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">A QR code + credentials message is shown — copy and send to the new user via WhatsApp or email</div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">The user must change their password on first login</div></div>
+
+  <div class="hs-h3">Delay Check (Admin Tools in Messages)</div>
+  <p class="hs-p">In the <strong>Messages</strong> page, Admin users see a blue <strong>⚙️ Admin Tools</strong> bar with three buttons:</p>
+  <ul class="hs-ul">
+    <li><strong>⚠️ Check Delays</strong> — manually scan all PIs and Collections for delays and send alerts now</li>
+    <li><strong>📢 Resend All</strong> — force-resend all pending delay alerts (even if recently sent)</li>
+    <li><strong>📧 Test Email</strong> — send a test alert email to verify EmailJS is working</li>
+  </ul>
+  <div class="hs-tip">💡 Alerts are sent automatically at 8 AM and 5 PM EST every day. Use Check Delays manually if you need to send alerts immediately.</div>
+
+  <div class="hs-h3">Delete Requests</div>
+  <p class="hs-p">Non-admin users cannot delete records. Instead, they can submit a delete request from any record. Admins see pending delete requests and can approve or reject them from the Admin panel.</p>
+`,
+ko:`
+  <div class="hs-warn">⚠️ 이 섹션은 Admin 사용자에게만 표시됩니다.</div>
+
+  <div class="hs-h3">Admin 패널 접근</div>
+  <p class="hs-p">왼쪽 사이드바 하단의 <strong>⚙ Admin</strong> 클릭. Admin 역할 사용자만 이 메뉴 항목을 볼 수 있습니다.</p>
+
+  <div class="hs-h3">사용자 관리</div>
+  <p class="hs-p">전체 사용자와 설정을 조회합니다. 각 사용자에 대해:</p>
+  <ul class="hs-ul">
+    <li><strong>역할 변경</strong> — Admin / User / Sales Rep</li>
+    <li><strong>유저 타입 변경</strong> — 수신하는 알림에 영향</li>
+    <li><strong>자격증명 재발송</strong> — QR 코드 + 아이디/임시 비밀번호 메시지 생성 → WhatsApp/이메일로 공유</li>
+    <li><strong>비밀번호 초기화</strong> — 새 임시 비밀번호 발급</li>
+    <li><strong>계정 비활성화</strong> — 삭제 없이 접근 권한 박탈</li>
+  </ul>
+
+  <div class="hs-h3">신규 사용자 생성</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text"><strong>+ New User</strong> 클릭</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">아이디, 표시 이름, 역할, 유저 타입 입력</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">임시 비밀번호 자동 생성</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">QR 코드 + 자격증명 메시지 표시 → 복사해서 WhatsApp이나 이메일로 신규 사용자에게 전송</div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">사용자는 첫 로그인 시 반드시 비밀번호를 변경해야 함</div></div>
+
+  <div class="hs-h3">지연 확인 (Messages의 Admin Tools)</div>
+  <p class="hs-p"><strong>Messages</strong> 페이지에서 Admin은 파란색 <strong>⚙️ Admin Tools</strong> 바를 볼 수 있습니다:</p>
+  <ul class="hs-ul">
+    <li><strong>⚠️ Check Delays</strong> — 지금 즉시 모든 PI/수금 건의 지연을 스캔하고 알림 발송</li>
+    <li><strong>📢 Resend All</strong> — 대기 중인 모든 지연 알림 강제 재발송 (최근 발송 여부 무관)</li>
+    <li><strong>📧 Test Email</strong> — EmailJS 작동 확인용 테스트 이메일 발송</li>
+  </ul>
+  <div class="hs-tip">💡 알림은 매일 미국 동부 시간 오전 8시/오후 5시에 자동 발송됩니다. 즉시 발송이 필요할 때만 Check Delays를 수동으로 사용하세요.</div>
+
+  <div class="hs-h3">삭제 요청 (Delete Requests)</div>
+  <p class="hs-p">일반 사용자(User)는 기록을 직접 삭제할 수 없습니다. 대신 각 기록에서 삭제 요청을 제출할 수 있습니다. Admin은 Admin 패널에서 대기 중인 삭제 요청을 승인하거나 거부할 수 있습니다.</p>
+`}
+},
+
+// ── 10. MOBILE ────────────────────────────────────────────────────────────────
+{
+  id:'mobile', icon:'📱', adminOnly:false,
+  title:{en:'Mobile App', ko:'모바일 앱'},
+  sub:{en:'Install on iPhone or Android for app-like experience', ko:'iPhone / Android에 설치해 앱처럼 사용'},
+  content:{
+en:`
+  <div class="hs-h3">iPhone (iOS — Safari only)</div>
+  <div class="hs-warn">⚠️ You must use <strong>Safari</strong>. Chrome on iPhone does not support home screen installation.</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Open <strong>Safari</strong> and go to <strong>genoray-latam.vercel.app</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Log in with your account</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Tap the <strong>Share button ⬆️</strong> at the bottom of the screen</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Scroll down and tap <strong>"Add to Home Screen"</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">Confirm the name <strong>"Genoray LATAM"</strong> and tap <strong>"Add"</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">6</div><div class="hs-step-text">The icon appears on your home screen — tap to launch full screen (no browser bar)</div></div>
+
+  <div class="hs-h3">Android (Chrome)</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text">Open <strong>Chrome</strong> and go to <strong>genoray-latam.vercel.app</strong></div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">Log in with your account</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">Tap the <strong>three-dot menu ⋮</strong> (top right)</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">Tap <strong>"Add to Home screen"</strong> and confirm</div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">Tap the icon on home screen to launch like a native app</div></div>
+
+  <div class="hs-h3">After Installation</div>
+  <table class="hs-table">
+    <tr><th>Feature</th><th>Details</th></tr>
+    <tr><td>Full screen</td><td>No browser address bar — feels like a real app</td></tr>
+    <tr><td>Bottom nav bar</td><td>Quick access: Dashboard · Pipeline · PI · Shipments · Messages</td></tr>
+    <tr><td>Swipe to open sidebar</td><td>Swipe right from the left edge to open the menu</td></tr>
+    <tr><td>Auto logout</td><td>Session expires after 60 minutes of inactivity</td></tr>
+    <tr><td>Offline use</td><td>❌ Requires internet — data is in the cloud</td></tr>
+  </table>
+
+  <div class="hs-h3">Troubleshooting</div>
+  <ul class="hs-ul">
+    <li><strong>"Add to Home Screen" missing on iPhone?</strong> → Make sure you are using Safari, not Chrome</li>
+    <li><strong>App not loading?</strong> → Check internet connection (Wi-Fi or mobile data required)</li>
+    <li><strong>Forgot password?</strong> → Contact the system administrator (Mitchel)</li>
+  </ul>
+`,
+ko:`
+  <div class="hs-h3">iPhone (iOS — Safari만 가능)</div>
+  <div class="hs-warn">⚠️ 반드시 <strong>Safari</strong>를 사용하세요. iPhone의 Chrome은 홈 화면 설치를 지원하지 않습니다.</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text"><strong>Safari</strong>에서 <strong>genoray-latam.vercel.app</strong> 접속</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">계정으로 로그인</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">화면 하단 <strong>공유 버튼 ⬆️</strong> 탭</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text">스크롤해서 <strong>"홈 화면에 추가"</strong> 탭</div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">이름 <strong>"Genoray LATAM"</strong> 확인 후 <strong>"추가"</strong> 탭</div></div>
+  <div class="hs-step"><div class="hs-step-num">6</div><div class="hs-step-text">홈 화면에 아이콘 생성 — 탭해서 풀스크린으로 실행 (주소창 없음)</div></div>
+
+  <div class="hs-h3">Android (Chrome)</div>
+  <div class="hs-step"><div class="hs-step-num">1</div><div class="hs-step-text"><strong>Chrome</strong>에서 <strong>genoray-latam.vercel.app</strong> 접속</div></div>
+  <div class="hs-step"><div class="hs-step-num">2</div><div class="hs-step-text">계정으로 로그인</div></div>
+  <div class="hs-step"><div class="hs-step-num">3</div><div class="hs-step-text">우측 상단 <strong>세 점 메뉴 ⋮</strong> 탭</div></div>
+  <div class="hs-step"><div class="hs-step-num">4</div><div class="hs-step-text"><strong>"홈 화면에 추가"</strong> 탭 후 확인</div></div>
+  <div class="hs-step"><div class="hs-step-num">5</div><div class="hs-step-text">홈 화면 아이콘 탭으로 네이티브 앱처럼 실행</div></div>
+
+  <div class="hs-h3">설치 후 기능</div>
+  <table class="hs-table">
+    <tr><th>기능</th><th>설명</th></tr>
+    <tr><td>풀스크린</td><td>주소창 없음 — 네이티브 앱처럼 실행</td></tr>
+    <tr><td>하단 네비게이션 바</td><td>빠른 접근: Dashboard · Pipeline · PI · Shipments · Messages</td></tr>
+    <tr><td>스와이프로 사이드바 열기</td><td>왼쪽 가장자리에서 오른쪽으로 스와이프</td></tr>
+    <tr><td>자동 로그아웃</td><td>60분 미사용 시 세션 만료</td></tr>
+    <tr><td>오프라인 사용</td><td>❌ 인터넷 필요 — 데이터는 클라우드에 있음</td></tr>
+  </table>
+
+  <div class="hs-h3">문제 해결</div>
+  <ul class="hs-ul">
+    <li><strong>iPhone에서 "홈 화면에 추가"가 안 보여요?</strong> → Chrome이 아닌 Safari를 사용하세요</li>
+    <li><strong>앱이 로딩이 안 돼요?</strong> → 인터넷 연결 확인 (Wi-Fi 또는 모바일 데이터 필요)</li>
+    <li><strong>비밀번호 분실?</strong> → 시스템 관리자(Mitchel)에게 문의하세요</li>
+  </ul>
+`}
+}
+
+]; // end MANUAL_SECTIONS
+
 
 function loadHelp(){
   showPageLoading('Loading Manual...');
@@ -5960,21 +6498,38 @@ function loadHelp(){
   const helpContent=document.getElementById('help-content');
   if(!tocNav||!helpContent)return;
 
+  const lang = _manualLang || 'en';
+  const role = getRole();
+
+  // Filter sections: hide adminOnly unless user is admin
+  const sections = MANUAL_SECTIONS.filter(s => !s.adminOnly || role === 'admin');
+
+  // ── Language toggle UI (inject into panel-head) ──
+  const langBar = document.getElementById('help-lang-bar');
+  if(langBar){
+    langBar.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:11px;color:var(--g400);font-weight:600">Language:</span>
+        <button onclick="setManualLang('en')" style="padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid ${lang==='en'?'var(--blue)':'var(--g200)'};background:${lang==='en'?'var(--blue)':'#fff'};color:${lang==='en'?'#fff':'var(--g600)'}">🇺🇸 EN</button>
+        <button onclick="setManualLang('ko')" style="padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid ${lang==='ko'?'var(--blue)':'var(--g200)'};background:${lang==='ko'?'var(--blue)':'#fff'};color:${lang==='ko'?'#fff':'var(--g600)'}">🇰🇷 한국어</button>
+      </div>`;
+  }
+
   // Build TOC
-  tocNav.innerHTML=MANUAL_SECTIONS.map(s=>
+  tocNav.innerHTML=sections.map(s=>
     `<a class="help-toc-link" href="#hs-${s.id}" onclick="scrollToSection('${s.id}');return false;">
-      ${s.icon} ${s.title}
+      ${s.icon} ${s.title[lang]||s.title.en}
     </a>`
   ).join('');
 
   // Build content
-  helpContent.innerHTML=MANUAL_SECTIONS.map(s=>`
+  helpContent.innerHTML=sections.map(s=>`
     <div class="help-section panel" id="hs-${s.id}" style="margin-bottom:14px">
       <div class="hs-head">
-        <div class="hs-title">${s.icon} ${s.title}</div>
-        <div class="hs-sub">${s.sub}</div>
+        <div class="hs-title">${s.icon} ${s.title[lang]||s.title.en}</div>
+        <div class="hs-sub">${s.sub[lang]||s.sub.en}</div>
       </div>
-      <div class="hs-body">${s.content}</div>
+      <div class="hs-body">${s.content[lang]||s.content.en}</div>
     </div>
   `).join('');
 
@@ -6028,7 +6583,8 @@ function helpSearch(q){
     a.style.opacity=sec&&sec.style.display!=='none'?'1':'0.3';
   });
   if(!found){
-    content.innerHTML=`<div class="no-results">🔍 No results found for "<strong>${q}</strong>"<br><br><button class="btn btn-secondary" onclick="document.getElementById('help-search').value='';loadHelp()">Clear search</button></div>`;
+    const noTxt = _manualLang==='ko' ? `검색 결과 없음: "<strong>${q}</strong>"` : `No results found for "<strong>${q}</strong>"`;
+    content.innerHTML=`<div class="no-results">🔍 ${noTxt}<br><br><button class="btn btn-secondary" onclick="document.getElementById('help-search').value='';loadHelp()">Clear</button></div>`;
   }
 }
 
