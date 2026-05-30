@@ -81,16 +81,22 @@ body{display:flex;height:100vh;background:var(--g100);color:var(--g900);font-siz
 .login-btn:hover{background:#1d4ed8}
 .login-err{color:#f87171;font-size:12px;text-align:center;margin-top:10px;min-height:18px}
 #sidebar{width:var(--sw);background:var(--navy);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
-.logo{padding:18px 16px 15px;border-bottom:1px solid rgba(255,255,255,.08)}
+.logo{
+  padding:16px 16px 14px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+  display:flex;align-items:center;gap:11px;
+}
+.logo-text{display:flex;flex-direction:column}
 .logo h1{
-  color:#fff;font-size:16px;font-weight:900;
-  letter-spacing:.22em;line-height:1;
+  color:#fff;font-size:15px;font-weight:900;
+  letter-spacing:.22em;text-indent:.22em;
+  line-height:1;margin:0;
   font-family:'Cinzel',Georgia,serif;
-  text-shadow:0 0 16px rgba(212,175,55,.25);
+  text-shadow:0 0 14px rgba(212,175,55,.3);
 }
 .logo .logo-by{
-  color:rgba(212,175,55,.55);font-size:9px;
-  margin-top:5px;letter-spacing:.15em;
+  color:rgba(212,175,55,.6);font-size:8.5px;
+  margin-top:4px;letter-spacing:.14em;text-indent:.14em;
   font-family:'Cinzel',Georgia,serif;text-transform:uppercase;
 }
 .logo p{color:rgba(255,255,255,.35);font-size:11px;margin-top:3px}
@@ -699,7 +705,35 @@ tr[data-paid="true"] td{opacity:.55}
 <div id="mob-overlay" onclick="closeSidebar()"></div>
 <div id="sidebar">
   <button id="mob-close" onclick="closeSidebar()">×</button>
-  <div class="logo"><h1>🧭 COMPASS</h1><div class="logo-by">by Genoray LATAM</div></div>
+  <div class="logo"><svg width="32" height="32" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;filter:drop-shadow(0 0 6px rgba(212,175,55,.4))">
+  <circle cx="60" cy="60" r="57" fill="none" stroke="rgba(212,175,55,0.25)" stroke-width="2"/>
+  <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(212,175,55,0.12)" stroke-width="1"/>
+  <g stroke="rgba(212,175,55,0.5)" stroke-width="2">
+    <line x1="60" y1="4" x2="60" y2="12"/>
+    <line x1="60" y1="108" x2="60" y2="116"/>
+    <line x1="4" y1="60" x2="12" y2="60"/>
+    <line x1="108" y1="60" x2="116" y2="60"/>
+  </g>
+  <g stroke="rgba(212,175,55,0.2)" stroke-width="1.5">
+    <line x1="100.4" y1="19.6" x2="95.8" y2="24.2"/>
+    <line x1="19.6" y1="19.6" x2="24.2" y2="24.2"/>
+    <line x1="100.4" y1="100.4" x2="95.8" y2="95.8"/>
+    <line x1="19.6" y1="100.4" x2="24.2" y2="95.8"/>
+  </g>
+  <path d="M60 12 L65.5 56.5 L60 60 L54.5 56.5 Z" fill="#f5b942"/>
+  <path d="M60 12 L57 56 L60 60 L60 12 Z" fill="#d4972a" opacity="0.5"/>
+  <path d="M60 108 L65.5 63.5 L60 60 L54.5 63.5 Z" fill="rgba(255,255,255,0.28)"/>
+  <path d="M108 60 L63.5 54.5 L60 60 L63.5 65.5 Z" fill="rgba(255,255,255,0.42)"/>
+  <path d="M12 60 L56.5 54.5 L60 60 L56.5 65.5 Z" fill="rgba(255,255,255,0.42)"/>
+  <path d="M101.4 18.6 L63 57 L60 60 L57 57 Z" fill="rgba(212,175,55,0.18)"/>
+  <path d="M18.6 18.6 L57 57 L60 60 L63 57 Z" fill="rgba(212,175,55,0.18)"/>
+  <path d="M101.4 101.4 L63 63 L60 60 L57 63 Z" fill="rgba(255,255,255,0.12)"/>
+  <path d="M18.6 101.4 L57 63 L60 60 L63 63 Z" fill="rgba(255,255,255,0.12)"/>
+  <circle cx="60" cy="60" r="9" fill="#0a1e3a" stroke="rgba(212,175,55,0.55)" stroke-width="1.5"/>
+  <circle cx="60" cy="60" r="3.5" fill="#f5b942"/>
+  <circle cx="60" cy="60" r="1.5" fill="#0a1e3a"/>
+  <text x="60" y="11" text-anchor="middle" font-size="12" font-weight="700" fill="#f5b942" font-family="Georgia,serif">N</text>
+</svg><div class="logo-text"><h1>COMPASS</h1><div class="logo-by">by Genoray LATAM</div></div></div>
   <div class="nav-sec">
     <div class="nav-lbl">Overview</div>
     <div class="nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')"><span class="nav-icon">📊</span>Dashboard</div>
@@ -1578,7 +1612,7 @@ tr[data-paid="true"] td{opacity:.55}
     <div id="page-help" class="page">
       <div class="panel" style="margin-bottom:14px">
         <div class="panel-head" style="gap:12px;flex-wrap:wrap">
-          <span class="panel-title" style="font-size:15px">🧭 COMPASS — User Manual <span style="font-size:12px;font-weight:400;color:var(--g400)">v2.1</span> <span style="font-size:11px;font-weight:400;color:var(--g400)">· by Genoray LATAM</span></span>
+          <span class="panel-title" style="font-size:15px">COMPASS — User Manual <span style="font-size:12px;font-weight:400;color:var(--g400)">v2.1</span> <span style="font-size:11px;font-weight:400;color:var(--g400)">· by Genoray LATAM</span></span>
           <div id="help-lang-bar" style="display:flex;align-items:center"></div>
           <div class="search-box" style="flex:1;max-width:300px">
             <span>🔍</span>
