@@ -1185,7 +1185,7 @@ tr[data-paid="true"] td{opacity:.55}
           <div class="nlsec-hdr">
             <span>Conversations</span>
             <span id="conv-unread-total" style="display:none;background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px">0</span>
-            <span style="margin-left:auto;cursor:help;font-size:11px;opacity:.5" title="🔴 Unread — not seen yet&#10;🟡 Read — waiting for your response">ℹ️</span>
+
           </div>
           <div id="conv-items" style="flex:1;overflow-y:auto;padding-bottom:8px"></div>
         </div>
@@ -7915,11 +7915,13 @@ async function runDelayCheck(onlyEscalate=false, forceResend=false){
     if(error){toast('Error: '+error.message,'err');}
     else inserted=fresh.length;
   }
-  // For resends: update existing (mark unread, update message)
+  // For resends: INSERT a new record (preserves full send history)
   for(const n of resend){
-    await sb.from('notifications')
-      .update({message:n.message, read_by:[], title:n.title})
-      .eq('related_id',n.related_id).eq('type','alert');
+    await sb.from('notifications').insert({
+      type:n.type, title:n.title, message:n.message,
+      from_user:n.from_user, to_user:n.to_user,
+      related_page:n.related_page, related_id:n.related_id,
+    });
   }
 
   const parts=[];
@@ -8327,7 +8329,7 @@ function openConv(key){
     renderAnnThread(msgs,anns,me);
   } else if(key.startsWith('user:')){
     const user=key.slice(5);
-    header.innerHTML=`<span>💬 @${esc(user)}</span>`;
+    header.innerHTML=`<span style="display:flex;align-items:center;gap:8px;width:100%"><span>💬 @${esc(user)}</span><button onclick="clearConversation('${esc(user)}')" style="margin-left:auto;padding:2px 8px;font-size:10px;border:1px solid var(--g200);border-radius:5px;background:#fff;color:var(--g500);cursor:pointer">🗑 Clear</button></span>`;
     if(replyBox){replyBox.style.display='block';replyBox.dataset.to=user;}
     // Get all messages between me and this user
     const thread=_notifData.filter(n=>
@@ -8354,17 +8356,54 @@ function renderMsgThread(el,msgs,me,otherUser){
     el.innerHTML='<div style="text-align:center;color:var(--g300);font-size:13px;margin-top:40px">No messages yet</div>';
     return;
   }
+  const role=getRole();
   el.innerHTML=msgs.map(n=>{
     const isOwn=n.from_user===me;
+    const canDel=isOwn||role==='admin';
     const ago=fmtAgo(n.created_at);
-    return`<div style="display:flex;flex-direction:column;align-items:${isOwn?'flex-end':'flex-start'};gap:2px">
-      <div style="max-width:75%;padding:8px 12px;border-radius:${isOwn?'14px 14px 4px 14px':'14px 14px 14px 4px'};background:${isOwn?'var(--blue)':'var(--g100)'};color:${isOwn?'#fff':'var(--g900)'};font-size:13px;line-height:1.5;word-break:break-word">
-        ${esc(n.message||n.title||'')}
+    return`<div style="display:flex;flex-direction:column;align-items:${isOwn?'flex-end':'flex-start'};gap:1px">
+      <div style="display:flex;align-items:flex-end;gap:4px;flex-direction:${isOwn?'row-reverse':'row'}">
+        <div style="max-width:72%;padding:8px 12px;border-radius:${isOwn?'14px 14px 4px 14px':'14px 14px 14px 4px'};background:${isOwn?'var(--blue)':'var(--g100)'};color:${isOwn?'#fff':'var(--g900)'};font-size:13px;line-height:1.5;word-break:break-word">
+          ${esc(n.message||n.title||'')}
+        </div>
+        ${canDel?`<button onclick="deleteChatMsg('${n.id}','${otherUser||''}')" title="Delete" style="padding:2px 4px;background:none;border:none;font-size:12px;cursor:pointer;color:var(--g300);opacity:0;flex-shrink:0;transition:opacity .15s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">🗑</button>`:''}
       </div>
       <div style="font-size:10px;color:var(--g400);padding:0 4px">${ago}</div>
     </div>`;
   }).join('');
   el.scrollTop=el.scrollHeight;
+}
+
+async function deleteChatMsg(id,otherUser){
+  if(!confirm('Delete this message?'))return;
+  const me=getAuth();
+  const{error}=await sb.from('notifications').delete().eq('id',id);
+  if(error){toast('Error: '+error.message,'err');return;}
+  _notifData=_notifData.filter(n=>n.id!==id);
+  buildConvList(); updateBellBadge();
+  if(otherUser){
+    const thread=_notifData.filter(n=>n.type==='message'&&(
+      (n.from_user===me&&n.to_user===otherUser)||(n.from_user===otherUser&&n.to_user===me)
+    )).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+    const msgs=document.getElementById('thread-messages');
+    if(msgs)renderMsgThread(msgs,thread,me,otherUser);
+  }
+}
+
+async function clearConversation(otherUser){
+  const me=getAuth();
+  if(!confirm('Delete all messages in this conversation? Cannot be undone.'))return;
+  const ids=_notifData.filter(n=>n.type==='message'&&(
+    (n.from_user===me&&n.to_user===otherUser)||(n.from_user===otherUser&&n.to_user===me)
+  )).map(n=>n.id);
+  if(!ids.length){toast('No messages to delete');return;}
+  const{error}=await sb.from('notifications').delete().in('id',ids);
+  if(error){toast('Error: '+error.message,'err');return;}
+  _notifData=_notifData.filter(n=>!ids.includes(n.id));
+  const msgs=document.getElementById('thread-messages');
+  if(msgs)msgs.innerHTML='<div style="text-align:center;color:var(--g300);font-size:13px;margin-top:40px">No messages yet</div>';
+  buildConvList(); updateBellBadge();
+  toast('✅ Conversation cleared');
 }
 
 async function deleteAllAnnouncements(){
@@ -8580,7 +8619,7 @@ function renderAlertThread(el){
           const isEsc=a.title.startsWith('🔴');
           return`<div style="display:flex;align-items:center;gap:5px;padding:2px 0">
             <span style="font-size:10px;flex-shrink:0;color:${isEsc?'#dc2626':isFirst?'var(--g500)':'#d97706'}">${isFirst?'📤 Sent':isEsc?'🔴 Escalated':'🔁 Re-sent'}</span>
-            <span style="font-size:10px;color:var(--g400)">${fmtAgo(a.created_at)}</span>
+            <span style="font-size:10px;color:var(--g400)">${fmtDateTime(a.created_at)}</span>
             ${isLast&&awaitingReply?'<span style="font-size:9px;background:#fef3c7;color:#92400e;padding:0 5px;border-radius:4px;font-weight:700">no reply yet</span>':''}
           </div>`;
         }).join('');
@@ -8981,6 +9020,11 @@ function fmtAgo(ts){
   if(mins<1440)return Math.floor(mins/60)+'h ago';
   if(mins<10080)return Math.floor(mins/1440)+'d ago';
   return new Date(ts).toLocaleDateString('en',{month:'short',day:'numeric'});
+}
+function fmtDateTime(ts){
+  if(!ts)return'';
+  const d=new Date(ts);
+  return d.toLocaleDateString('en',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'});
 }
 
 async function openNewMessageForm(){
