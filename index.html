@@ -8544,9 +8544,11 @@ function renderMsgThread(el,msgs,me,otherUser){
         </div>
         ${canDel?`<button onclick="deleteChatMsg('${n.id}','${otherUser||''}')"
           title="Delete message"
-          style="padding:4px 5px;background:none;border:none;font-size:13px;cursor:pointer;
-            color:var(--g300);opacity:0;flex-shrink:0;transition:opacity .15s;line-height:1"
-          onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">🗑</button>`:''}
+          style="padding:4px 6px;background:none;border:none;font-size:13px;cursor:pointer;
+            color:var(--g400);opacity:.35;flex-shrink:0;transition:opacity .15s;line-height:1;
+            border-radius:6px"
+          onmouseover="this.style.opacity=1;this.style.background='var(--g100)'"
+          onmouseout="this.style.opacity=.35;this.style.background='none'">🗑</button>`:''}
       </div>
       <div style="font-size:10px;color:var(--g400);padding:0 4px;margin-top:1px">${ago}</div>
     </div>`;
