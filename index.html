@@ -494,6 +494,16 @@ tr:hover td{background:var(--g50)}
 }
 
 
+/* ── Korean date placeholder fix ──────────────────────────────────── */
+/* Hides "연도. 월. 일." shown by Korean-locale browsers on empty date inputs */
+input[type="date"]:not(.date-has-val):not(:focus)::-webkit-datetime-edit {
+  visibility:hidden;
+}
+input[type="date"].date-has-val::-webkit-datetime-edit,
+input[type="date"]:focus::-webkit-datetime-edit {
+  visibility:visible;
+}
+
 /* Collections paid row toggle */
 #collections-table.hide-paid tr[data-paid="true"]{display:none}
 tr[data-paid="true"] td{opacity:.55}
@@ -1099,7 +1109,7 @@ tr[data-paid="true"] td{opacity:.55}
             <th class="sortable" onclick="sortTbl('collections','collected_amount_usd')">Collected</th>
             <th>Outstanding</th>
             <th>Due Date</th>
-            <th>Days</th>
+            <th style="min-width:72px;text-align:center">Days</th>
             <th class="sortable" onclick="sortTbl('collections','collection_date')">Collection Date</th>
             <th>Sales Rep</th>
             <th>Status ⚙</th>
@@ -4480,10 +4490,10 @@ function rowHTML(page,r){
       const due=new Date(dueDate); due.setHours(0,0,0,0);
       const diff=Math.round((due-today)/(1000*86400));
       if(diff<0){
-        daysBadge=`<span style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;padding:2px 7px;border-radius:10px;font-weight:700;font-size:11px">OD ${-diff}d</span>`;
+        daysBadge=`<span style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;padding:2px 7px;border-radius:10px;font-weight:700;font-size:11px;white-space:nowrap">OD ${-diff}d</span>`;
         daysBadgeStyle='';
       } else if(diff<=14){
-        daysBadge=`<span style="background:#fff7ed;color:#ea580c;border:1px solid #fed7aa;padding:2px 7px;border-radius:10px;font-weight:700;font-size:11px">${diff}d left</span>`;
+        daysBadge=`<span style="background:#fff7ed;color:#ea580c;border:1px solid #fed7aa;padding:2px 7px;border-radius:10px;font-weight:700;font-size:11px;white-space:nowrap">${diff}d left</span>`;
         daysBadgeStyle='';
       } else {
         daysBadge=`<span style="color:var(--g500);font-size:12px">${diff}d</span>`;
@@ -4518,7 +4528,7 @@ function rowHTML(page,r){
         const fw=isOver||isClose?'700':'400';
         return'<td style="text-align:center;font-size:12px;color:'+col+';font-weight:'+fw+'">'+dueDate+'</td>';
       })()
-      +'<td style="text-align:center">'+daysBadge+'</td>'
+      +'<td style="text-align:center;white-space:nowrap">'+daysBadge+'</td>'
       +'<td>'+(r.collection_date||'-')+'</td>'
       +'<td>'+repPill(r.pi_number)+'</td>'
       +'<td>'+pillAuto(st,'collections')+'</td>'
@@ -9875,6 +9885,30 @@ async function _autoSendDelayAlerts(){
   },{passive:true});
 })();
 
+
+// ── Korean date placeholder fix (MutationObserver) ───────────────────────────
+// Chrome/Safari in Korean OS locale shows "연도. 월. 일." for empty date inputs.
+// This hides it via CSS class and re-shows when the input has a value or is focused.
+(function initDatePlaceholderFix(){
+  function fixOne(inp){
+    if(inp._kdfixed) return;
+    inp._kdfixed = true;
+    function upd(){ inp.classList.toggle('date-has-val', !!inp.value); }
+    upd();
+    inp.addEventListener('change', upd);
+    inp.addEventListener('input', upd);
+  }
+  document.querySelectorAll('input[type="date"]').forEach(fixOne);
+  new MutationObserver(function(ms){
+    ms.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if(!n||n.nodeType!==1) return;
+        if(n.matches&&n.matches('input[type="date"]')) fixOne(n);
+        if(n.querySelectorAll) n.querySelectorAll('input[type="date"]').forEach(fixOne);
+      });
+    });
+  }).observe(document.body,{childList:true,subtree:true});
+})();
 </script>
 
 <!-- Mobile Bottom Navigation -->
