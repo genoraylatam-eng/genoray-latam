@@ -9,9 +9,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Genoray LATAM">
+<meta name="apple-mobile-web-app-title" content="COMPASS">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Genoray LATAM | Sales Management</title>
+<title>COMPASS | by Genoray LATAM</title>
 <!-- v6.1 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
@@ -32,7 +32,10 @@ body{display:flex;height:100vh;background:var(--g100);color:var(--g900);font-siz
 #login-screen.hidden{display:none}
 .login-box{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:44px;width:380px;max-width:95vw}
 .login-logo{text-align:center;margin-bottom:32px}
-.login-logo h1{color:#fff;font-size:22px;font-weight:800}
+.login-logo .cps-icon{font-size:44px;line-height:1;margin-bottom:10px;filter:drop-shadow(0 0 12px rgba(96,165,250,.5))}
+.login-logo h1{color:#fff;font-size:38px;font-weight:900;letter-spacing:.18em;margin:0;text-shadow:0 0 32px rgba(96,165,250,.35)}
+.login-logo .cps-acronym{color:rgba(255,255,255,.38);font-size:9.5px;margin-top:7px;letter-spacing:.04em;line-height:1.5}
+.login-logo .cps-by{color:rgba(255,255,255,.55);font-size:11.5px;margin-top:8px;font-weight:500;letter-spacing:.06em}
 .login-logo p{color:rgba(255,255,255,.4);font-size:12px;margin-top:4px}
 .lf{margin-bottom:16px}
 .lf label{display:block;color:rgba(255,255,255,.55);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
@@ -43,8 +46,9 @@ body{display:flex;height:100vh;background:var(--g100);color:var(--g900);font-siz
 .login-btn:hover{background:#1d4ed8}
 .login-err{color:#f87171;font-size:12px;text-align:center;margin-top:10px;min-height:18px}
 #sidebar{width:var(--sw);background:var(--navy);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
-.logo{padding:20px 16px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
-.logo h1{color:#fff;font-size:15px;font-weight:700}
+.logo{padding:18px 16px 15px;border-bottom:1px solid rgba(255,255,255,.08)}
+.logo h1{color:#fff;font-size:18px;font-weight:900;letter-spacing:.14em;line-height:1}
+.logo .logo-by{color:rgba(255,255,255,.38);font-size:9.5px;margin-top:5px;letter-spacing:.05em;font-weight:500}
 .logo p{color:rgba(255,255,255,.35);font-size:11px;margin-top:3px}
 .nav-sec{padding:14px 0 4px}
 .nav-lbl{color:rgba(255,255,255,.28);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:0 16px 7px}
@@ -583,7 +587,12 @@ tr[data-paid="true"] td{opacity:.55}
 
 <div id="login-screen">
   <div class="login-box">
-    <div class="login-logo"><h1>Genoray LATAM</h1><p>Sales Management System</p></div>
+    <div class="login-logo">
+      <div class="cps-icon">🧭</div>
+      <h1>COMPASS</h1>
+      <div class="cps-acronym">Collections · Orders · Management · Pipeline · Analytics · Sales · System</div>
+      <div class="cps-by">by Genoray LATAM</div>
+    </div>
     <div class="lf"><label>Username</label><input type="text" id="lu" placeholder="Enter username" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <div class="lf"><label>Password</label><input type="password" id="lp" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="login-btn" onclick="doLogin()">Sign In</button>
@@ -595,7 +604,7 @@ tr[data-paid="true"] td{opacity:.55}
 <div id="mob-overlay" onclick="closeSidebar()"></div>
 <div id="sidebar">
   <button id="mob-close" onclick="closeSidebar()">×</button>
-  <div class="logo"><h1>Genoray LATAM</h1><p>Sales Management</p></div>
+  <div class="logo"><h1>🧭 COMPASS</h1><div class="logo-by">by Genoray LATAM</div></div>
   <div class="nav-sec">
     <div class="nav-lbl">Overview</div>
     <div class="nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')"><span class="nav-icon">📊</span>Dashboard</div>
@@ -1474,7 +1483,7 @@ tr[data-paid="true"] td{opacity:.55}
     <div id="page-help" class="page">
       <div class="panel" style="margin-bottom:14px">
         <div class="panel-head" style="gap:12px;flex-wrap:wrap">
-          <span class="panel-title" style="font-size:15px">📖 Genoray LATAM — User Manual <span style="font-size:12px;font-weight:400;color:var(--g400)">v2.1</span></span>
+          <span class="panel-title" style="font-size:15px">🧭 COMPASS — User Manual <span style="font-size:12px;font-weight:400;color:var(--g400)">v2.1</span> <span style="font-size:11px;font-weight:400;color:var(--g400)">· by Genoray LATAM</span></span>
           <div id="help-lang-bar" style="display:flex;align-items:center"></div>
           <div class="search-box" style="flex:1;max-width:300px">
             <span>🔍</span>
@@ -5734,7 +5743,7 @@ const MANUAL_SECTIONS = [
   content:{
 en:`
   <div class="hs-h3">System Overview</div>
-  <p class="hs-p">Genoray LATAM Sales Management is a cloud-based web system for managing the complete sales lifecycle — from issuing a Proforma Invoice (PI) all the way through to payment collection. All data is stored in the cloud and accessible from any device at <strong style="color:var(--blue)">genoray-latam.vercel.app</strong>.</p>
+  <p class="hs-p">COMPASS is a cloud-based sales management system by Genoray LATAM for managing the complete sales lifecycle — from issuing a Proforma Invoice (PI) all the way through to payment collection. All data is stored in the cloud and accessible from any device at <strong style="color:var(--blue)">genoray-latam.vercel.app</strong>.</p>
 
   <div class="hs-h3">Login</div>
   <p class="hs-p">Enter your username and password on the login screen. Sessions remain active for <strong>60 minutes</strong> of inactivity before auto-logout. Your login is remembered between browser refreshes.</p>
@@ -5761,7 +5770,7 @@ en:`
 `,
 ko:`
   <div class="hs-h3">시스템 개요</div>
-  <p class="hs-p">Genoray LATAM Sales Management는 PI 발행부터 수금까지 전체 영업 과정을 관리하는 클라우드 웹 시스템입니다. 모든 데이터는 클라우드에 저장되며 어떤 기기에서도 <strong style="color:var(--blue)">genoray-latam.vercel.app</strong>으로 접속할 수 있습니다.</p>
+  <p class="hs-p">COMPASS는 Genoray LATAM의 클라우드 기반 영업 관리 시스템입니다. PI 발행부터 수금까지. 모든 데이터는 클라우드에 저장되며 어떤 기기에서도 <strong style="color:var(--blue)">genoray-latam.vercel.app</strong>으로 접속할 수 있습니다.</p>
 
   <div class="hs-h3">로그인</div>
   <p class="hs-p">로그인 화면에서 아이디와 비밀번호를 입력하세요. 60분 동안 활동이 없으면 자동 로그아웃됩니다. 브라우저를 새로고침해도 로그인 상태가 유지됩니다.</p>
@@ -8319,7 +8328,7 @@ async function saveNewUser(){
 function showWelcomeMessage(username, displayName, tempPwd, userType='regular'){
   const loginUrl='https://genoray-latam.vercel.app';
   const roleLabel=userType==='sales_rep'?'Sales Representative':userType==='admin'?'Admin':'User';
-  const msgText='🌐 Genoray LATAM Sales Management\n\nHi '+displayName+'!\n\nYour '+roleLabel+' account is ready:\n\n👤 Username: '+username+'\n🔑 Temp Password: '+tempPwd+'\n🔗 Login: '+loginUrl+'\n\n⚠️ Change your password on first login.\nRules: 8+ chars · Uppercase · Number · Special char';
+  const msgText='🧭 COMPASS — by Genoray LATAM\n\nHi '+displayName+'!\n\nYour '+roleLabel+' account is ready:\n\n👤 Username: '+username+'\n🔑 Temp Password: '+tempPwd+'\n🔗 Login: '+loginUrl+'\n\n⚠️ Change your password on first login.\nRules: 8+ chars · Uppercase · Number · Special char';
   const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=180x180&data='+encodeURIComponent(loginUrl)+'&color=1e3a8a&bgcolor=ffffff&qzone=2';
   openModal('<div style="text-align:center;padding:4px 0 12px"><div style="font-size:26px;margin-bottom:6px">✅</div><div style="font-size:15px;font-weight:800">User Created</div><div style="font-size:12px;color:var(--g500);margin-top:3px">Share credentials with <strong>'+esc(displayName)+'</strong></div></div><div style="display:grid;grid-template-columns:180px 1fr;gap:16px;align-items:start;margin-bottom:14px"><div style="text-align:center"><img src="'+qrUrl+'" style="width:180px;height:180px;border:2px solid var(--g100);border-radius:10px"><div style="font-size:10px;color:var(--g400);margin-top:5px">📱 Scan to open login</div></div><div style="background:var(--g50);border-radius:10px;padding:14px;border:1px solid var(--g200)"><div style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;margin-bottom:10px">Credentials</div><div style="margin-bottom:8px"><div style="font-size:10px;color:var(--g400)">Role</div><div style="font-size:12px;font-weight:700">'+roleLabel+'</div></div><div style="margin-bottom:8px"><div style="font-size:10px;color:var(--g400)">Username</div><div style="font-size:16px;font-weight:800;font-family:monospace">'+esc(username)+'</div></div><div><div style="font-size:10px;color:var(--g400)">Temp Password</div><div style="font-size:18px;font-weight:900;font-family:monospace;letter-spacing:2px;color:#dc2626;background:#fef2f2;padding:6px 10px;border-radius:6px;border:1px dashed #fca5a5;margin-top:2px">'+esc(tempPwd)+'</div></div></div></div><div><div style="font-size:11px;font-weight:700;color:var(--g600);margin-bottom:6px">📋 Send via WhatsApp / Email</div><textarea id="welcome-msg" readonly style="width:100%;height:120px;padding:10px;border:1.5px solid var(--g200);border-radius:8px;font-size:12px;line-height:1.6;resize:none;background:#fafafa;box-sizing:border-box;font-family:inherit">'+msgText+'</textarea></div><div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end"><button onclick="copyWelcomeMsg()" style="padding:9px 16px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;font-weight:600;cursor:pointer">📋 Copy</button><button onclick="closeModal()" style="padding:9px 20px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">Done</button></div>','New User Created');
 }
