@@ -1220,7 +1220,7 @@ tr[data-paid="true"] td{opacity:.55}
         <button onclick="runDelayCheck()" style="padding:5px 12px;background:rgba(255,165,0,.25);color:#fff;border:1.5px solid rgba(255,165,0,.5);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
           ⚠️ Check Delays
         </button>
-        <button onclick="if(confirm('미응답 알림을 모두 지금 다시 발송할까요?'))runDelayCheck(false,true)" style="padding:5px 12px;background:rgba(239,68,68,.25);color:#fff;border:1.5px solid rgba(239,68,68,.5);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
+        <button onclick="runDelayCheck(false,true)" style="padding:5px 12px;background:rgba(239,68,68,.25);color:#fff;border:1.5px solid rgba(239,68,68,.5);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
           📢 Resend All
         </button>
         <button onclick="openTestEmailForm()" style="padding:5px 12px;background:rgba(255,255,255,.1);color:#fff;border:1.5px solid rgba(255,255,255,.3);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
@@ -7628,6 +7628,8 @@ async function runTestEmail(){
       ?'<span style="color:var(--green);font-weight:700">✅ Email sent to '+esc(email)+'<br><small style="font-weight:400">Check your inbox and spam folder</small></span>'
       :'<span style="color:var(--red);font-weight:700">❌ Failed: '+(window._lastEmailError||'Unknown error')+'</span><br><span style="font-size:11px;color:var(--g500)">EmailJS dashboard → Email History 탭에서 상세 확인</span>';
   }
+  // After success: auto-close and go to dashboard after 1.5s
+  if(ok){ setTimeout(()=>{ closeModal(); navigateTo('dashboard'); }, 1500); }
 }
 
 function resendCredentials(username, displayName, password, userType){
@@ -7793,7 +7795,7 @@ const DELAY_RULES = {
 // ── DELAY CHECK ───────────────────────────────────────────────────────────────
 async function runDelayCheck(onlyEscalate=false, forceResend=false){
   const me=getAuth(); if(!me)return;
-  showPageLoading('Checking alerts...');
+  showPageLoading('Analysing delays...');
 
   const [piR,poR,hqR,shR,colR,notifR] = await Promise.all([
     sb.from('pi').select('pi_number,date,distributor,sales_rep,status').neq('status','Cancelled'),
@@ -7803,26 +7805,24 @@ async function runDelayCheck(onlyEscalate=false, forceResend=false){
     sb.from('collections').select('pi_number,status,invoice_amount_usd,collected_amount_usd,pay1_amount,bl_date'),
     sb.from('notifications').select('related_id,created_at,read_by,from_user').eq('type','alert'),
   ]);
-
   hidePageLoading();
 
   const piRows=piR.data||[], poRows=poR.data||[], hqRows=hqR.data||[];
   const shRows=shR.data||[], colRows=colR.data||[];
   const existNotifs=notifR.data||[];
 
-  // Map existing alerts: related_id → {sentAt, responded}
   const sentMap={};
   existNotifs.forEach(n=>{
     if(!n.related_id)return;
-    if(!sentMap[n.related_id]) sentMap[n.related_id]=[];
+    if(!sentMap[n.related_id])sentMap[n.related_id]=[];
     sentMap[n.related_id].push({at:new Date(n.created_at),read:n.read_by&&n.read_by.length>0});
   });
 
-  const poSet  =new Set(poRows.map(r=>r.pi_number));
-  const hqSet  =new Set(hqRows.map(r=>r.pi_number));
-  const shSet  =new Set(shRows.filter(r=>r.date).map(r=>r.pi_number));
-  const colOk  =new Set(colRows.filter(r=>r.status==='Collected').map(r=>r.pi_number));
-  const today  =new Date(); today.setHours(0,0,0,0);
+  const poSet=new Set(poRows.map(r=>r.pi_number));
+  const hqSet=new Set(hqRows.map(r=>r.pi_number));
+  const shSet=new Set(shRows.filter(r=>r.date).map(r=>r.pi_number));
+  const colOk=new Set(colRows.filter(r=>r.status==='Collected').map(r=>r.pi_number));
+  const today=new Date(); today.setHours(0,0,0,0);
   const dayDiff=(d)=>Math.floor((today-new Date(d))/86400000);
 
   const toInsert=[];
@@ -7831,154 +7831,163 @@ async function runDelayCheck(onlyEscalate=false, forceResend=false){
     if(!p.date)continue;
     const num=p.pi_number, rep=p.sales_rep||null, dist=p.distributor||'';
     const dPI=dayDiff(p.date);
-
-    // Has ANY downstream activity (PO, HQ PO, or Shipment)?
     const hasAnyActivity=poSet.has(num)||hqSet.has(num)||shSet.has(num);
-
     let stage=null, stageDays=0;
-
-    // Rule 1: NO ACTIVITY AT ALL — PI → nothing (7+ days)
-    // This fires regardless of whether PO/HQPO path is taken
     if(!hasAnyActivity){
       if(dPI>=DELAY_RULES.no_action.days){stage='no_action';stageDays=dPI;}
-    }
-    // Rule 2: Has PO or HQ PO, but NO Shipment after 30 days from PI date
-    else if(hasAnyActivity&&!shSet.has(num)){
+    } else if(hasAnyActivity&&!shSet.has(num)){
       if(dPI>=DELAY_RULES.hqpo_delay.days){stage='hqpo_delay';stageDays=dPI;}
-    }
-    // Rule 3: Shipped but not collected after 30+ days
-    else if(shSet.has(num)&&!colOk.has(num)){
+    } else if(shSet.has(num)&&!colOk.has(num)){
       const sr=shRows.find(r=>r.pi_number===num&&r.date);
       if(sr){const d=dayDiff(sr.date);if(d>=DELAY_RULES.col_delay.days){stage='col_delay';stageDays=d;}}
     }
     if(!stage)continue;
-
     const key=num+'_'+stage;
     const rule=DELAY_RULES[stage];
     const prev=sentMap[key]||[];
-
     if(prev.length===0){
-      // First alert - send now
-      toInsert.push({
-        type:'alert',
-        title:rule.icon+' '+rule.label+' — '+num,
-        message:'Distributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n⚠️ 이 건을 처리한 뒤 반드시 Messages에서 사유와 조치 계획을 응답해 주세요. 응답이 등록되어야 알림이 종료됩니다.',
-        from_user:'system',
-        to_user:rep,
-        related_page:'pi',
-        related_id:key,
-      });
+      toInsert.push({type:'alert',title:rule.icon+' '+rule.label+' — '+num,
+        message:'Distributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n⚠️ 이 건을 처리한 뒤 반드시 Messages에서 사유와 조치 계획을 응답해 주세요.',
+        from_user:'system',to_user:rep,related_page:'pi',related_id:key,
+        _meta:{num,dist,rep,stageDays,stage,rule,isResend:false}});
     } else {
-      // Check if last alert was >24h ago and unread/no response (forceResend bypasses the 24h wait)
       const lastSent=prev[prev.length-1];
       const hoursSince=(Date.now()-lastSent.at)/3600000;
       const hasResponse=prev.some(n=>n.read);
       if((forceResend||hoursSince>=24)&&!hasResponse){
-        // Escalation / reminder
-        toInsert.push({
-          type:'alert',
-          title:'🔴 미응답 독촉: '+rule.label+' — '+num,
+        toInsert.push({type:'alert',title:'🔴 미응답 독촉: '+rule.label+' — '+num,
           message:'Distributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n🚨 아직 응답이 없습니다. 즉시 Messages에서 사유와 조치 계획을 응답하고 이 건을 완료해 주세요.',
-          from_user:'system',
-          to_user:rep,
-          related_page:'pi',
-          related_id:key,
-        });
-        // Also alert admin
-        toInsert.push({
-          type:'alert',
-          title:'🔴 Admin Alert: 미응답 — '+num,
+          from_user:'system',to_user:rep,related_page:'pi',related_id:key,
+          _meta:{num,dist,rep,stageDays,stage,rule,isResend:true}});
+        toInsert.push({type:'alert',title:'🔴 Admin Alert: 미응답 — '+num,
           message:'담당자 @'+(rep||'unknown')+' 가 '+num+' ('+stageDays+'일 지연) 알림에 아직 응답하지 않았습니다.',
-          from_user:'system',
-          to_user:null, // send to admin only - filter by role on read
-          related_page:'pi',
-          related_id:key+'_esc',
-        });
+          from_user:'system',to_user:null,related_page:'pi',related_id:key+'_esc',
+          _meta:{num,dist,rep,stageDays,stage,rule,isResend:true,isAdminCopy:true}});
       }
     }
   }
 
-  // ── Collection-incomplete checks (records that need details filled in) ──
   for(const c of colRows){
     const num=c.pi_number; if(!num)continue;
     const inv=parseFloat(c.invoice_amount_usd||0);
     const got=parseFloat(c.collected_amount_usd||0);
-    const needsSetup = !c.pay1_amount && !c.bl_date;     // schedule never filled
-    const stillOwed  = inv>0 && (inv-got)>0;             // balance remaining
-    if(!needsSetup && !(stillOwed && c.status!=='Collected')) continue;
-    if(c.status==='Collected') continue;
-
+    const needsSetup=!c.pay1_amount&&!c.bl_date;
+    const stillOwed=inv>0&&(inv-got)>0;
+    if(!needsSetup&&!(stillOwed&&c.status!=='Collected'))continue;
+    if(c.status==='Collected')continue;
     const piRec=piRows.find(p=>p.pi_number===num)||{};
-    const rep=piRec.sales_rep||null;
-    const dist=piRec.distributor||'';
+    const rep=piRec.sales_rep||null, dist=piRec.distributor||'';
     const rule=DELAY_RULES.col_setup;
     const key=num+'_col_setup';
     const prev=sentMap[key]||[];
     const outstanding=Math.max(0,inv-got);
     const detail='Distributor: '+dist+'\nOutstanding: $'+Math.round(outstanding).toLocaleString()+
       (needsSetup?'\n⚠️ 수금 스케줄·결제조건·선적일이 비어 있습니다.':'\n⚠️ 미수금이 남아 있습니다.');
-
     if(prev.length===0){
-      toInsert.push({
-        type:'alert',
-        title:rule.icon+' '+rule.label+' — '+num,
+      toInsert.push({type:'alert',title:rule.icon+' '+rule.label+' — '+num,
         message:detail+'\n\n⚠️ 수금 내역을 모두 입력/수금 완료한 뒤 반드시 Messages에서 응답해 주세요.',
-        from_user:'system', to_user:rep, related_page:'collections', related_id:key,
-      });
+        from_user:'system',to_user:rep,related_page:'collections',related_id:key,
+        _meta:{num,dist,rep,stageDays:0,stage:'col_setup',rule,isResend:false}});
     } else {
       const lastSent=prev[prev.length-1];
       const hoursSince=(Date.now()-lastSent.at)/3600000;
       const hasResponse=prev.some(n=>n.read);
       if((forceResend||hoursSince>=24)&&!hasResponse){
-        toInsert.push({
-          type:'alert',
-          title:'🔴 미응답 독촉: '+rule.label+' — '+num,
+        toInsert.push({type:'alert',title:'🔴 미응답 독촉: '+rule.label+' — '+num,
           message:detail+'\n\n🚨 아직 응답이 없습니다. 즉시 수금 내역을 처리하고 Messages에서 응답해 주세요.',
-          from_user:'system', to_user:rep, related_page:'collections', related_id:key,
-        });
-        toInsert.push({
-          type:'alert',
-          title:'🔴 Admin Alert: 수금 미응답 — '+num,
+          from_user:'system',to_user:rep,related_page:'collections',related_id:key,
+          _meta:{num,dist,rep,stageDays:0,stage:'col_setup',rule,isResend:true}});
+        toInsert.push({type:'alert',title:'🔴 Admin Alert: 수금 미응답 — '+num,
           message:'담당자 @'+(rep||'unknown')+' 가 '+num+' 수금 알림에 아직 응답하지 않았습니다.',
-          from_user:'system', to_user:null, related_page:'collections', related_id:key+'_esc',
-        });
+          from_user:'system',to_user:null,related_page:'collections',related_id:key+'_esc',
+          _meta:{num,dist,rep,stageDays:0,stage:'col_setup',rule,isResend:true,isAdminCopy:true}});
       }
     }
   }
 
+  // ── Show Preview Modal (no send yet) ─────────────────────────────────────
   if(!toInsert.length){
-    toast('✅ All delays already notified — no new alerts needed');
-    await loadNotifications();
+    openModal(`
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:40px;margin-bottom:12px">✅</div>
+        <div style="font-size:16px;font-weight:800;color:var(--g900);margin-bottom:6px">No Alerts to Send</div>
+        <div style="font-size:13px;color:var(--g500)">All deals are within normal delay thresholds,<br>or have already been notified and are awaiting response.</div>
+      </div>
+      <div style="display:flex;justify-content:center;margin-top:16px">
+        <button onclick="closeModal()" style="padding:9px 28px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">OK</button>
+      </div>
+    `, 'Delay Check');
     return;
   }
 
-  // Insert new alerts only, skip duplicates (same related_id already in DB)
-  const existIds=new Set((notifR.data||[]).map(n=>n.related_id).filter(Boolean));
-  const fresh=toInsert.filter(n=>!existIds.has(n.related_id));
-  const resend=toInsert.filter(n=>existIds.has(n.related_id));
+  const nonAdmin=toInsert.filter(n=>!n._meta?.isAdminCopy);
+  const byRep={};
+  nonAdmin.forEach(n=>{
+    const rep=n.to_user||'(no assignee)';
+    if(!byRep[rep])byRep[rep]=[];
+    byRep[rep].push(n);
+  });
 
-  let inserted=0;
-  if(fresh.length){
-    const{error}=await sb.from('notifications').insert(fresh);
-    if(error){toast('Error: '+error.message,'err');}
-    else inserted=fresh.length;
-  }
-  // For resends: INSERT a new record (preserves full send history)
-  for(const n of resend){
-    await sb.from('notifications').insert({
-      type:n.type, title:n.title, message:n.message,
-      from_user:n.from_user, to_user:n.to_user,
-      related_page:n.related_page, related_id:n.related_id,
-    });
-  }
+  const stageLbls={no_action:'No Action',hqpo_delay:'Awaiting Shipment',col_delay:'Collection Pending',col_setup:'Collection Incomplete'};
+  const repRows=Object.entries(byRep).map(([rep,items])=>`
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:800;color:var(--blue);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">→ @${esc(rep)}</div>
+      ${items.map(n=>{
+        const m=n._meta||{};
+        return`<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:${m.isResend?'#fef2f2':'#f0fdf4'};border-radius:6px;margin-bottom:3px;font-size:12px">
+          <span>${m.isResend?'🔴':'🟡'}</span>
+          <span style="font-weight:700;color:var(--blue)">${esc(m.num||'')}</span>
+          <span style="color:var(--g500)">${esc(stageLbls[m.stage]||m.stage)}</span>
+          ${m.stageDays?`<span style="background:#fef3c7;color:#92400e;padding:0 5px;border-radius:3px;font-size:10px">${m.stageDays}d</span>`:''}
+          <span style="margin-left:auto;font-size:10px;color:${m.isResend?'#dc2626':'#059669'};font-weight:700">${m.isResend?'⚠️ Re-alert':'🆕 First alert'}</span>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
 
-  const parts=[];
-  if(inserted) parts.push(inserted+'건 신규 발송');
-  if(resend.length) parts.push(resend.length+'건 재발송(미응답)');
-  if(!parts.length){toast('✅ 모든 알림이 이미 발송되었고 미응답 건이 없습니다');await loadNotifications();return;}
-  toast('📢 '+parts.join(', '),'err');
-  await loadNotifications();
+  const newCount=toInsert.filter(n=>!n._meta?.isResend&&!n._meta?.isAdminCopy).length;
+  const reCount=toInsert.filter(n=>n._meta?.isResend&&!n._meta?.isAdminCopy).length;
+
+  openModal(`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="font-size:28px">⚠️</div>
+      <div>
+        <div style="font-size:15px;font-weight:800;color:var(--g900)">Delay Alert Preview</div>
+        <div style="font-size:12px;color:var(--g500);margin-top:2px">
+          ${newCount?`<span style="color:#059669;font-weight:700">🆕 ${newCount} new</span>`:''}
+          ${newCount&&reCount?' · ':''}
+          ${reCount?`<span style="color:#dc2626;font-weight:700">⚠️ ${reCount} re-alerts</span>`:''}
+          — Review before sending
+        </div>
+      </div>
+    </div>
+    <div style="max-height:340px;overflow-y:auto;border:1px solid var(--g100);border-radius:8px;padding:10px;background:#fafafa;margin-bottom:14px">
+      ${repRows}
+    </div>
+    <div style="font-size:11px;color:var(--g400);background:#fff8e1;border:1px solid #fcd34d;border-radius:6px;padding:8px 10px;margin-bottom:14px">
+      ⚡ ${toInsert.length}개 알림이 발송됩니다. Sales Rep들이 Messages에서 확인하게 됩니다.
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:8px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
+      <button onclick="closeModal();_executeDelayAlerts(${JSON.stringify(toInsert).replace(/"/g,'&quot;')})" style="padding:9px 22px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✅ Send ${toInsert.filter(n=>!n._meta?.isAdminCopy).length} Alerts</button>
+    </div>
+  `, 'Send Delay Alerts');
 }
+
+async function _executeDelayAlerts(toInsert){
+  if(typeof toInsert==='string') toInsert=JSON.parse(toInsert);
+  showPageLoading('Sending alerts...');
+  const existIds=new Set();  // already cleared, fresh send
+  // Remove _meta field before inserting
+  const clean=toInsert.map(({_meta,...rest})=>rest);
+  const{error}=await sb.from('notifications').insert(clean);
+  hidePageLoading();
+  if(error){toast('Error: '+error.message,'err');return;}
+  const cnt=clean.filter(n=>n.to_user!==null).length;
+  toast('✅ '+cnt+'개 알림 발송 완료');
+  await loadNotifications();
+  navigateTo('dashboard');
+}
+
 
 // ── DELAY RESPONSE FORM ───────────────────────────────────────────────────────
 function openDelayResponse(notifId, piNumber, stage){
