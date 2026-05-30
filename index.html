@@ -550,10 +550,7 @@ tr[data-paid="true"] td{opacity:.55}
   background:#fafafa;position:sticky;top:0;z-index:1;flex-shrink:0;
   border-bottom:1px solid var(--g100)
 }
-#notif-right{
-  flex:1;display:flex;flex-direction:column;overflow:hidden;
-  background:#fff;min-width:0
-}
+#notif-right{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0}
 /* Mobile: stack top/bottom, both always visible */
 @media(max-width:700px){
   #notif-body{flex-direction:column}
@@ -1249,7 +1246,7 @@ tr[data-paid="true"] td{opacity:.55}
           <div id="thread-header" style="padding:10px 14px;border-bottom:1px solid var(--g100);font-size:13px;font-weight:700;color:var(--g700);background:#fff;flex-shrink:0;display:flex;align-items:center;gap:8px">
             <span id="thread-title" style="flex:1">💬 Messages</span>
           </div>
-          <div id="thread-messages" style="flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:6px;min-height:60px"></div>
+          <div id="thread-messages" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:12px 16px;display:flex;flex-direction:column;gap:4px;min-height:0;-webkit-overflow-scrolling:touch"></div>
           <div id="thread-reply" style="padding:8px 12px;border-top:1px solid var(--g100);background:#fff;flex-shrink:0">
             <div id="thread-reply-inner" style="display:flex;gap:6px;align-items:flex-end">
               <!-- content injected by setReplyMode() -->
@@ -8524,25 +8521,39 @@ function openConv(key){
 
 function renderMsgThread(el,msgs,me,otherUser){
   if(!msgs.length){
-    el.innerHTML='<div style="text-align:center;color:var(--g300);font-size:13px;margin-top:40px">No messages yet</div>';
+    el.innerHTML='<div style="text-align:center;color:var(--g300);font-size:13px;margin-top:40px">No messages yet<br><span style="font-size:11px;margin-top:6px;display:block">Start the conversation! 👋</span></div>';
     return;
   }
   const role=getRole();
+  const isTeam=otherUser==='__all__';
+
   el.innerHTML=msgs.map(n=>{
     const isOwn=n.from_user===me;
     const canDel=isOwn||role==='admin';
     const ago=fmtAgo(n.created_at);
-    return`<div style="display:flex;flex-direction:column;align-items:${isOwn?'flex-end':'flex-start'};gap:1px">
-      <div style="display:flex;align-items:flex-end;gap:4px;flex-direction:${isOwn?'row-reverse':'row'}">
-        <div style="max-width:72%;padding:8px 12px;border-radius:${isOwn?'14px 14px 4px 14px':'14px 14px 14px 4px'};background:${isOwn?'var(--blue)':'var(--g100)'};color:${isOwn?'#fff':'var(--g900)'};font-size:13px;line-height:1.5;word-break:break-word">
+    const senderName=!isOwn&&isTeam?`<div style="font-size:10px;font-weight:700;color:var(--g400);margin-bottom:2px;padding-left:2px">@${esc(n.from_user||'')}</div>`:'';
+
+    // FIX: width:100% on outer wrapper prevents bubble from shrinking incorrectly
+    return`<div style="width:100%;display:flex;flex-direction:column;align-items:${isOwn?'flex-end':'flex-start'};gap:1px;margin-bottom:2px">
+      ${senderName}
+      <div style="display:flex;align-items:flex-end;gap:6px;flex-direction:${isOwn?'row-reverse':'row'};max-width:86%;min-width:0">
+        <div style="flex:1;min-width:0;padding:10px 14px;border-radius:${isOwn?'18px 18px 4px 18px':'18px 18px 18px 4px'};
+          background:${isOwn?'var(--blue)':'var(--g100)'};color:${isOwn?'#fff':'var(--g900)'};
+          font-size:14px;line-height:1.55;word-break:break-word;overflow-wrap:anywhere">
           ${esc(n.message||n.title||'')}
         </div>
-        ${canDel?`<button onclick="deleteChatMsg('${n.id}','${otherUser||''}')" title="Delete" style="padding:2px 4px;background:none;border:none;font-size:12px;cursor:pointer;color:var(--g300);opacity:0;flex-shrink:0;transition:opacity .15s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">🗑</button>`:''}
+        ${canDel?`<button onclick="deleteChatMsg('${n.id}','${otherUser||''}')"
+          title="Delete message"
+          style="padding:4px 5px;background:none;border:none;font-size:13px;cursor:pointer;
+            color:var(--g300);opacity:0;flex-shrink:0;transition:opacity .15s;line-height:1"
+          onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">🗑</button>`:''}
       </div>
-      <div style="font-size:10px;color:var(--g400);padding:0 4px">${ago}</div>
+      <div style="font-size:10px;color:var(--g400);padding:0 4px;margin-top:1px">${ago}</div>
     </div>`;
   }).join('');
-  el.scrollTop=el.scrollHeight;
+
+  // Always scroll to latest message
+  requestAnimationFrame(()=>{ el.scrollTop=el.scrollHeight; });
 }
 
 async function deleteChatMsg(id,otherUser){
@@ -8551,21 +8562,28 @@ async function deleteChatMsg(id,otherUser){
   const{error}=await sb.from('notifications').delete().eq('id',id);
   if(error){toast('Error: '+error.message,'err');return;}
   _notifData=_notifData.filter(n=>n.id!==id);
-  // Check if conversation is now empty after deletion
-  const remaining=_notifData.filter(n=>n.type==='message'&&(
-    (n.from_user===me&&n.to_user===otherUser)||
-    (n.from_user===otherUser&&n.to_user===me)
-  ));
-  if(remaining.length===0){
-    // Conv is empty — reset and let buildConvList auto-open something else
-    _activeConv=null;
-    buildConvList(); updateBellBadge();
+
+  const isTeam=otherUser==='__all__';
+  let remaining;
+  if(isTeam){
+    // Team Chat: type='team' messages
+    remaining=_notifData.filter(n=>n.type==='team'||n.to_user==='__all__');
   } else {
-    buildConvList(); updateBellBadge();
-    if(otherUser){
-      const msgs=document.getElementById('thread-messages');
-      if(msgs)renderMsgThread(msgs,remaining.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)),me,otherUser);
-    }
+    // 1-on-1 DM
+    remaining=_notifData.filter(n=>n.type==='message'&&(
+      (n.from_user===me&&n.to_user===otherUser)||
+      (n.from_user===otherUser&&n.to_user===me)
+    ));
+  }
+
+  buildConvList(); updateBellBadge();
+
+  if(remaining.length===0&&!isTeam){
+    _activeConv=null; // DM is empty, reset
+    buildConvList();
+  } else {
+    const msgEl=document.getElementById('thread-messages');
+    if(msgEl) renderMsgThread(msgEl,remaining.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)),me,otherUser);
   }
 }
 
