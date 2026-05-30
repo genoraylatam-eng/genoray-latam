@@ -8128,7 +8128,8 @@ function applyPermissions(){
 function updateReadOnlyIndicator(){
   if(!_userPerms)return;
   const page=activePage||'dashboard';
-  const perm=_userPerms['perm_'+page]||'view';
+  // Pages where the edit/view concept doesn't apply — hide the badge
+  const NO_BADGE_PAGES=['notifications','help','goals','pricing','distributors','products'];
   const isAdmin=_userPerms.role==='admin'||ADMIN_USERS.includes(getAuth()||'');
   let badge=document.getElementById('perm-badge');
   if(!badge){
@@ -8138,6 +8139,12 @@ function updateReadOnlyIndicator(){
     const tbRight=document.querySelector('.tb-right');
     if(tbRight)tbRight.insertBefore(badge,tbRight.firstChild);
   }
+  // Hide badge on pages where it doesn't make sense
+  if(NO_BADGE_PAGES.includes(page)){
+    badge.textContent=''; badge.style.display='none'; return;
+  }
+  badge.style.display='';
+  const perm=_userPerms['perm_'+page]||'view';
   if(isAdmin){
     badge.textContent='ADMIN'; badge.style.background='#f59e0b'; badge.style.color='#fff';
   } else if(perm==='edit'){
