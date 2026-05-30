@@ -5224,9 +5224,9 @@ const FORMS={
 
     <div class="fg full"><label style="font-weight:700;color:var(--g700)">Payment Schedule (auto-calculated, editable)</label></div>
     ${[1,2,3].map(i=>`
-    <div class="fg"><label>${i===1?'1st (Advance)':'Installment #'+i+' (Balance)'} Amount</label><input type="number" name="pay${i}_amount" id="col-p${i}a" value="${d['pay'+i+'_amount']||''}" oninput="colRecalcBalance()"></div>
-    <div class="fg"><label>${i}th Due Date</label><input type="date" name="pay${i}_due" value="${d['pay'+i+'_due']||''}"></div>
-    <div class="fg"><label>${i}th Actual Collection Date</label><input type="date" name="pay${i}_date" value="${d['pay'+i+'_date']||''}"></div>
+    <div class="fg"><label>${i===1?'1st':i===2?'2nd':i===3?'3rd':i+'th'} ${i===1?'(Advance)':'(Balance)'} Amount</label><input type="number" name="pay${i}_amount" id="col-p${i}a" value="${d['pay'+i+'_amount']||''}" oninput="colRecalcBalance()"></div>
+    <div class="fg"><label>${i===1?'1st':i===2?'2nd':i===3?'3rd':i+'th'} Due Date</label><input type="date" name="pay${i}_due" value="${d['pay'+i+'_due']||''}"></div>
+    <div class="fg"><label>${i===1?'1st':i===2?'2nd':i===3?'3rd':i+'th'} Actual Collection Date</label><input type="date" name="pay${i}_date" value="${d['pay'+i+'_date']||''}"></div>
     `).join('')}
 
     <div class="fg"><label>Collected (Total Received)</label><input type="number" name="collected_amount_usd" id="col-collected" value="${d.collected_amount_usd||''}" oninput="colRecalcBalance()"></div>
@@ -5520,8 +5520,8 @@ async function saveForm(){
     // If any installment has an amount, it must also have a due date (and vice-versa)
     for(let i=1;i<=3;i++){
       const amt=data['pay'+i+'_amount'], due=data['pay'+i+'_due'];
-      if(amt&&!due) miss.push(`${i}th Due Date`);
-      if(due&&!amt) miss.push(`${i}th Amount`);
+      if(amt&&!due) miss.push(`${i===1?'1st':i===2?'2nd':i===3?'3rd':i+'th'} Due Date`);
+      if(due&&!amt) miss.push(`${i===1?'1st':i===2?'2nd':i===3?'3rd':i+'th'} Amount`);
     }
     if(miss.length){
       toast('⚠️ Required: '+miss.join(', '),'err');
