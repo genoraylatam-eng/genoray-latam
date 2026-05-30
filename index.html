@@ -1581,7 +1581,8 @@ window.addEventListener('load',function(){if(typeof emailjs!=='undefined'){email
 // ── AUTH STORAGE (uses both session + local storage for reliability) ──────────
 function getAuth(){ return sessionStorage.getItem('gl_auth')||localStorage.getItem('gl_auth')||null; }
 function getRole(){ return sessionStorage.getItem('gl_role')||localStorage.getItem('gl_role')||'user'; }
-function setAuth(u,r){ 
+function setAuth(u,r){
+  _autoAlertFired=false; // reset on each login so alerts auto-fire on first Messages visit 
   sessionStorage.setItem('gl_auth',u); localStorage.setItem('gl_auth',u);
   sessionStorage.setItem('gl_role',r); localStorage.setItem('gl_role',r);
 }
@@ -8211,7 +8212,15 @@ async function loadNotifications(){
   _delayResponses=responses||[];
   updateBellBadge();
   if(activePage==='notifications') renderNotifications();
+
+  // ── Auto-send alerts on first Messages page load (if admin and not yet run this session) ──
+  if(activePage==='notifications'&&!_autoAlertFired&&(getRole()==='admin'||ADMIN_USERS.includes(getAuth()))){
+    _autoAlertFired=true;
+    setTimeout(()=>_autoSendDelayAlerts(),800); // small delay so page renders first
+  }
 }
+
+let _autoAlertFired=false; // reset to false on new login
 
 function updateBellBadge(){
   const me=getAuth();
