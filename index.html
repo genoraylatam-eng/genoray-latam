@@ -10648,14 +10648,15 @@ function initAutoScheduler(){
   console.log('[AutoScheduler] ✅ Initialized — fires at 8AM and 5PM US Eastern');
 }
 // ── Unread Alert Reminder System ──────────────────────────────────────────
-// Runs every 15 min. Alerts unread for >4h trigger a DM from Admin to recipient.
+// ── Unread Alert Reminder — ONE consolidated DM per user, not one per alert ──
+// Checks every 15 min. If a user has ≥1 alert unread for >4h, sends ONE DM
+// summarising the total count. Resends every 4h if still unread.
 let _unreadReminderInited=false;
-let _remindersSentThisSession={}; // key: alertId → last reminder timestamp
+let _reminderSentPerUser={}; // key: username → last reminder timestamp (session cache)
 
 function initUnreadAlertReminder(){
   if(_unreadReminderInited)return;
   _unreadReminderInited=true;
-  // Run immediately, then every 15 min
   _checkUnreadAlerts();
   setInterval(_checkUnreadAlerts, 15*60*1000);
   console.log('[UnreadReminder] ✅ Initialized — checks every 15 min');
@@ -10663,88 +10664,94 @@ function initUnreadAlertReminder(){
 
 async function _checkUnreadAlerts(){
   const me=getAuth(); if(!me)return;
-  const role=getRole();
-  // Only admin users run the sender side
-  if(role!=='admin')return;
+  if(getRole()!=='admin')return;
 
-  // Get all unread alerts sent to other users
   const now=Date.now();
   const FOUR_HOURS=4*60*60*1000;
-  const REMIND_INTERVAL=4*60*60*1000; // resend every 4h if still unread
+  const REMIND_INTERVAL=4*60*60*1000; // resend reminder every 4h if still unread
 
-  // Fetch fresh notifications
+  // Fetch all current alerts
   const{data:alerts}=await sb.from('notifications')
-    .select('id,type,title,to_user,from_user,created_at,read_by,related_id')
+    .select('id,to_user,from_user,created_at,read_by,related_id')
     .eq('type','alert');
   if(!alerts||!alerts.length)return;
 
-  // Find admin sender — first active admin that is NOT current user
+  // Find admin sender (first admin that is NOT current user)
   const{data:admins}=await sb.from('user_permissions')
     .select('username,display_name')
-    .eq('role','admin')
-    .eq('is_active',true);
+    .eq('role','admin').eq('is_active',true);
   const senderAdmin=(admins||[]).find(a=>a.username!==me);
   const senderUsername=senderAdmin?.username||'admin';
   const senderDisplay=senderAdmin?.display_name||'Admin';
 
-  const toSend=[];
-
+  // ── Group unread alerts (>4h old) by recipient user ──────────────────────
+  const unreadByUser={}; // { username: [ ...alertRows ] }
   for(const n of alerts){
-    if(!n.to_user)continue; // skip broadcast alerts
-    if(n.from_user===n.to_user)continue; // skip self-alerts
-    const readBy=n.read_by||[];
-    const isRead=readBy.includes(n.to_user);
-    if(isRead)continue; // already read — skip
-
+    if(!n.to_user||n.from_user===n.to_user)continue;
+    if((n.read_by||[]).includes(n.to_user))continue; // already read
     const ageMs=now-new Date(n.created_at).getTime();
-    if(ageMs<FOUR_HOURS)continue; // too recent
+    if(ageMs<FOUR_HOURS)continue; // too fresh
+    if(!unreadByUser[n.to_user])unreadByUser[n.to_user]=[];
+    unreadByUser[n.to_user].push(n);
+  }
 
-    // Check if we already sent a reminder for this alert recently
-    const lastReminderAt=_remindersSentThisSession[n.id]||0;
-    if(now-lastReminderAt<REMIND_INTERVAL)continue;
+  const usersToRemind=Object.keys(unreadByUser);
+  if(!usersToRemind.length){
+    console.log('[UnreadReminder] All alerts read — nothing to send');
+    return;
+  }
 
-    // Check DB: did we already send a DM reminder for this alert in the last 4h?
+  for(const targetUser of usersToRemind){
+    const userAlerts=unreadByUser[targetUser];
+    const count=userAlerts.length;
+
+    // Session-level throttle (avoid hitting DB on every 15-min cycle)
+    const lastSession=_reminderSentPerUser[targetUser]||0;
+    if(now-lastSession<REMIND_INTERVAL)continue;
+
+    // DB-level throttle: check if we sent a consolidated reminder in last 4h
     const{data:existing}=await sb.from('notifications')
       .select('id,created_at')
       .eq('type','message')
       .eq('from_user',senderUsername)
-      .eq('to_user',n.to_user)
-      .eq('related_id','unread_reminder_'+n.id)
+      .eq('to_user',targetUser)
+      .eq('related_id','bulk_unread_reminder')
       .order('created_at',{ascending:false})
       .limit(1);
 
-    if(existing&&existing.length>0){
+    if(existing&&existing.length){
       const lastSentAt=new Date(existing[0].created_at).getTime();
-      if(now-lastSentAt<REMIND_INTERVAL)continue; // sent recently — skip
+      if(now-lastSentAt<REMIND_INTERVAL)continue; // sent recently
     }
 
-    toSend.push(n);
-  }
+    // ── Build ONE consolidated message ────────────────────────────────────
+    // Find the oldest unread alert's age for context
+    const oldestMs=Math.max(...userAlerts.map(n=>now-new Date(n.created_at).getTime()));
+    const oldestH=Math.floor(oldestMs/3600000);
 
-  if(!toSend.length){
-    console.log('[UnreadReminder] No unread alerts to remind');
-    return;
-  }
+    const msg=
+      'Hi @'+targetUser+',\n\n'+
+      '\u26a0\ufe0f You have '+count+' unread System Alert'+(count>1?'s':'')+
+      ' that '+(count>1?'have':'has')+' been waiting for over '+oldestH+' hour'+(oldestH!==1?'s':'')+
+      '.\n\nPlease open the Alerts tab in COMPASS right now, review each alert, and respond with your action plan.'+
+      '\n\nQuick access \u2192 Messages \u2192 Alerts tab\n\n'+
+      '\u2014 '+senderDisplay+' (Admin)';
 
-  console.log('[UnreadReminder] Sending',toSend.length,'reminder(s)...');
-
-  for(const n of toSend){
-    const ageH=Math.floor((now-new Date(n.created_at).getTime())/3600000);
-    const piRef=n.related_id?(n.related_id.split('_').slice(0,-1).join('_')||n.related_id):'';
     const{error}=await sb.from('notifications').insert({
       type:'message',
-      title:'⚠️ Unread Alert Reminder',
-      message:'Hi @'+n.to_user+',\n\nYou have an unread System Alert'+(piRef?' for '+piRef:'')+' that has been waiting for '+ageH+' hour'+(ageH!==1?'s':'')+'.\n\nPlease check your Alerts tab and respond with your action plan.\n\n— '+senderDisplay+' (Admin)',
+      title:'⚠️ '+count+' Unread Alert'+(count>1?'s':'')+' — Action Required',
+      message:msg,
       from_user:senderUsername,
-      to_user:n.to_user,
-      related_id:'unread_reminder_'+n.id,
+      to_user:targetUser,
+      related_id:'bulk_unread_reminder',
       related_page:'notifications',
     });
+
     if(!error){
-      _remindersSentThisSession[n.id]=now;
-      console.log('[UnreadReminder] ✅ Sent reminder to @'+n.to_user+' for alert',n.id);
+      _reminderSentPerUser[targetUser]=now;
+      console.log('[UnreadReminder] ✅ Sent consolidated reminder ('+count+' alerts) → @'+targetUser);
     } else {
-      console.warn('[UnreadReminder] ❌ Failed:',error.message);
+      console.warn('[UnreadReminder] ❌',error.message);
     }
   }
 }
