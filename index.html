@@ -9314,6 +9314,21 @@ function buildConvList(){
           const initial=recipName[0].toUpperCase();
           const colors=['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#ef4444','#6366f1'];
           const avatarColor=colors[toUser.charCodeAt(0)%colors.length];
+
+          // ── Read/Unread status of latest message ────────────────────────
+          // "Read" = recipient's username is in read_by of the latest msg
+          const lastReadBy=last?.read_by||[];
+          const recipientRead=lastReadBy.includes(toUser);
+          // Count total unread msgs (not read by recipient)
+          const unreadCount=msgs.filter(n=>!(n.read_by||[]).includes(toUser)).length;
+          const readStatusBadge=recipientRead
+            ?`<span style="font-size:9px;font-weight:700;color:#16a34a;background:#f0fdf4;
+                padding:1px 6px;border-radius:8px;white-space:nowrap;flex-shrink:0">✓ Read</span>`
+            :`<span style="font-size:9px;font-weight:700;color:#dc2626;background:#fef2f2;
+                padding:1px 6px;border-radius:8px;white-space:nowrap;flex-shrink:0">
+                ● Unread${unreadCount>1?' ('+unreadCount+')':''}
+              </span>`;
+
           return`<div onclick="openConv('${key}')"
             style="display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;
               background:${act?'#7c3aed':'transparent'};color:${act?'#fff':'var(--g900)'};
@@ -9328,12 +9343,12 @@ function buildConvList(){
                 font-size:8px;color:#fff;font-weight:800">A</div>
             </div>
             <div style="flex:1;min-width:0">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:2px">
-                <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">@${esc(recipName)}</span>
-                <span style="font-size:10px;opacity:.5">${msgs.length} msg${msgs.length>1?'s':''}</span>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:3px">
+                <span style="font-size:13px;font-weight:${recipientRead?500:700};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">@${esc(recipName)}</span>
+                ${!act?readStatusBadge:''}
               </div>
               <div style="font-size:11px;opacity:.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                <span style="color:#7c3aed;font-weight:600">Admin →</span> ${preview}
+                <span style="color:${act?'rgba(255,255,255,.7)':'#7c3aed'};font-weight:600">Admin →</span> ${preview}
               </div>
             </div>
           </div>`;
