@@ -1185,7 +1185,7 @@ tr[data-paid="true"] td{opacity:.55}
           <div class="nlsec-hdr">
             <span>Conversations</span>
             <span id="conv-unread-total" style="display:none;background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px">0</span>
-            <span style="margin-left:auto;font-size:9px;color:var(--g300);font-weight:400;letter-spacing:0" title="🔴 Unread  🟡 Read but needs your response">🔴🟡</span>
+            <span style="margin-left:auto;cursor:help;font-size:11px;opacity:.5" title="🔴 Unread — not seen yet&#10;🟡 Read — waiting for your response">ℹ️</span>
           </div>
           <div id="conv-items" style="flex:1;overflow-y:auto;padding-bottom:8px"></div>
         </div>
@@ -8206,7 +8206,12 @@ function buildConvList(){
 
   // 2. Announcements — unread only (regular read logic)
   const anns=_notifData.filter(n=>n.to_user===null&&n.type!=='alert');
-  const annUnread=anns.filter(n=>!(n.read_by||[]).includes(me)&&n.from_user!==me).length;
+  // Only count announcements FROM others (not from me, not from system admin escalations)
+  const annUnread=anns.filter(n=>
+    n.from_user!==me&&
+    n.from_user!=='system'&&
+    !(n.read_by||[]).includes(me)
+  ).length;
   if(anns.length) convs.push({key:'announcements',icon:'📢',label:'Announcements',unread:annUnread,needsReply:0,type:'announcements'});
 
   // 3. Per-person conversations — RECEIVED UNREAD ONLY (like WhatsApp/iMessage)
@@ -8305,10 +8310,21 @@ function openConv(key){
     }
     renderAlertThread(msgs);
   } else if(key==='announcements'){
-    header.innerHTML='<span>📢 Announcements</span>';
+    header.innerHTML=`<span style="display:flex;align-items:center;gap:8px;width:100%">
+      <span>📢 Announcements</span>
+      ${getRole()==='admin'?'<button onclick="deleteAllAnnouncements()" style="margin-left:auto;padding:2px 8px;font-size:10px;border:1px solid var(--g200);border-radius:5px;background:#fff;color:var(--g500);cursor:pointer">🗑 Clear All</button>':''}
+    </span>`;
     if(replyBox)replyBox.style.display='none';
-    const anns=_notifData.filter(n=>n.to_user===null&&n.type!=='alert');
-    renderMsgThread(msgs,anns,me,null);
+    const anns=_notifData.filter(n=>n.to_user===null&&n.type!=='alert')
+      .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+    // Mark unread announcements FROM others as read (local-first)
+    const toRead=anns.filter(n=>n.from_user!==me&&!(n.read_by||[]).includes(me));
+    if(toRead.length){
+      toRead.forEach(n=>{n.read_by=[...(n.read_by||[]),me];});
+      buildConvList(); updateBellBadge();
+      toRead.forEach(n=>sb.from('notifications').update({read_by:n.read_by}).eq('id',n.id));
+    }
+    renderAnnThread(msgs,anns,me);
   } else if(key.startsWith('user:')){
     const user=key.slice(5);
     header.innerHTML=`<span>💬 @${esc(user)}</span>`;
@@ -8344,6 +8360,67 @@ function renderMsgThread(el,msgs,me,otherUser){
     return`<div style="display:flex;flex-direction:column;align-items:${isOwn?'flex-end':'flex-start'};gap:2px">
       <div style="max-width:75%;padding:8px 12px;border-radius:${isOwn?'14px 14px 4px 14px':'14px 14px 14px 4px'};background:${isOwn?'var(--blue)':'var(--g100)'};color:${isOwn?'#fff':'var(--g900)'};font-size:13px;line-height:1.5;word-break:break-word">
         ${esc(n.message||n.title||'')}
+      </div>
+      <div style="font-size:10px;color:var(--g400);padding:0 4px">${ago}</div>
+    </div>`;
+  }).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+async function deleteAllAnnouncements(){
+  const me=getAuth();
+  if(!confirm('Delete all announcements? This cannot be undone.'))return;
+  const anns=_notifData.filter(n=>n.to_user===null&&n.type!=='alert');
+  if(!anns.length){toast('No announcements to delete');return;}
+  const ids=anns.map(n=>n.id);
+  const{error}=await sb.from('notifications').delete().in('id',ids);
+  if(error){toast('Error: '+error.message,'err');return;}
+  _notifData=_notifData.filter(n=>!ids.includes(n.id));
+  buildConvList(); updateBellBadge();
+  const msgs=document.getElementById('thread-messages');
+  if(msgs)msgs.innerHTML='<div style="text-align:center;color:var(--g300);font-size:13px;margin-top:40px">No announcements</div>';
+  toast('✅ All announcements deleted');
+}
+
+async function deleteOneAnn(id){
+  const me=getAuth();
+  const n=_notifData.find(x=>x.id===id); if(!n)return;
+  const isOwn=n.from_user===me;
+  const canDelete=isOwn||getRole()==='admin';
+  if(!canDelete){toast('Only the sender or admin can delete announcements','err');return;}
+  if(!confirm('Delete this announcement?'))return;
+  const{error}=await sb.from('notifications').delete().eq('id',id);
+  if(error){toast('Error: '+error.message,'err');return;}
+  _notifData=_notifData.filter(x=>x.id!==id);
+  buildConvList(); updateBellBadge();
+  // Re-render
+  const anns=_notifData.filter(n=>n.to_user===null&&n.type!=='alert')
+    .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+  const msgs=document.getElementById('thread-messages');
+  if(msgs) renderAnnThread(msgs,anns,getAuth());
+  toast('✅ Announcement deleted');
+}
+
+function renderAnnThread(el,anns,me){
+  if(!anns||!anns.length){
+    el.innerHTML='<div style="text-align:center;color:var(--g300);font-size:13px;margin-top:40px">No announcements yet</div>';
+    return;
+  }
+  const role=getRole();
+  el.innerHTML=anns.map(n=>{
+    const isOwn=n.from_user===me;
+    const canDelete=isOwn||role==='admin';
+    const ago=fmtAgo(n.created_at);
+    const typeIcon={info:'ℹ️',announcement:'📢',warning:'⚠️',message:'💬'}[n.type]||'📢';
+    // Own messages: right-aligned (same as chat)
+    // Others' messages: left-aligned with delete if admin
+    return`<div style="display:flex;flex-direction:column;align-items:${isOwn?'flex-end':'flex-start'};gap:2px;margin-bottom:2px">
+      ${!isOwn?`<div style="font-size:10px;color:var(--g400);padding:0 4px;font-weight:600">${typeIcon} @${esc(n.from_user||'system')}</div>`:''}
+      <div style="display:flex;align-items:flex-end;gap:5px;flex-direction:${isOwn?'row-reverse':'row'}">
+        <div style="max-width:75%;padding:8px 12px;border-radius:${isOwn?'14px 14px 4px 14px':'14px 14px 14px 4px'};background:${isOwn?'var(--blue)':'var(--g100)'};color:${isOwn?'#fff':'var(--g900)'};font-size:13px;line-height:1.5;word-break:break-word">
+          ${esc(n.message||n.title||'')}
+        </div>
+        ${canDelete?`<button onclick="deleteOneAnn('${n.id}')" title="Delete" style="padding:2px 4px;background:none;border:none;font-size:13px;cursor:pointer;color:var(--g300);opacity:0.5;flex-shrink:0" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5">🗑</button>`:''}
       </div>
       <div style="font-size:10px;color:var(--g400);padding:0 4px">${ago}</div>
     </div>`;
