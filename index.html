@@ -57,7 +57,7 @@ body{display:flex;height:100vh;background:var(--g100);color:var(--g900);font-siz
 #page-title{font-size:17px;font-weight:700}
 .tbadge{background:var(--blue-pale);color:var(--blue);font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;margin-left:8px}
 #content{flex:1;overflow-y:auto;overflow-x:hidden;padding:24px}
-.page{display:none}.page.active{display:flex;flex-direction:column;min-height:0;flex:1}#page-notifications.active{display:flex;flex-direction:column}
+.page{display:none}.page.active{display:flex;flex-direction:column;min-height:0;flex:1}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 @keyframes slideUp{from{transform:translateY(100px);opacity:0}to{transform:translateY(0);opacity:1}}
 /* Hide-completed toggle */
@@ -532,7 +532,7 @@ tr[data-paid="true"] td{opacity:.55}
 .alrt-grp-hdr{display:flex;align-items:center;gap:6px;padding:4px 0;margin-bottom:4px;flex-wrap:wrap}
 
 /* ── NOTIFICATIONS SPLIT LAYOUT ────────────────────────────────────────────── */
-#page-notifications{display:flex;flex-direction:column;overflow:hidden}
+#page-notifications.active{display:flex!important;flex-direction:column;overflow:hidden}
 #notif-body{display:flex;flex:1;overflow:hidden;min-height:0}
 #notif-left{
   width:270px;min-width:180px;flex-shrink:0;
@@ -1212,8 +1212,20 @@ tr[data-paid="true"] td{opacity:.55}
       <!-- Top Bar -->
       <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1.5px solid var(--g100);background:#fff;flex-shrink:0;flex-wrap:wrap">
         <h1 style="font-size:15px;font-weight:800;margin:0;flex:1;min-width:100px">🔔 Messages</h1>
-        <button onclick="runDelayCheck()" style="padding:6px 10px;background:#fef3c7;color:#92400e;border:1.5px solid #fcd34d;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">⚠️ Delays</button>
         <button onclick="openNewMessageForm()" style="padding:6px 12px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">✉️ New</button>
+      </div>
+      <!-- Admin-only Delay Tools Bar (hidden for non-admin) -->
+      <div id="notif-admin-bar" style="display:none;align-items:center;gap:8px;padding:8px 16px;background:linear-gradient(135deg,#1e3a8a,#2563eb);flex-shrink:0;flex-wrap:wrap">
+        <span style="font-size:11px;color:rgba(255,255,255,.7);font-weight:600;flex:1">⚙️ Admin Tools</span>
+        <button onclick="runDelayCheck()" style="padding:5px 12px;background:rgba(255,165,0,.25);color:#fff;border:1.5px solid rgba(255,165,0,.5);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
+          ⚠️ Check Delays
+        </button>
+        <button onclick="if(confirm('미응답 알림을 모두 지금 다시 발송할까요?'))runDelayCheck(false,true)" style="padding:5px 12px;background:rgba(239,68,68,.25);color:#fff;border:1.5px solid rgba(239,68,68,.5);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
+          📢 Resend All
+        </button>
+        <button onclick="openTestEmailForm()" style="padding:5px 12px;background:rgba(255,255,255,.1);color:#fff;border:1.5px solid rgba(255,255,255,.3);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
+          📧 Test Email
+        </button>
       </div>
 
       <!-- Split Body: left list (always visible) + right thread -->
@@ -1395,15 +1407,7 @@ tr[data-paid="true"] td{opacity:.55}
           <div id="admin-delete-badge" style="display:none;background:#ef4444;color:#fff;font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;animation:pulse 2s infinite">
             🔔 <span id="admin-delete-count">0</span> Delete Request
           </div>
-          <button onclick="runDelayCheck()" style="padding:9px 18px;background:rgba(255,165,0,.2);color:#fff;border:1.5px solid rgba(255,165,0,.4);border-radius:var(--rsm);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px">
-            <span style="font-size:15px">⚠️</span> Check Delays
-          </button>
-          <button onclick="if(confirm('미응답 알림을 모두 지금 다시 발송할까요?'))runDelayCheck(false,true)" style="padding:9px 18px;background:rgba(239,68,68,.25);color:#fff;border:1.5px solid rgba(239,68,68,.5);border-radius:var(--rsm);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px">
-            <span style="font-size:15px">📢</span> Resend All
-          </button>
-          <button onclick="openTestEmailForm()" style="padding:9px 18px;background:rgba(255,255,255,.1);color:#fff;border:1.5px solid rgba(255,255,255,.25);border-radius:var(--rsm);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px">
-            <span style="font-size:15px">📧</span> Test Email
-          </button>
+
           <button onclick="openAddUserForm()" style="padding:9px 18px;background:rgba(255,255,255,.15);color:#fff;border:1.5px solid rgba(255,255,255,.35);border-radius:var(--rsm);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px;backdrop-filter:blur(4px)">
             <span style="font-size:15px">➕</span> Add User
           </button>
@@ -8218,6 +8222,12 @@ function setNotifTab(tab){
 let _activeConv=null; // 'user:chris' | 'alerts' | 'announcements'
 
 function renderNotifications(){
+  // Show/hide admin-only tools bar
+  const adminBar=document.getElementById('notif-admin-bar');
+  if(adminBar){
+    const isAdmin=getRole()==='admin'||ADMIN_USERS.includes(getAuth());
+    adminBar.style.display=isAdmin?'flex':'none';
+  }
   buildConvList();
   if(_activeConv) openConv(_activeConv);
 }
