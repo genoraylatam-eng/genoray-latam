@@ -1677,7 +1677,7 @@ async function init(){
     await loadNotifications();
     startRealtimeNotifications();          // live push — no manual refresh needed
     checkUnreadOnLogin();                  // show banner if unread on login
-    setTimeout(()=>runDelayCheck(), 5000); // auto check on login
+    // Auto-send is handled by scheduled EST timer below
     setInterval(checkDeleteAlarm, 60000);
     setInterval(loadNotifications, 30000); // fallback poll every 30s (realtime is primary)
   } catch(err){
@@ -2841,7 +2841,7 @@ async function autoCreateCollection(piNumber, shipAmount){
 
 // ── HIDE COMPLETED TOGGLE ─────────────────────────────────────────────────────
 const _doneState={pi:false, po:false, hqpo:false, shipments:false};
-const _doneLabel={pi:'Completed', po:'Completed', hqpo:'Completed', shipments:'Completed'};
+const _doneLabel={pi:'Completed', po:'Completed', hqpo:'Completed', shipments:'Shipped / Completed'};
 
 function toggleDoneRows(page){
   _doneState[page]=!_doneState[page];
@@ -4440,7 +4440,7 @@ function rowHTML(page,r){
     <td>${r.owner||'-'}</td>
     <td>${repPill(r.pi_number)}</td>${acts}</tr>`;
 
-  if(page==='shipments')return`<tr${st.status==='Completed'?' data-done="true"':''}>
+  if(page==='shipments')return`<tr${(st.status==='Completed'||st.status==='Shipped'||st.status==='In Transit'||st.status==='Arrived')?' data-done="true"':''}>
     <td>${r.shipment_number}</td>
     <td>${r.date||'-'}</td>
     <td>${piLink(r.pi_number,r.pi_number)}</td>
@@ -7798,10 +7798,12 @@ async function runDelayCheck(onlyEscalate=false, forceResend=false){
   showPageLoading('Analysing delays...');
 
   const [piR,poR,hqR,shR,colR,notifR] = await Promise.all([
-    sb.from('pi').select('pi_number,date,distributor,sales_rep,status').neq('status','Cancelled'),
+    // ⚠️ Exclude Completed + Cancelled PIs — they don't need alerts
+    sb.from('pi').select('pi_number,date,distributor,sales_rep,status')
+      .neq('status','Cancelled').neq('status','Completed'),
     sb.from('po').select('pi_number,date'),
-    sb.from('hq_po').select('pi_number,date'),
-    sb.from('shipments').select('pi_number,date'),
+    sb.from('hq_po').select('pi_number'),              // issue_date not needed, just existence
+    sb.from('shipments').select('pi_number,date,status'), // include status to handle Preparing
     sb.from('collections').select('pi_number,status,invoice_amount_usd,collected_amount_usd,pay1_amount,bl_date'),
     sb.from('notifications').select('related_id,created_at,read_by,from_user').eq('type','alert'),
   ]);
@@ -7820,7 +7822,10 @@ async function runDelayCheck(onlyEscalate=false, forceResend=false){
 
   const poSet=new Set(poRows.map(r=>r.pi_number));
   const hqSet=new Set(hqRows.map(r=>r.pi_number));
-  const shSet=new Set(shRows.filter(r=>r.date).map(r=>r.pi_number));
+  // shSet = PIs with ANY shipment record (even Preparing/no date) → prevents false hqpo_delay
+  const shSet=new Set(shRows.map(r=>r.pi_number));
+  // shDateSet = PIs with an ACTUAL shipped date (for col_delay calculation)
+  const shDateSet=new Set(shRows.filter(r=>r.date&&r.status!=='Preparing').map(r=>r.pi_number));
   const colOk=new Set(colRows.filter(r=>r.status==='Collected').map(r=>r.pi_number));
   const today=new Date(); today.setHours(0,0,0,0);
   const dayDiff=(d)=>Math.floor((today-new Date(d))/86400000);
@@ -7831,14 +7836,19 @@ async function runDelayCheck(onlyEscalate=false, forceResend=false){
     if(!p.date)continue;
     const num=p.pi_number, rep=p.sales_rep||null, dist=p.distributor||'';
     const dPI=dayDiff(p.date);
+    // Has ANY downstream activity (PO, HQ PO, or Shipment record of any status)
     const hasAnyActivity=poSet.has(num)||hqSet.has(num)||shSet.has(num);
     let stage=null, stageDays=0;
     if(!hasAnyActivity){
+      // NO activity at all → no_action (after 7 days)
       if(dPI>=DELAY_RULES.no_action.days){stage='no_action';stageDays=dPI;}
-    } else if(hasAnyActivity&&!shSet.has(num)){
-      if(dPI>=DELAY_RULES.hqpo_delay.days){stage='hqpo_delay';stageDays=dPI;}
-    } else if(shSet.has(num)&&!colOk.has(num)){
-      const sr=shRows.find(r=>r.pi_number===num&&r.date);
+    } else if(hasAnyActivity&&!shDateSet.has(num)){
+      // Has PO/HQ/Shipment but NO actual shipped date (may be Preparing — skip hqpo_delay)
+      // Only flag hqpo_delay if there is NO shipment record at all
+      if(!shSet.has(num)&&dPI>=DELAY_RULES.hqpo_delay.days){stage='hqpo_delay';stageDays=dPI;}
+    } else if(shDateSet.has(num)&&!colOk.has(num)){
+      // Shipped (has date, not Preparing) but not collected → col_delay after 30d
+      const sr=shRows.find(r=>r.pi_number===num&&r.date&&r.status!=='Preparing');
       if(sr){const d=dayDiff(sr.date);if(d>=DELAY_RULES.col_delay.days){stage='col_delay';stageDays=d;}}
     }
     if(!stage)continue;
@@ -7867,8 +7877,12 @@ async function runDelayCheck(onlyEscalate=false, forceResend=false){
     }
   }
 
+  // completedPISet: original all PIs to check col_setup exclusions
+  const completedPINumbers=new Set((piR.data||[]).map(p=>p.pi_number));  // already excludes Completed+Cancelled
   for(const c of colRows){
     const num=c.pi_number; if(!num)continue;
+    // Skip col_setup if PI is not in our active PI set (Completed/Cancelled)
+    if(!completedPINumbers.has(num))continue;
     const inv=parseFloat(c.invoice_amount_usd||0);
     const got=parseFloat(c.collected_amount_usd||0);
     const needsSetup=!c.pay1_amount&&!c.bl_date;
@@ -8305,21 +8319,20 @@ function buildConvList(){
   // Render conversation items in left panel
   el.innerHTML=convs.map(c=>{
     const isActive=_activeConv===c.key;
-    const hasAny=(c.unread||0)+(c.needsReply||0)>0;
+    const hasAny=(isActive?0:(c.unread||0))+(c.needsReply||0)>0;
     const bg=isActive?'var(--blue)':'transparent';
     const col=isActive?'#fff':'var(--g900)';
 
-    // Badge rendering — different colors for unread vs needs-reply
+    // Badge: red when unread, nothing when all read (active conv always shows 0)
     let badges='';
     if(isActive){
-      // On active item: white badges
-      if(c.unread) badges+=`<span style="background:rgba(255,255,255,.35);color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0">${c.unread}</span>`;
-      if(c.needsReply) badges+=`<span style="background:rgba(255,255,255,.25);color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0;margin-left:2px">${c.needsReply}</span>`;
+      // Active: show nothing (already reading it)
+      if(c.needsReply) badges+=`<span style="background:rgba(255,255,255,.25);color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0">${c.needsReply}</span>`;
     } else {
-      // 🔴 unread (new messages, haven't seen yet)
-      if(c.unread) badges+=`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0" title="Unread">${c.unread}</span>`;
-      // 🟡 needs reply (read but no response given)
-      if(c.needsReply) badges+=`<span style="background:#f59e0b;color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0;margin-left:2px" title="Read — awaiting your response">${c.needsReply}</span>`;
+      // Inactive: 🔴 only if truly unread
+      if((c.unread||0)>0) badges+=`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0">${effectiveUnread}</span>`;
+      // 🟡 needs reply (alerts only)
+      if(c.needsReply>0) badges+=`<span style="background:#f59e0b;color:#fff;font-size:9px;font-weight:800;min-width:18px;text-align:center;padding:1px 5px;border-radius:8px;flex-shrink:0;margin-left:2px">${c.needsReply}</span>`;
     }
 
     const preview=c.type==='user'&&c.last?esc((c.last.message||c.last.title||'').slice(0,35)):'';
