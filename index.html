@@ -532,7 +532,7 @@ tr[data-paid="true"] td{opacity:.55}
 .alrt-grp-hdr{display:flex;align-items:center;gap:6px;padding:4px 0;margin-bottom:4px;flex-wrap:wrap}
 
 /* ── NOTIFICATIONS SPLIT LAYOUT ────────────────────────────────────────────── */
-#page-notifications.active{display:flex!important;flex-direction:column;overflow:hidden}
+#page-notifications.active{display:flex;flex-direction:column;overflow:hidden;min-height:0;flex:1}
 #notif-body{display:flex;flex:1;overflow:hidden;min-height:0}
 #notif-left{
   width:270px;min-width:180px;flex-shrink:0;
@@ -1732,16 +1732,23 @@ const PAGE_TITLES={dashboard:'Dashboard',pipeline:'Pipeline & Backlog',report:'R
 function navigateTo(p){
   if(!p)return;
   activePage=p;
+  // Nav items
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   const navEl=document.querySelector('.nav-item[data-page="'+p+'"]');
   if(navEl)navEl.classList.add('active');
-  document.querySelectorAll('.page').forEach(pg=>pg.classList.remove('active'));
+  // Pages — remove active AND explicitly hide via inline style to beat any CSS conflicts
+  document.querySelectorAll('.page').forEach(pg=>{
+    pg.classList.remove('active');
+    pg.style.display='none';
+  });
   const pageEl=document.getElementById('page-'+p);
-  if(pageEl)pageEl.classList.add('active');
+  if(pageEl){
+    pageEl.classList.add('active');
+    pageEl.style.display='flex'; // explicit override
+  }
   const titleEl=document.getElementById('page-title');
   if(titleEl)titleEl.textContent=PAGE_TITLES[p]||p;
   if(window.innerWidth<=768){ closeSidebar(); updateBottomNav(p); }
-  // Always hide any stuck loading overlay before switching pages
   hidePageLoading();
   loadPage(p);
 }
@@ -7147,9 +7154,7 @@ async function generatePriceListPDF(dist){
   .sig{margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:36px}
   .sig-b{border-top:1px solid #cbd5e1;padding-top:6px;font-size:9px;color:#64748b}
   @media print{body{width:8.5in}}
-/* ── MESSENGER ── */
-#page-notifications.active { display: block !important; }
-#page-notifications > div { height: 100%; }
+/* ── MESSENGER CSS MOVED TO GLOBAL STYLE ── */
 </style></head><body><div class="page">
   <div class="header">
     <div class="logo"><h1>GENORAY</h1><div class="sub">${co.name}</div><div class="addr">${co.addr1} ${co.addr2}</div><div class="addr">Tel: ${co.tel} | ${co.web}</div></div>
