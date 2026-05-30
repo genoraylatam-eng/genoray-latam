@@ -1680,7 +1680,7 @@ async function init(){
     masterCache.products=r2.data||[];
     setStatus('Connected');
     loadDash();
-    await loadNotifications();
+    await Promise.all([loadNotifications(), loadAllUsers()]);
     startRealtimeNotifications();          // live push — no manual refresh needed
     checkUnreadOnLogin();                  // show banner if unread on login
     initAutoScheduler();                   // start 8AM/5PM EST auto-send scheduler
@@ -8185,7 +8185,7 @@ async function sendRecordMessage(page, recordId, recordLabel){
 }
 
 // ── MESSAGING ─────────────────────────────────────────────────────────────────
-let _notifTab='all', _notifData=[], _delayResponses=[], _msgView='all';
+let _notifTab='all', _notifData=[], _delayResponses=[], _msgView='all', _allUsers=[];
 let _pipeShowShipped=false; // all|inbox|outbox
 
 const NOTIF_STYLE={
@@ -8195,6 +8195,12 @@ const NOTIF_STYLE={
   message:     {icon:'💬', bg:'#f0fdf4',border:'#bbf7d0'},
   announcement:{icon:'📢', bg:'#faf5ff',border:'#ddd6fe'},
 };
+
+async function loadAllUsers(){
+  const me=getAuth(); if(!me)return;
+  const{data}=await sb.from('user_permissions').select('username,display_name').eq('is_active',true);
+  _allUsers=(data||[]).filter(u=>u.username!==me);
+}
 
 async function loadNotifications(){
   const me=getAuth(); if(!me)return;
@@ -8292,7 +8298,7 @@ function buildConvList(){
   const el=document.getElementById('conv-items');
   if(!el)return;
 
-  // ── Badge counts ──────────────────────────────────────────────────────────
+  // ── System Alerts badges ──────────────────────────────────────────────────
   const alerts=_notifData.filter(n=>n.type==='alert');
   const myAlerts=alerts.filter(n=>n.to_user===me&&n.from_user!==me);
   const alertUnread=myAlerts.filter(n=>!(n.read_by||[]).includes(me)).length;
@@ -8304,54 +8310,44 @@ function buildConvList(){
     !(_delayResponses||[]).some(r=>r.notification_id===n.id)
   ).length;
 
-  // Announcements = to_user null, type != alert
-  const anns=_notifData.filter(n=>n.to_user===null&&n.type!=='alert'&&n.type!=='team');
-  const annUnread=anns.filter(n=>n.from_user!==me&&!(n.read_by||[]).includes(me)).length;
-
-  // Team Chat = type 'team' OR (to_user === '__all__')
+  // ── Team Chat badges ──────────────────────────────────────────────────────
   const teamMsgs=_notifData.filter(n=>n.type==='team'||n.to_user==='__all__');
   const teamUnread=teamMsgs.filter(n=>n.from_user!==me&&!(n.read_by||[]).includes(me)).length;
 
-  // 1-on-1 Direct Messages
-  const myMsgs={};
+  // ── 1-on-1 DM messages (index by other user) ──────────────────────────────
+  const dmIndex={};
   _notifData.filter(n=>
-    n.type==='message'&&
-    n.to_user!==null&&n.to_user!=='__all__'&&
+    n.type==='message'&&n.to_user!==null&&n.to_user!=='__all__'&&
     (n.from_user===me||n.to_user===me)
   ).forEach(n=>{
     const other=n.from_user===me?n.to_user:n.from_user;
     if(!other||other==='system')return;
-    if(!myMsgs[other])myMsgs[other]={msgs:[],unread:0};
-    myMsgs[other].msgs.push(n);
-    if(n.from_user!==me&&n.to_user===me&&!(n.read_by||[]).includes(me)) myMsgs[other].unread++;
+    if(!dmIndex[other])dmIndex[other]={msgs:[],unread:0};
+    dmIndex[other].msgs.push(n);
+    if(n.from_user!==me&&n.to_user===me&&!(n.read_by||[]).includes(me)) dmIndex[other].unread++;
   });
-  const dmList=Object.entries(myMsgs).sort((a,b)=>
-    Math.max(...b[1].msgs.map(n=>+new Date(n.created_at)))-
-    Math.max(...a[1].msgs.map(n=>+new Date(n.created_at)))
-  );
-  const dmUnread=dmList.reduce((s,[,v])=>s+v.unread,0);
 
   // ── Item renderer ─────────────────────────────────────────────────────────
-  function convItem(key,icon,label,unread,needsReply,preview,bgColor){
+  function item(key,icon,label,unread,needsReply,preview,avatarBg,extraStyle){
     const act=_activeConv===key;
     let badge='';
     if(!act){
-      if(unread>0) badge+=`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 7px;border-radius:10px">${unread}</span>`;
-      if(needsReply>0) badge+=`<span style="background:#f59e0b;color:#fff;font-size:9px;font-weight:800;padding:1px 7px;border-radius:10px;margin-left:2px">${needsReply}</span>`;
+      if(unread>0) badge+=`<span style="background:#ef4444;color:#fff;font-size:10px;font-weight:800;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;padding:0 5px">${unread>99?'99+':unread}</span>`;
+      if(needsReply>0) badge+=`<span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:800;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;padding:0 5px;margin-left:2px">${needsReply}</span>`;
     }
     const hasBadge=(unread+needsReply)>0&&!act;
     return`<div onclick="openConv('${key}')"
-      style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;
+      style="display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;
         background:${act?'var(--blue)':'transparent'};color:${act?'#fff':'var(--g900)'};
-        border-bottom:1px solid var(--g100);transition:background .12s"
+        border-bottom:1px solid var(--g100);transition:background .1s;${extraStyle||''}"
       onmouseover="if(!this.style.background.includes('blue'))this.style.background='var(--g50)'"
       onmouseout="if(!this.style.background.includes('blue'))this.style.background='transparent'">
-      <div style="width:40px;height:40px;border-radius:50%;background:${act?'rgba(255,255,255,.2)':bgColor||'var(--g100)'};
-        display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${icon}</div>
+      <div style="width:42px;height:42px;border-radius:50%;background:${act?'rgba(255,255,255,.2)':avatarBg||'var(--g200)'};
+        display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;font-weight:500">${icon}</div>
       <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:4px;justify-content:space-between;margin-bottom:2px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:2px">
           <span style="font-size:13px;font-weight:${hasBadge?700:500};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${label}</span>
-          <span style="display:flex;gap:2px;align-items:center;flex-shrink:0">${badge}</span>
+          <span style="flex-shrink:0;display:flex;gap:2px;align-items:center">${badge}</span>
         </div>
         ${preview?`<div style="font-size:11px;opacity:.55;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</div>`:''}
       </div>
@@ -8360,65 +8356,98 @@ function buildConvList(){
 
   let html='';
 
-  // ── SYSTEM ────────────────────────────────────────────────────────────────
-  html+=`<div style="padding:7px 14px 4px;font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;background:var(--g50)">System</div>`;
-  const alertPrev=alertUnread?`🔴 ${alertUnread} new alerts`:
-    alertNeedsReply?`🟡 ${alertNeedsReply} need your response`:
-    sentPending?`📤 ${sentPending} awaiting reply`:'No new alerts';
-  html+=convItem('alerts','⚠️','System Alerts',alertUnread,alertNeedsReply,alertPrev,'#fef3c7');
+  // ── SECTION: System ───────────────────────────────────────────────────────
+  html+=`<div style="padding:8px 16px 4px;font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;background:var(--g50)">System</div>`;
+  const alertPrev=alertUnread?`🔴 ${alertUnread} new`:alertNeedsReply?`🟡 ${alertNeedsReply} need reply`:sentPending?`📤 ${sentPending} pending`:'No new alerts';
+  html+=item('alerts','⚠️','System Alerts',alertUnread,alertNeedsReply,alertPrev,'#fef3c7');
 
-  // ── ANNOUNCEMENTS — single clickable item with + button inline ────────────
-  // Entire header row IS the clickable item; + opens compose
-  const annAct=_activeConv==='announcements';
-  const lastAnn=[...anns].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];
-  const annPrev=lastAnn?`${lastAnn.from_user===me?'You':'@'+lastAnn.from_user}: ${esc((lastAnn.message||'').slice(0,32))}`:'Tap + to post';
-  const annBadge=annUnread?`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 7px;border-radius:10px">${annUnread}</span>`:'';
-  html+=`<div style="display:flex;align-items:center;padding:7px 14px 4px;background:var(--g50);margin-top:2px">
-    <span style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;flex:1">Announcements</span>
-    ${annBadge}
-    <button onclick="openAnnouncementForm();event.stopPropagation()" title="New Announcement"
-      style="margin-left:6px;width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;border:none;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">+</button>
-  </div>`;
-  html+=convItem('announcements','📢','Announcements',annUnread,0,annPrev,'#e0e7ff');
-
-  // ── DIRECT MESSAGES ───────────────────────────────────────────────────────
-  const dmTotBadge=teamUnread+dmUnread;
-  html+=`<div style="display:flex;align-items:center;padding:7px 14px 4px;background:var(--g50);margin-top:2px">
-    <span style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;flex:1">Direct Messages</span>
-    ${dmTotBadge?`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:10px">${dmTotBadge}</span>`:''}
-    <button onclick="openNewMessageForm();event.stopPropagation()" title="New Chat"
-      style="margin-left:6px;width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;border:none;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">+</button>
+  // ── SECTION: Messages ─────────────────────────────────────────────────────
+  const totalMsgUnread=teamUnread+Object.values(dmIndex).reduce((s,v)=>s+v.unread,0);
+  html+=`<div style="display:flex;align-items:center;padding:8px 16px 4px;background:var(--g50)">
+    <span style="font-size:10px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.07em;flex:1">Messages</span>
+    ${totalMsgUnread?`<span style="background:#ef4444;color:#fff;font-size:9px;font-weight:800;min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:9px;padding:0 5px">${totalMsgUnread}</span>`:''}
   </div>`;
 
-  // Team Chat (group room — all users)
+  // Team Chat (group room — always first)
   const lastTeam=[...teamMsgs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];
-  const teamPrev=lastTeam?`${lastTeam.from_user===me?'You':'@'+lastTeam.from_user}: ${esc((lastTeam.message||'').slice(0,30))}`:'Group chat for all team members';
-  html+=convItem('team','👥','Team Chat (All)',teamUnread,0,teamPrev,'#d1fae5');
+  const teamPrev=lastTeam?(lastTeam.from_user===me?`You: ${esc((lastTeam.message||'').slice(0,30))}`:`@${lastTeam.from_user}: ${esc((lastTeam.message||'').slice(0,28))}`):'Team conversation for all members';
+  html+=item('team','👥','Team Chat',teamUnread,0,teamPrev,'#d1fae5');
 
-  // 1-on-1 chats
-  if(dmList.length){
-    html+=dmList.map(([other,{msgs,unread}])=>{
+  // Divider
+  html+=`<div style="height:1px;background:var(--g100);margin:4px 0"></div>`;
+
+  // All team members (sorted: conversations first, then alphabetical)
+  const allOthers=(_allUsers||[]).filter(u=>u.username!==me);
+  const withConv=allOthers.filter(u=>dmIndex[u.username]).sort((a,b)=>{
+    const la=Math.max(...(dmIndex[a.username]?.msgs||[]).map(n=>+new Date(n.created_at)),0);
+    const lb=Math.max(...(dmIndex[b.username]?.msgs||[]).map(n=>+new Date(n.created_at)),0);
+    return lb-la;
+  });
+  const withoutConv=allOthers.filter(u=>!dmIndex[u.username]).sort((a,b)=>
+    (a.display_name||a.username).localeCompare(b.display_name||b.username)
+  );
+  const allSorted=[...withConv,...withoutConv];
+
+  if(allSorted.length){
+    html+=allSorted.map(u=>{
+      const key='user:'+u.username;
+      const dm=dmIndex[u.username];
+      const displayName=u.display_name||u.username;
+      const initial=displayName[0].toUpperCase();
+      let preview='Tap to chat';
+      let unread=0;
+      if(dm){
+        const last=[...dm.msgs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];
+        preview=last?(last.from_user===me?`You: ${esc((last.message||''). slice(0,30))}`:esc((last.message||'').slice(0,35))):'No messages';
+        unread=dm.unread;
+      }
+      // Avatar: colored circle with initial
+      const colors=['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#ef4444','#6366f1'];
+      const avatarColor=colors[u.username.charCodeAt(0)%colors.length];
+      const avatarBg='transparent'; // we'll override with styled div
+      const act=_activeConv===key;
+      const hasBadge=unread>0&&!act;
+      const badgeEl=unread>0&&!act?`<span style="background:#ef4444;color:#fff;font-size:10px;font-weight:800;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;padding:0 5px">${unread>99?'99+':unread}</span>`:''
+      return`<div onclick="openConv('${key}')"
+        style="display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;
+          background:${act?'var(--blue)':'transparent'};color:${act?'#fff':'var(--g900)'};
+          border-bottom:1px solid var(--g100);transition:background .1s"
+        onmouseover="if(!this.style.background.includes('blue'))this.style.background='var(--g50)'"
+        onmouseout="if(!this.style.background.includes('blue'))this.style.background='transparent'">
+        <div style="width:42px;height:42px;border-radius:50%;background:${act?'rgba(255,255,255,.2)':avatarColor};
+          display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0">${initial}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:2px">
+            <span style="font-size:13px;font-weight:${hasBadge?700:500};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(displayName)}</span>
+            <span style="flex-shrink:0">${badgeEl}</span>
+          </div>
+          <div style="font-size:11px;opacity:.55;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    // Fallback: show existing DM convs if _allUsers not loaded yet
+    const dmOnly=Object.entries(dmIndex).sort((a,b)=>
+      Math.max(...b[1].msgs.map(n=>+new Date(n.created_at)))-Math.max(...a[1].msgs.map(n=>+new Date(n.created_at)))
+    );
+    if(dmOnly.length) html+=dmOnly.map(([other,{msgs,unread}])=>{
       const last=[...msgs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];
       const prev=last?(last.from_user===me?`You: ${esc((last.message||'').slice(0,30))}`:esc((last.message||'').slice(0,35))):'';
-      return convItem('user:'+other,'💬','@'+other,unread,0,prev,'#dbeafe');
+      return item('user:'+other,'💬','@'+other,unread,0,prev,'#dbeafe');
     }).join('');
-  }
-
-  // Empty state if no 1-on-1 chats
-  if(!dmList.length){
-    html+=`<div style="padding:10px 14px 14px;text-align:center;color:var(--g300);font-size:11px">Tap <strong>+</strong> to start a 1-on-1 chat</div>`;
+    else html+=`<div style="padding:16px;text-align:center;color:var(--g300);font-size:12px">Loading contacts...</div>`;
   }
 
   el.innerHTML=html;
 
   // Update global badge
-  const tot=alertUnread+alertNeedsReply+annUnread+teamUnread+dmUnread;
-  const badgeEl=document.getElementById('conv-unread-total');
-  if(badgeEl){badgeEl.textContent=tot>99?'99+':tot;badgeEl.style.display=tot?'inline':'none';}
+  const tot=alertUnread+alertNeedsReply+teamUnread+Object.values(dmIndex).reduce((s,v)=>s+v.unread,0);
+  const badgeEl2=document.getElementById('conv-unread-total');
+  if(badgeEl2){badgeEl2.textContent=tot>99?'99+':tot;badgeEl2.style.display=tot?'inline':'none';}
   updateBellBadge();
 
   // Auto-open
-  const valid=new Set(['alerts','announcements','team',...dmList.map(([u])=>'user:'+u)]);
+  const valid=new Set(['alerts','team',...Object.keys(dmIndex).map(u=>'user:'+u),...(_allUsers||[]).map(u=>'user:'+u.username)]);
   if(!_activeConv||!valid.has(_activeConv)){_activeConv=null;openConv('alerts');}
 }
 
@@ -8463,24 +8492,6 @@ function openConv(key){
       buildConvList(); updateBellBadge();
       tmRead.forEach(n=>sb.from('notifications').update({read_by:n.read_by}).eq('id',n.id));
     }
-  } else if(key==='announcements'){
-    const isAdmin=getRole()==='admin'||ADMIN_USERS.includes(me);
-    header.innerHTML=`<span style="display:flex;align-items:center;gap:8px;width:100%">
-      <span style="font-size:14px;font-weight:700">📢 Announcements</span>
-      <button onclick="openAnnouncementForm()" style="margin-left:auto;padding:3px 10px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">+ Post</button>
-      ${isAdmin?'<button onclick="deleteAllAnnouncements()" style="padding:3px 8px;border:1px solid var(--g200);border-radius:5px;background:#fff;color:var(--g400);font-size:10px;cursor:pointer">🗑 All</button>':''}
-    </span>`;
-    setReplyMode('new'); // bottom shows "New message..." which opens DM form
-    const anns=_notifData.filter(n=>n.to_user===null&&n.type!=='alert')
-      .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
-    // Mark unread announcements FROM others as read (local-first)
-    const toRead=anns.filter(n=>n.from_user!==me&&!(n.read_by||[]).includes(me));
-    if(toRead.length){
-      toRead.forEach(n=>{n.read_by=[...(n.read_by||[]),me];});
-      buildConvList(); updateBellBadge();
-      toRead.forEach(n=>sb.from('notifications').update({read_by:n.read_by}).eq('id',n.id));
-    }
-    renderAnnThread(msgs,anns,me);
   } else if(key.startsWith('user:')){
     const user=key.slice(5);
     header.innerHTML=`<span style="display:flex;align-items:center;gap:8px;width:100%">
@@ -9312,42 +9323,47 @@ function fmtDateTime(ts){
 
 async function openNewMessageForm(){
   const me=getAuth();
-  const isAdmin=getRole()==='admin';
-  const{data:users}=await sb.from('user_permissions').select('username,display_name').eq('is_active',true);
-  const others=(users||[]).filter(u=>u.username!==me);
-  const recipOpts='<option value="">📢 All Users (Announcement)</option>'+
-    others.map(u=>`<option value="${u.username}">→ ${u.display_name||u.username} (@${u.username})</option>`).join('');
-  const typeOpts=isAdmin
-    ?`<option value="message">💬 Message</option><option value="announcement">📢 Announcement</option><option value="info">ℹ️ Info</option><option value="warning">⚠️ Warning</option>`
-    :`<option value="message">💬 Message</option>`;
+  // Use cached users, reload if empty
+  if(!_allUsers.length) await loadAllUsers();
+  const others=(_allUsers||[]).filter(u=>u.username!==me);
+  if(!others.length){toast('No other team members found');return;}
   openModal(`
-    <h3 style="margin:0 0 16px;font-size:15px;font-weight:800">✉️ New Message</h3>
-    <div style="display:grid;gap:12px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div>
-          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Type</label>
-          <select id="msg-type" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px">${typeOpts}</select>
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">To</label>
-          <select id="msg-to" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px">${recipOpts}</select>
-        </div>
-      </div>
-      <div>
-        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Subject <span style="color:var(--red)">*</span></label>
-        <input id="msg-title" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;box-sizing:border-box" placeholder="Message subject">
-      </div>
-      <div>
-        <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Message</label>
-        <textarea id="msg-body" rows="5" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit" placeholder="Write your message..."></textarea>
-      </div>
+    <h3 style="margin:0 0 14px;font-size:15px;font-weight:800">💬 New Direct Message</h3>
+    <div class="fg full" style="margin-bottom:14px">
+      <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">To</label>
+      <select id="nm-to" style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:14px;box-sizing:border-box">
+        ${others.map(u=>`<option value="${u.username}">${u.display_name||u.username} (@${u.username})</option>`).join('')}
+      </select>
     </div>
-    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+    <div class="fg full" style="margin-bottom:14px">
+      <label style="font-size:12px;font-weight:700;color:var(--g600);display:block;margin-bottom:4px">Message</label>
+      <textarea id="nm-msg" rows="4" placeholder="Type your message..."
+        style="width:100%;padding:9px;border:1.5px solid var(--g200);border-radius:7px;font-size:14px;resize:vertical;box-sizing:border-box;font-family:inherit;outline:none"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!event.ctrlKey){event.preventDefault();_sendNewMessage();}"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
       <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
-      <button onclick="sendNewMessage()" style="padding:9px 22px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">📤 Send</button>
+      <button onclick="_sendNewMessage()" style="padding:9px 22px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">Send</button>
     </div>
-  `,'New Message');
-  setTimeout(()=>document.getElementById('msg-title')?.focus(),80);
+  `,'New Direct Message');
+  setTimeout(()=>document.getElementById('nm-msg')?.focus(),100);
+}
+
+async function _sendNewMessage(){
+  const me=getAuth();
+  const to=(document.getElementById('nm-to')?.value||'').trim();
+  const msg=(document.getElementById('nm-msg')?.value||'').trim();
+  if(!to||!msg){toast('Please fill in all fields','err');return;}
+  const{data,error}=await sb.from('notifications').insert({
+    type:'message', title:'💬 '+me, message:msg, from_user:me, to_user:to,
+  }).select().single();
+  if(error){toast('Error: '+error.message,'err');return;}
+  if(data){if(!_lastKnownIds)_lastKnownIds=new Set();_lastKnownIds.add(data.id);_notifData.unshift(data);}
+  closeModal();
+  buildConvList();
+  _activeConv='user:'+to;
+  openConv('user:'+to);
+  toast('✅ Message sent to @'+to);
 }
 
 async function sendNewMessage(){
