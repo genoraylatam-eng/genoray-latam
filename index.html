@@ -1843,9 +1843,9 @@ async function loadDash(){
     // KPI cards - clickable (except Goal Achievement)
     const kpiCard=(c,ic,lbl,val,sub,drillKey)=>{
       const clickable=drillKey?'cursor:pointer':'';
-      const hint=drillKey?'<span style="font-size:9px;opacity:.5;margin-left:4px">▼ 내역</span>':'';
+      const hint=drillKey?'<span style="font-size:9px;opacity:.5;margin-left:4px">▼ Detail</span>':'';
       const onclick=drillKey?`onclick="showDashDrill('${drillKey}')" `:'';
-      return`<div class="stat-card ${c}" style="${clickable}" ${onclick}title="${drillKey?'클릭하여 내역 보기':''}"><div class="stat-label">${lbl}</div><div class="stat-value">${val}${hint}</div><div class="stat-sub">${sub}</div><div class="stat-icon">${ic}</div></div>`;
+      return`<div class="stat-card ${c}" style="${clickable}" ${onclick}title="${drillKey?'Click to view detail':''}"><div class="stat-label">${lbl}</div><div class="stat-value">${val}${hint}</div><div class="stat-sub">${sub}</div><div class="stat-icon">${ic}</div></div>`;
     };
     document.getElementById('stat-cards').innerHTML=
       kpiCard('blue','📈','Revenue ('+yr+', Shipped)','$'+fmt(sales),shipsYr.length+' shipments','revenue')+
@@ -2843,7 +2843,7 @@ async function autoCreateCollection(piNumber, shipAmount){
   if(!error){
     const msg=isPrepaid
       ?'✅ Collections: auto-marked as Collected (prepaid terms)'
-      :'📋 Collections: new record created for '+piNumber+' — 수금을 조건에 맞춰 진행하세요';
+      :'📋 Collections: new record created for '+piNumber+' — proceed with collection per payment terms';
     toast(msg,'ok');
     cache._xref=null;
   }
@@ -4209,13 +4209,13 @@ function computePaymentSchedule(termsText, blDate, totalAmount){
 // Human-readable rule explanation for the current terms (shown to reps)
 function explainPaymentRule(termsText){
   const t=(termsText||'').toLowerCase();
-  if(t.includes('before shipment')) return '100% T/T before shipment → 전액을 선적일에 수금 (1회).';
-  if(t.includes('in advance')&&t.includes('100%')) return '100% in advance → 전액을 선적 전에 수금 (1회).';
-  if(t.includes('at sight')) return 'L/C at Sight → 선적 서류 제출 시 전액 결제 (1회).';
-  if(/30\s*%/.test(t)&&/70\s*%/.test(t)) return '30% 선불(선적일) + 70% 잔금(B/L 기준).';
+  if(t.includes('before shipment')) return '100% T/T before shipment → Full amount collected on shipment date (1 payment).';
+  if(t.includes('in advance')&&t.includes('100%')) return '100% in advance → Full amount collected before shipment (1 payment).';
+  if(t.includes('at sight')) return 'L/C at Sight → Full payment upon submission of shipping documents (1 payment).';
+  if(/30\s*%/.test(t)&&/70\s*%/.test(t)) return '30% advance (shipment date) + 70% balance (B/L based).';
   const dm=t.match(/(\d{2,3})\s*d/);
-  if(t.includes('50/50')||/50\s*%/.test(t)) return `50% 선불(선적일) + 50% 잔금(B/L + ${dm?dm[1]:'__'}일).`;
-  return '결제 조건을 확인하고 회차별 금액·예정일을 직접 입력하세요.';
+  if(t.includes('50/50')||/50\s*%/.test(t)) return `50% advance (shipment) + 50% balance (B/L + ${dm?dm[1]:'__'}days).`;
+  return 'Check payment terms and enter amount/due date per installment.';
 }
 
 function autoStatus(page, r, xref){
@@ -5214,25 +5214,25 @@ const FORMS={
     ${acDistFg('ac-col',d.distributor||'')}${cntryFg('cnt-col',d.country||'')}
     <div class="fg"><label>Invoice Amount (USD)</label><input type="number" name="invoice_amount_usd" id="col-inv" value="${d.invoice_amount_usd||''}" oninput="colRecalcBalance()"></div>
     <div class="fg"><label>Shipping / B/L Date</label><input type="date" name="bl_date" id="col-bl" value="${d.bl_date||''}"></div>
-    <div class="fg full"><label>Payment Terms (PI 기준)</label><input name="payment_terms" id="col-terms" value="${esc(d.payment_terms||'')}" placeholder="예: 50/50 (90d B/L)"></div>
+    <div class="fg full"><label>Payment Terms (PI Based)</label><input name="payment_terms" id="col-terms" value="${esc(d.payment_terms||'')}" placeholder="e.g. 50/50 (90d B/L)"></div>
     <div class="fg full" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 12px;margin:2px 0">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <span style="font-size:11px;color:#0369a1" id="col-rule">규칙: PI Number와 B/L Date를 입력하면 자동 계산할 수 있어요.</span>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="colAutoFillSchedule()" style="white-space:nowrap">⚡ 자동 계산</button>
+        <span style="font-size:11px;color:#0369a1" id="col-rule">Enter PI Number and B/L Date to auto-calculate the schedule.</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="colAutoFillSchedule()" style="white-space:nowrap">⚡ Auto-Fill</button>
       </div>
     </div>
 
-    <div class="fg full"><label style="font-weight:700;color:var(--g700)">입금 스케줄 (자동 계산 후 직접 수정 가능)</label></div>
+    <div class="fg full"><label style="font-weight:700;color:var(--g700)">Payment Schedule (auto-calculated, editable)</label></div>
     ${[1,2,3].map(i=>`
-    <div class="fg"><label>${i}차 ${i===1?'(선불)':'(잔금)'} 금액</label><input type="number" name="pay${i}_amount" id="col-p${i}a" value="${d['pay'+i+'_amount']||''}" oninput="colRecalcBalance()"></div>
-    <div class="fg"><label>${i}차 예정일 (Due)</label><input type="date" name="pay${i}_due" value="${d['pay'+i+'_due']||''}"></div>
-    <div class="fg"><label>${i}차 실제 수금일</label><input type="date" name="pay${i}_date" value="${d['pay'+i+'_date']||''}"></div>
+    <div class="fg"><label>${i===1?'1st (Advance)':'Installment #'+i+' (Balance)'} Amount</label><input type="number" name="pay${i}_amount" id="col-p${i}a" value="${d['pay'+i+'_amount']||''}" oninput="colRecalcBalance()"></div>
+    <div class="fg"><label>${i}th Due Date</label><input type="date" name="pay${i}_due" value="${d['pay'+i+'_due']||''}"></div>
+    <div class="fg"><label>${i}th Actual Collection Date</label><input type="date" name="pay${i}_date" value="${d['pay'+i+'_date']||''}"></div>
     `).join('')}
 
-    <div class="fg"><label>Collected (총 수금액)</label><input type="number" name="collected_amount_usd" id="col-collected" value="${d.collected_amount_usd||''}" oninput="colRecalcBalance()"></div>
-    <div class="fg"><label>Balance (잔액)</label><input type="text" id="col-balance" readonly value="" style="background:var(--g50);font-weight:700"></div>
+    <div class="fg"><label>Collected (Total Received)</label><input type="number" name="collected_amount_usd" id="col-collected" value="${d.collected_amount_usd||''}" oninput="colRecalcBalance()"></div>
+    <div class="fg"><label>Balance (Remaining)</label><input type="text" id="col-balance" readonly value="" style="background:var(--g50);font-weight:700"></div>
     <div class="fg full">
-      <button type="button" class="btn btn-secondary btn-sm" onclick="colMarkAllReceived()" style="background:#dcfce7;color:#065f46;border-color:#86efac">✅ All Received (전액 수금 처리)</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="colMarkAllReceived()" style="background:#dcfce7;color:#065f46;border-color:#86efac">✅ All Received (Mark Fully Paid)</button>
     </div>
     <div class="fg"><label>Collection Date</label><input type="date" name="collection_date" value="${d.collection_date||tod()}"></div>
     <div class="fg"><label>Status</label><select name="status">${selOpts(['Pending','Collected','Partial','Overdue'],d.status||'Pending')}</select></div>
@@ -5293,7 +5293,7 @@ const FORMS={
         <!-- Category -->
         <div>
           <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px">
-            <span style="color:#dc2626">*</span> Category (제품군)
+            <span style="color:#dc2626">*</span> Category
           </label>
           <select name="_category" id="prod-cat-sel" onchange="updateProdCode()" style="width:100%;padding:8px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;cursor:pointer">
             <option value="">— Select Division first —</option>
@@ -5310,7 +5310,7 @@ const FORMS={
             <option value="Product" ${selType==='Product'?'selected':''}>📦 Product — Main Product</option>
             <option value="Option" ${selType==='Option'?'selected':''}>🔧 Option — Option / Accessory</option>
           </select>
-          <div style="font-size:10px;color:#9ca3af;margin-top:3px">Main Product이면 Product, 부속품은 Option</div>
+          <div style="font-size:10px;color:#9ca3af;margin-top:3px">Use "Product" for main items, "Option" for accessories</div>
         </div>
 
       </div>
@@ -5439,7 +5439,7 @@ function colSyncTermsFromPI(){
 function colUpdateRuleHint(){
   const terms=document.getElementById('col-terms')?.value||'';
   const el=document.getElementById('col-rule');
-  if(el) el.textContent='규칙: '+explainPaymentRule(terms);
+  if(el) el.textContent='Rule: '+explainPaymentRule(terms);
 }
 
 // Fill the 3-installment schedule automatically from terms + B/L date + invoice
@@ -5447,8 +5447,8 @@ function colAutoFillSchedule(){
   const terms=document.getElementById('col-terms')?.value||'';
   const bl=document.getElementById('col-bl')?.value||'';
   const inv=parseFloat(document.getElementById('col-inv')?.value||0);
-  if(!inv){ toast('Invoice Amount를 먼저 입력하세요','err'); return; }
-  if(!bl){ toast('Shipping / B/L Date를 먼저 입력하세요','err'); return; }
+  if(!inv){ toast('Please enter Invoice Amount first','err'); return; }
+  if(!bl){ toast('Please enter Shipping / B/L Date first','err'); return; }
   const sched=computePaymentSchedule(terms, bl, inv);
   for(let i=1;i<=3;i++){
     const amtEl=document.querySelector(`[name="pay${i}_amount"]`);
@@ -5459,7 +5459,7 @@ function colAutoFillSchedule(){
   }
   colUpdateRuleHint();
   colRecalcBalance();
-  toast('✅ 스케줄 자동 계산됨 — 필요하면 직접 수정하세요','ok');
+  toast('✅ Schedule auto-calculated — edit manually if needed','ok');
 }
 
 // Recompute balance = invoice − collected. If collected is blank, sum actual-received installments.
@@ -5484,7 +5484,7 @@ function colRecalcBalance(){
 // Mark everything received: collected = invoice, status = Collected, today as collection date
 function colMarkAllReceived(){
   const inv=parseFloat(document.getElementById('col-inv')?.value||0);
-  if(!inv){ toast('Invoice Amount를 먼저 입력하세요','err'); return; }
+  if(!inv){ toast('Please enter Invoice Amount first','err'); return; }
   const collEl=document.getElementById('col-collected');
   if(collEl) collEl.value=inv;
   const statusEl=document.querySelector('[name="status"]');
@@ -5492,7 +5492,7 @@ function colMarkAllReceived(){
   const cdEl=document.querySelector('[name="collection_date"]');
   if(cdEl&&!cdEl.value) cdEl.value=new Date().toISOString().slice(0,10);
   colRecalcBalance();
-  toast('✅ 전액 수금 처리됨','ok');
+  toast('✅ Marked as fully paid','ok');
 }
 
 async function saveForm(){
@@ -5520,11 +5520,11 @@ async function saveForm(){
     // If any installment has an amount, it must also have a due date (and vice-versa)
     for(let i=1;i<=3;i++){
       const amt=data['pay'+i+'_amount'], due=data['pay'+i+'_due'];
-      if(amt&&!due) miss.push(`${i}차 예정일(Due)`);
-      if(due&&!amt) miss.push(`${i}차 금액`);
+      if(amt&&!due) miss.push(`${i}th Due Date`);
+      if(due&&!amt) miss.push(`${i}th Amount`);
     }
     if(miss.length){
-      toast('⚠️ 필수 입력: '+miss.join(', '),'err');
+      toast('⚠️ Required: '+miss.join(', '),'err');
       btn.textContent='Save';btn.disabled=false;return;
     }
   }
@@ -5562,7 +5562,7 @@ async function saveForm(){
   // Auto-create Collections + remind when an HQ PO is created (PI → HQ PO transition)
   if(formState.page==='hqpo'&&data.pi_number){
     await autoCreateCollection(data.pi_number, data.pi_total_usd||0);
-    toast('🔔 '+data.pi_number+' 가 수금 목록에 추가되었습니다 — 결제 조건에 맞춰 수금을 진행하세요','ok');
+    toast('🔔 '+data.pi_number+' added to Collections — proceed with collection per payment terms','ok');
   }
 }
 
@@ -7636,7 +7636,7 @@ async function runTestEmail(){
   if(resEl){
     resEl.innerHTML=ok
       ?'<span style="color:var(--green);font-weight:700">✅ Email sent to '+esc(email)+'<br><small style="font-weight:400">Check your inbox and spam folder</small></span>'
-      :'<span style="color:var(--red);font-weight:700">❌ Failed: '+(window._lastEmailError||'Unknown error')+'</span><br><span style="font-size:11px;color:var(--g500)">EmailJS dashboard → Email History 탭에서 상세 확인</span>';
+      :'<span style="color:var(--red);font-weight:700">❌ Failed: '+(window._lastEmailError||'Unknown error')+'</span><br><span style="font-size:11px;color:var(--g500)">Check EmailJS dashboard → Email History tab for details</span>';
   }
   // After success: auto-close and go to dashboard after 1.5s
   if(ok){ setTimeout(()=>{ closeModal(); navigateTo('dashboard'); }, 1500); }
@@ -7645,7 +7645,7 @@ async function runTestEmail(){
 function resendCredentials(username, displayName, password, userType){
   if(!password){
     // No password stored - prompt to reset first
-    if(confirm('@'+username+' 의 비밀번호가 없습니다.\n새 임시 비밀번호를 발급하고 QR 메시지를 생성할까요?')){
+    if(confirm('@'+username+' has no password.\nIssue a new temporary password and generate a QR message?')){
       resetUserPassword(username).then(()=>{
         // After reset, reload and try again
         setTimeout(()=>loadAdminUsers(), 1000);
@@ -7867,7 +7867,7 @@ async function runDelayCheck(onlyEscalate=false, forceResend=false){
     const prev=sentMap[key]||[];
     if(prev.length===0){
       toInsert.push({type:'alert',title:rule.icon+' '+rule.label+' — '+num,
-        message:'Distributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n⚠️ 이 건을 처리한 뒤 반드시 Messages에서 사유와 조치 계획을 응답해 주세요.',
+        message:'Distributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n⚠️ Please respond in Messages with your reason and action plan after handling this.',
         from_user:'system',to_user:rep,related_page:'pi',related_id:key,
         _meta:{num,dist,rep,stageDays,stage,rule,isResend:false}});
     } else {
@@ -7875,12 +7875,12 @@ async function runDelayCheck(onlyEscalate=false, forceResend=false){
       const hoursSince=(Date.now()-lastSent.at)/3600000;
       const hasResponse=prev.some(n=>n.read);
       if((forceResend||hoursSince>=24)&&!hasResponse){
-        toInsert.push({type:'alert',title:'🔴 미응답 독촉: '+rule.label+' — '+num,
-          message:'Distributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n🚨 아직 응답이 없습니다. 즉시 Messages에서 사유와 조치 계획을 응답하고 이 건을 완료해 주세요.',
+        toInsert.push({type:'alert',title:'🔴 Follow-Up — No Reply: '+rule.label+' — '+num,
+          message:'Distributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n🚨 No response yet. Please respond immediately in Messages with your reason and action plan.',
           from_user:'system',to_user:rep,related_page:'pi',related_id:key,
           _meta:{num,dist,rep,stageDays,stage,rule,isResend:true}});
-        toInsert.push({type:'alert',title:'🔴 Admin Alert: 미응답 — '+num,
-          message:'담당자 @'+(rep||'unknown')+' 가 '+num+' ('+stageDays+'일 지연) 알림에 아직 응답하지 않았습니다.',
+        toInsert.push({type:'alert',title:'🔴 Admin Alert: No Reply — '+num,
+          message:'Rep @'+(rep||'unknown')+' has not yet responded to the '+num+' ('+stageDays+' day delay) alert.',
           from_user:'system',to_user:null,related_page:'pi',related_id:key+'_esc',
           _meta:{num,dist,rep,stageDays,stage,rule,isResend:true,isAdminCopy:true}});
       }
@@ -7906,10 +7906,10 @@ async function runDelayCheck(onlyEscalate=false, forceResend=false){
     const prev=sentMap[key]||[];
     const outstanding=Math.max(0,inv-got);
     const detail='Distributor: '+dist+'\nOutstanding: $'+Math.round(outstanding).toLocaleString()+
-      (needsSetup?'\n⚠️ 수금 스케줄·결제조건·선적일이 비어 있습니다.':'\n⚠️ 미수금이 남아 있습니다.');
+      (needsSetup?'\n⚠️ Collection schedule, payment terms, or shipment date is missing.':'\n⚠️ Outstanding balance remains.');
     if(prev.length===0){
       toInsert.push({type:'alert',title:rule.icon+' '+rule.label+' — '+num,
-        message:detail+'\n\n⚠️ 수금 내역을 모두 입력/수금 완료한 뒤 반드시 Messages에서 응답해 주세요.',
+        message:detail+'\n\n⚠️ Please enter all collection details and respond in Messages once completed.',
         from_user:'system',to_user:rep,related_page:'collections',related_id:key,
         _meta:{num,dist,rep,stageDays:0,stage:'col_setup',rule,isResend:false}});
     } else {
@@ -7917,12 +7917,12 @@ async function runDelayCheck(onlyEscalate=false, forceResend=false){
       const hoursSince=(Date.now()-lastSent.at)/3600000;
       const hasResponse=prev.some(n=>n.read);
       if((forceResend||hoursSince>=24)&&!hasResponse){
-        toInsert.push({type:'alert',title:'🔴 미응답 독촉: '+rule.label+' — '+num,
-          message:detail+'\n\n🚨 아직 응답이 없습니다. 즉시 수금 내역을 처리하고 Messages에서 응답해 주세요.',
+        toInsert.push({type:'alert',title:'🔴 Follow-Up — No Reply: '+rule.label+' — '+num,
+          message:detail+'\n\n🚨 No response yet. Please handle the collection and respond in Messages immediately.',
           from_user:'system',to_user:rep,related_page:'collections',related_id:key,
           _meta:{num,dist,rep,stageDays:0,stage:'col_setup',rule,isResend:true}});
-        toInsert.push({type:'alert',title:'🔴 Admin Alert: 수금 미응답 — '+num,
-          message:'담당자 @'+(rep||'unknown')+' 가 '+num+' 수금 알림에 아직 응답하지 않았습니다.',
+        toInsert.push({type:'alert',title:'🔴 Admin Alert: No Collection Reply — '+num,
+          message:'Rep @'+(rep||'unknown')+' has not yet responded to the '+num+' collection alert.',
           from_user:'system',to_user:null,related_page:'collections',related_id:key+'_esc',
           _meta:{num,dist,rep,stageDays:0,stage:'col_setup',rule,isResend:true,isAdminCopy:true}});
       }
@@ -7988,7 +7988,7 @@ async function runDelayCheck(onlyEscalate=false, forceResend=false){
       ${repRows}
     </div>
     <div style="font-size:11px;color:var(--g400);background:#fff8e1;border:1px solid #fcd34d;border-radius:6px;padding:8px 10px;margin-bottom:14px">
-      ⚡ ${toInsert.length}개 알림이 발송됩니다. Sales Rep들이 Messages에서 확인하게 됩니다.
+      ⚡ ${toInsert.length}alerts will be sent. Sales Reps will see them in Messages.
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button onclick="closeModal()" style="padding:9px 18px;border:1px solid var(--g200);border-radius:8px;background:#fff;font-size:13px;cursor:pointer">Cancel</button>
@@ -8007,7 +8007,7 @@ async function _executeDelayAlerts(toInsert){
   hidePageLoading();
   if(error){toast('Error: '+error.message,'err');return;}
   const cnt=clean.filter(n=>n.to_user!==null).length;
-  toast('✅ '+cnt+'개 알림 발송 완료');
+  toast('✅ '+cnt+'alerts sent');
   await loadNotifications();
   navigateTo('dashboard');
 }
@@ -9802,7 +9802,7 @@ async function _autoSendDelayAlerts(){
         from_user:'system',to_user:rep,related_page:'pi',related_id:key});
     } else if(hoursSince>=resendHours){
       toInsert.push({type:'alert',
-        title:'[Auto] 🔴 미응답 독촉: '+rule.label+' — '+num,
+        title:'[Auto] 🔴 Follow-Up — No Reply: '+rule.label+' — '+num,
         message:'[Auto re-sent by system]\nDistributor: '+dist+'\nStage: '+rule.stage+'\nDelayed: '+stageDays+' days\n\n🚨 No response yet. Please respond immediately.',
         from_user:'system',to_user:rep,related_page:'pi',related_id:key});
     }
@@ -9834,7 +9834,7 @@ async function _autoSendDelayAlerts(){
         from_user:'system',to_user:rep,related_page:'collections',related_id:key});
     } else if(hoursSince>=resendHours){
       toInsert.push({type:'alert',
-        title:'[Auto] 🔴 미응답 독촉: '+rule.label+' — '+num,
+        title:'[Auto] 🔴 Follow-Up — No Reply: '+rule.label+' — '+num,
         message:'[Auto re-sent by system]\nDistributor: '+dist+'\n🚨 No response yet. Please handle collection details immediately.',
         from_user:'system',to_user:rep,related_page:'collections',related_id:key});
     }
