@@ -2036,6 +2036,7 @@ function navigateTo(p){
   if(titleEl)titleEl.textContent=PAGE_TITLES[p]||p;
   if(window.innerWidth<=768){ closeSidebar(); updateBottomNav(p); }
   hidePageLoading();
+  updateReadOnlyIndicator(); // refresh badge on every page change
   loadPage(p);
 }
 
@@ -8140,14 +8141,13 @@ function updateReadOnlyIndicator(){
     if(tbRight)tbRight.insertBefore(badge,tbRight.firstChild);
   }
   // Hide badge on pages where it doesn't make sense
-  if(NO_BADGE_PAGES.includes(page)){
+  // Admin never sees any badge — they can do everything
+  if(isAdmin || NO_BADGE_PAGES.includes(page)){
     badge.textContent=''; badge.style.display='none'; return;
   }
   badge.style.display='';
   const perm=_userPerms['perm_'+page]||'view';
-  if(isAdmin){
-    badge.textContent='ADMIN'; badge.style.background='#f59e0b'; badge.style.color='#fff';
-  } else if(perm==='edit'){
+  if(perm==='edit'){
     badge.textContent='EDIT'; badge.style.background='#dcfce7'; badge.style.color='#065f46';
   } else {
     badge.textContent='VIEW ONLY'; badge.style.background='#dbeafe'; badge.style.color='#1e40af';
