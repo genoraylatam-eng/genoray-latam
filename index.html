@@ -9266,6 +9266,74 @@ function buildConvList(){
     else html+=`<div style="padding:16px;text-align:center;color:var(--g300);font-size:12px">Loading contacts...</div>`;
   }
 
+  // ── SECTION: Admin Monitor (visible only to admins) ──────────────────────
+  const isAdminUser=getRole()==='admin'||ADMIN_USERS.includes(me);
+  if(isAdminUser){
+    // Find the Admin sender account (first admin that is NOT me)
+    const adminSender=(_allUsers||[]).find(u=>
+      (u.role==='admin'||ADMIN_USERS.includes(u.username))&&u.username!==me
+    );
+    if(adminSender){
+      const adminUser=adminSender.username;
+      // Get all DMs sent FROM the admin account (outgoing only)
+      const adminSentMsgs=_notifData.filter(n=>
+        n.type==='message'&&n.from_user===adminUser&&n.to_user&&n.to_user!=='__all__'
+      );
+      if(adminSentMsgs.length>0){
+        // Group by recipient
+        const adminDmIndex={};
+        adminSentMsgs.forEach(n=>{
+          if(!adminDmIndex[n.to_user])adminDmIndex[n.to_user]=[];
+          adminDmIndex[n.to_user].push(n);
+        });
+        html+=`<div style="padding:8px 16px 4px;font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.07em;background:#faf5ff;display:flex;align-items:center;gap:6px">
+          <span>🔍 Admin Monitor</span>
+          <span style="font-size:9px;background:#7c3aed;color:#fff;padding:1px 5px;border-radius:8px;font-weight:700">${Object.keys(adminDmIndex).length}</span>
+        </div>`;
+        // Sort by most recent
+        const adminConvs=Object.entries(adminDmIndex).sort((a,b)=>{
+          const la=Math.max(...a[1].map(n=>+new Date(n.created_at)));
+          const lb=Math.max(...b[1].map(n=>+new Date(n.created_at)));
+          return lb-la;
+        });
+        html+=adminConvs.map(([toUser,msgs])=>{
+          const key='admin-monitor:'+toUser;
+          const act=_activeConv===key;
+          const last=[...msgs].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];
+          const preview=last?esc((last.message||'').slice(0,38)):'';
+          const recipUser=(_allUsers||[]).find(u=>u.username===toUser);
+          const recipName=recipUser?.display_name||toUser;
+          const initial=recipName[0].toUpperCase();
+          const colors=['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#ef4444','#6366f1'];
+          const avatarColor=colors[toUser.charCodeAt(0)%colors.length];
+          return`<div onclick="openConv('${key}')"
+            style="display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;
+              background:${act?'#7c3aed':'transparent'};color:${act?'#fff':'var(--g900)'};
+              border-bottom:1px solid #f3e8ff;transition:background .1s"
+            onmouseover="if(!this.style.background.includes('7c3aed'))this.style.background='#faf5ff'"
+            onmouseout="if(!this.style.background.includes('7c3aed'))this.style.background='transparent'">
+            <div style="position:relative;flex-shrink:0">
+              <div style="width:42px;height:42px;border-radius:50%;background:${act?'rgba(255,255,255,.2)':avatarColor};
+                display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff">${initial}</div>
+              <div style="position:absolute;bottom:0;right:0;width:14px;height:14px;border-radius:50%;
+                background:#7c3aed;border:2px solid #fff;display:flex;align-items:center;justify-content:center;
+                font-size:8px;color:#fff;font-weight:800">A</div>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:2px">
+                <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">@${esc(recipName)}</span>
+                <span style="font-size:10px;opacity:.5">${msgs.length} msg${msgs.length>1?'s':''}</span>
+              </div>
+              <div style="font-size:11px;opacity:.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                <span style="color:#7c3aed;font-weight:600">Admin →</span> ${preview}
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    }
+  }
+
   el.innerHTML=html;
 
   // Update global badge
@@ -9275,7 +9343,8 @@ function buildConvList(){
   updateBellBadge();
 
   // Auto-open
-  const valid=new Set(['alerts','team',...Object.keys(dmIndex).map(u=>'user:'+u),...(_allUsers||[]).map(u=>'user:'+u.username)]);
+  const adminMonitorKeys=(_allUsers||[]).filter(u=>(u.role==='admin'||ADMIN_USERS.includes(u.username))&&u.username!==me).length>0?_notifData.filter(n=>n.type==='message'&&(_allUsers||[]).some(u=>(u.role==='admin'||ADMIN_USERS.includes(u.username))&&u.username!==me&&n.from_user===u.username)).map(n=>'admin-monitor:'+n.to_user):[];
+  const valid=new Set(['alerts','team',...Object.keys(dmIndex).map(u=>'user:'+u),...(_allUsers||[]).map(u=>'user:'+u.username),...adminMonitorKeys]);
   if(!_activeConv||!valid.has(_activeConv)){_activeConv=null;openConv('alerts');}
 }
 
@@ -9344,6 +9413,38 @@ function openConv(key){
       // Background DB sync (no await — don't block UI)
       toRead.forEach(n=>sb.from('notifications').update({read_by:n.read_by}).eq('id',n.id));
     }
+  } else if(key.startsWith('admin-monitor:')){
+    // ── Admin Monitor: view DMs sent BY Admin account TO a specific user ──
+    const toUser=key.slice('admin-monitor:'.length);
+    const adminSender=(_allUsers||[]).find(u=>
+      (u.role==='admin'||ADMIN_USERS.includes(u.username))&&u.username!==me
+    );
+    const adminUser=adminSender?.username||'admin';
+    const adminDisplay=adminSender?.display_name||'Admin';
+    const recipUser=(_allUsers||[]).find(u=>u.username===toUser);
+    const recipName=recipUser?.display_name||toUser;
+
+    header.innerHTML=`<span style="display:flex;align-items:center;gap:8px;width:100%">
+      <span style="font-size:18px">🔍</span>
+      <div>
+        <div style="font-size:14px;font-weight:700">Admin → @${esc(recipName)}</div>
+        <div style="font-size:10px;color:var(--g400)">Monitor view — messages sent by ${esc(adminDisplay)} (Admin)</div>
+      </div>
+    </span>`;
+
+    // Read-only: hide the reply box
+    if(replyBox) replyBox.style.display='none';
+
+    // Show all messages between Admin account and this user
+    const adminThread=_notifData.filter(n=>
+      n.type==='message'&&(
+        (n.from_user===adminUser&&n.to_user===toUser)||
+        (n.from_user===toUser&&n.to_user===adminUser)
+      )
+    ).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+
+    // Render as Admin's perspective (admin is "me" in this view)
+    renderMsgThread(msgs,adminThread,adminUser,toUser);
   }
 }
 
