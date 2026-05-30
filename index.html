@@ -358,9 +358,20 @@ tr:hover td{background:var(--g50)}
   #sidebar.mob-open{left:0}
 
   /* Topbar compact */
-  #topbar{padding:0 12px;height:52px}
+  #topbar{padding:0 10px;height:52px}
   #topbar .tb-right .tb-connected{display:none}
-  #page-title{font-size:15px}
+  #page-title{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw}
+  /* Hide username text on mobile — bell icon is enough */
+  .tb-username{display:none!important}
+  /* Sign Out: icon only on mobile */
+  .tb-signout-text{display:none}
+  .tb-signout{padding:5px 7px!important;min-width:unset}
+  /* Shrink year badge on mobile */
+  .tbadge{font-size:10px;padding:1px 5px;margin-left:4px}
+  /* perm-badge smaller on mobile */
+  #perm-badge{font-size:9px!important;padding:1px 5px!important}
+  /* tb-right: prevent overflow */
+  .tb-right{gap:6px!important;flex-shrink:0}
 
   /* Content padding reduced */
   #content{padding:12px;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
@@ -447,6 +458,10 @@ tr:hover td{background:var(--g50)}
   .stat-grid{grid-template-columns:1fr}
   #stat-cards{grid-template-columns:1fr}
   .stat-value{font-size:20px}
+  /* Admin bar: icon only on very small screens */
+  .admin-btn-text{display:none}
+  /* Page title even smaller */
+  #page-title{max-width:32vw;font-size:13px}
 }
 
 
@@ -833,10 +848,10 @@ tr[data-paid="true"] td{opacity:.55}
         🔔
         <span id="notif-badge" style="display:none;position:absolute;top:0;right:0;background:#ef4444;color:#fff;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px">0</span>
       </button>
-      <span style="font-size:11px;color:var(--g500);font-weight:500" id="logged-in-user"></span>
-      <button class="btn btn-secondary btn-sm" onclick="doLogout()" style="font-size:11px;display:flex;align-items:center;gap:5px">
+      <span class="tb-username" style="font-size:11px;color:var(--g500);font-weight:500" id="logged-in-user"></span>
+      <button class="btn btn-secondary btn-sm tb-signout" onclick="doLogout()" style="font-size:11px;display:flex;align-items:center;gap:5px" title="Sign Out">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
-        Sign Out
+        <span class="tb-signout-text">Sign Out</span>
       </button>
     </div>
   </div>
@@ -1401,16 +1416,16 @@ tr[data-paid="true"] td{opacity:.55}
         <button id="new-msg-btn" onclick="openNewMessageForm()" style="padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .2s">✉️ <span id="new-msg-count">New</span></button>
       </div>
       <!-- Admin-only Delay Tools Bar (hidden for non-admin) -->
-      <div id="notif-admin-bar" style="display:none;align-items:center;gap:8px;padding:8px 16px;background:linear-gradient(135deg,#1e3a8a,#2563eb);flex-shrink:0;flex-wrap:wrap">
-        <span style="font-size:11px;color:rgba(255,255,255,.7);font-weight:600;flex:1">⚙️ Admin Tools</span>
-        <button onclick="runDelayCheck()" style="padding:5px 12px;background:rgba(255,165,0,.25);color:#fff;border:1.5px solid rgba(255,165,0,.5);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
-          ⚠️ Check Delays
+      <div id="notif-admin-bar" style="display:none;align-items:center;gap:6px;padding:6px 12px;background:linear-gradient(135deg,#1e3a8a,#2563eb);flex-shrink:0;flex-wrap:wrap">
+        <span style="font-size:11px;color:rgba(255,255,255,.7);font-weight:600;flex:1;white-space:nowrap">⚙️ Admin Tools</span>
+        <button onclick="runDelayCheck()" style="padding:5px 10px;background:rgba(255,165,0,.25);color:#fff;border:1.5px solid rgba(255,165,0,.5);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap">
+          ⚠️ <span class="admin-btn-text">Check Delays</span>
         </button>
-        <button onclick="runDelayCheck(false,true)" style="padding:5px 12px;background:rgba(239,68,68,.25);color:#fff;border:1.5px solid rgba(239,68,68,.5);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
-          📢 Resend All
+        <button onclick="runDelayCheck(false,true)" style="padding:5px 10px;background:rgba(239,68,68,.25);color:#fff;border:1.5px solid rgba(239,68,68,.5);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap">
+          📢 <span class="admin-btn-text">Resend All</span>
         </button>
-        <button onclick="openTestEmailForm()" style="padding:5px 12px;background:rgba(255,255,255,.1);color:#fff;border:1.5px solid rgba(255,255,255,.3);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
-          📧 Test Email
+        <button onclick="openTestEmailForm()" style="padding:5px 10px;background:rgba(255,255,255,.1);color:#fff;border:1.5px solid rgba(255,255,255,.3);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap">
+          📧 <span class="admin-btn-text">Test Email</span>
         </button>
       </div>
 
