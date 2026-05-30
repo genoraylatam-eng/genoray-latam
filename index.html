@@ -568,6 +568,17 @@ tr:hover td{background:var(--g50)}
 .msg-read-receipt .rr-double{color:#3b82f6;font-size:12px;line-height:1;font-weight:700}
 
 /* Alert read receipt */
+.alrt-unread-dot{
+  display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:#ef4444;flex-shrink:0;margin-right:2px;
+  box-shadow:0 0 0 2px rgba(239,68,68,.25);
+}
+.alrt-read-status{
+  display:inline-flex;align-items:center;gap:3px;
+  font-size:9px;padding:1px 6px;border-radius:10px;font-weight:700;
+}
+.alrt-read-status.unread{background:#fef2f2;color:#dc2626}
+.alrt-read-status.read{background:#f0fdf4;color:#16a34a}
 .alrt-seen-badge{
   display:inline-flex;align-items:center;gap:3px;
   font-size:9px;color:var(--g400);padding:1px 5px;
@@ -1942,6 +1953,7 @@ async function init(){
     startRealtimeNotifications();          // live push — no manual refresh needed
     checkUnreadOnLogin();                  // show banner if unread on login
     initAutoScheduler();                   // start 8AM/5PM EST auto-send scheduler
+    initUnreadAlertReminder();            // start 4h unread alert DM reminder
     setInterval(checkDeleteAlarm, 60000);
     setInterval(loadNotifications, 30000); // fallback poll every 30s (realtime is primary)
   } catch(err){
@@ -9684,9 +9696,11 @@ function renderAlertThread(el){
               <span class="alrt-stage">${esc(stageLbl)}</span>
             </div>
             <div class="alrt-badges">
+              <span class="alrt-read-status ${isRead?'read':'unread'}">
+                ${isRead?'✓ Read':'● Unread'}
+              </span>
               ${delayDays?`<span class="alrt-badge alrt-delay">${delayDays}d</span>`:''}
               ${isEsc?'<span class="alrt-badge alrt-esc">ESC</span>':''}
-              ${(n.read_by||[]).includes(n.to_user)?'<span class="alrt-badge" style="background:#eff6ff;color:#1d4ed8;font-size:9px">👁 Seen</span>':''}
               ${needsResp
                 ?'<span class="alrt-badge alrt-wait">⚠️ Reply Required</span>'
                 :'<span class="alrt-badge alrt-replied">✓ Replied</span>'}
@@ -9747,6 +9761,9 @@ function renderAlertThread(el){
               </div>
               <div class="alrt-badges">
                 ${delayDays?`<span class="alrt-badge alrt-delay">${delayDays}d</span>`:''}
+                ${(latestAlert.read_by||[]).includes(g.recipient)
+                  ?'<span class="alrt-read-status read" style="font-size:9px">✓ Read</span>'
+                  :'<span class="alrt-read-status unread" style="font-size:9px">● Unread</span>'}
                 ${awaiting
                   ?'<span class="alrt-badge alrt-wait">⏳ Awaiting</span>'
                   :'<span class="alrt-badge alrt-replied">✓ Replied</span>'}
@@ -10630,6 +10647,109 @@ function initAutoScheduler(){
   scheduleNext();
   console.log('[AutoScheduler] ✅ Initialized — fires at 8AM and 5PM US Eastern');
 }
+// ── Unread Alert Reminder System ──────────────────────────────────────────
+// Runs every 15 min. Alerts unread for >4h trigger a DM from Admin to recipient.
+let _unreadReminderInited=false;
+let _remindersSentThisSession={}; // key: alertId → last reminder timestamp
+
+function initUnreadAlertReminder(){
+  if(_unreadReminderInited)return;
+  _unreadReminderInited=true;
+  // Run immediately, then every 15 min
+  _checkUnreadAlerts();
+  setInterval(_checkUnreadAlerts, 15*60*1000);
+  console.log('[UnreadReminder] ✅ Initialized — checks every 15 min');
+}
+
+async function _checkUnreadAlerts(){
+  const me=getAuth(); if(!me)return;
+  const role=getRole();
+  // Only admin users run the sender side
+  if(role!=='admin')return;
+
+  // Get all unread alerts sent to other users
+  const now=Date.now();
+  const FOUR_HOURS=4*60*60*1000;
+  const REMIND_INTERVAL=4*60*60*1000; // resend every 4h if still unread
+
+  // Fetch fresh notifications
+  const{data:alerts}=await sb.from('notifications')
+    .select('id,type,title,to_user,from_user,created_at,read_by,related_id')
+    .eq('type','alert');
+  if(!alerts||!alerts.length)return;
+
+  // Find admin sender — first active admin that is NOT current user
+  const{data:admins}=await sb.from('user_permissions')
+    .select('username,display_name')
+    .eq('role','admin')
+    .eq('is_active',true);
+  const senderAdmin=(admins||[]).find(a=>a.username!==me);
+  const senderUsername=senderAdmin?.username||'admin';
+  const senderDisplay=senderAdmin?.display_name||'Admin';
+
+  const toSend=[];
+
+  for(const n of alerts){
+    if(!n.to_user)continue; // skip broadcast alerts
+    if(n.from_user===n.to_user)continue; // skip self-alerts
+    const readBy=n.read_by||[];
+    const isRead=readBy.includes(n.to_user);
+    if(isRead)continue; // already read — skip
+
+    const ageMs=now-new Date(n.created_at).getTime();
+    if(ageMs<FOUR_HOURS)continue; // too recent
+
+    // Check if we already sent a reminder for this alert recently
+    const lastReminderAt=_remindersSentThisSession[n.id]||0;
+    if(now-lastReminderAt<REMIND_INTERVAL)continue;
+
+    // Check DB: did we already send a DM reminder for this alert in the last 4h?
+    const{data:existing}=await sb.from('notifications')
+      .select('id,created_at')
+      .eq('type','message')
+      .eq('from_user',senderUsername)
+      .eq('to_user',n.to_user)
+      .eq('related_id','unread_reminder_'+n.id)
+      .order('created_at',{ascending:false})
+      .limit(1);
+
+    if(existing&&existing.length>0){
+      const lastSentAt=new Date(existing[0].created_at).getTime();
+      if(now-lastSentAt<REMIND_INTERVAL)continue; // sent recently — skip
+    }
+
+    toSend.push(n);
+  }
+
+  if(!toSend.length){
+    console.log('[UnreadReminder] No unread alerts to remind');
+    return;
+  }
+
+  console.log('[UnreadReminder] Sending',toSend.length,'reminder(s)...');
+
+  for(const n of toSend){
+    const ageH=Math.floor((now-new Date(n.created_at).getTime())/3600000);
+    const piRef=n.related_id?(n.related_id.split('_').slice(0,-1).join('_')||n.related_id):'';
+    const{error}=await sb.from('notifications').insert({
+      type:'message',
+      title:'⚠️ Unread Alert Reminder',
+      message:'Hi @'+n.to_user+',\n\nYou have an unread System Alert'+(piRef?' for '+piRef:'')+' that has been waiting for '+ageH+' hour'+(ageH!==1?'s':'')+'.\n\nPlease check your Alerts tab and respond with your action plan.\n\n— '+senderDisplay+' (Admin)',
+      from_user:senderUsername,
+      to_user:n.to_user,
+      related_id:'unread_reminder_'+n.id,
+      related_page:'notifications',
+    });
+    if(!error){
+      _remindersSentThisSession[n.id]=now;
+      console.log('[UnreadReminder] ✅ Sent reminder to @'+n.to_user+' for alert',n.id);
+    } else {
+      console.warn('[UnreadReminder] ❌ Failed:',error.message);
+    }
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 
 async function _autoSendDelayAlerts(){
   const me=getAuth(); if(!me)return;
