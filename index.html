@@ -8198,8 +8198,11 @@ const NOTIF_STYLE={
 
 async function loadAllUsers(){
   const me=getAuth(); if(!me)return;
-  const{data}=await sb.from('user_permissions').select('username,display_name').eq('is_active',true);
-  _allUsers=(data||[]).filter(u=>u.username!==me);
+  const{data}=await sb.from('user_permissions').select('username,display_name,role').eq('is_active',true);
+  _allUsers=(data||[]).filter(u=>
+    u.username!==me &&          // exclude self
+    u.username!=='admin'         // exclude generic admin system account
+  );
 }
 
 async function loadNotifications(){
