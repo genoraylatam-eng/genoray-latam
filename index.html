@@ -8205,10 +8205,12 @@ function updateBellBadge(){
   const me=getAuth();
   const badge=document.getElementById('notif-badge');
   if(!badge)return;
-  // 🔴 Unread messages RECEIVED by me (from others only)
+  // 🔴 Unread messages RECEIVED by me (strictly to_user===me, from others)
   const unreadMsgs=_notifData.filter(n=>
-    n.type==='message'&&n.to_user===me&&
-    n.from_user!==me&&!(n.read_by||[]).includes(me)
+    n.type==='message'&&
+    n.to_user===me&&          // must be addressed TO me
+    n.from_user!==me&&        // not my own messages
+    !(n.read_by||[]).includes(me)  // I haven't read it
   ).length;
   // 🔴 Unread alerts RECEIVED by me (not sent by me)
   const unreadAlerts=_notifData.filter(n=>
@@ -8293,16 +8295,19 @@ function buildConvList(){
   ).length;
   if(anns.length) convs.push({key:'announcements',icon:'📢',label:'Announcements',unread:annUnread,needsReply:0,type:'announcements'});
 
-  // 3. Per-person conversations — RECEIVED UNREAD ONLY (like WhatsApp/iMessage)
+  // 3. Per-person conversations — ONLY messages where I am sender OR receiver
+  //    (Admin sees all DB messages, but must only show OWN conversations here)
   const userMsgs={};
-  _notifData.filter(n=>n.type==='message').forEach(n=>{
+  _notifData.filter(n=>
+    n.type==='message'&&
+    (n.from_user===me||n.to_user===me) // ← KEY FIX: only my conversations
+  ).forEach(n=>{
     const other=n.from_user===me?n.to_user:n.from_user;
     if(!other||other==='system')return;
     if(!userMsgs[other])userMsgs[other]={msgs:[],unread:0,lastFrom:null};
     userMsgs[other].msgs.push(n);
-    // Badge: ONLY messages FROM the other person that I haven't read yet
-    if(n.from_user!==me&&!(n.read_by||[]).includes(me)) userMsgs[other].unread++;
-    // Track most recent message for preview (regardless of direction)
+    // Badge: ONLY messages sent TO me by the other person, that I haven't read
+    if(n.from_user!==me&&n.to_user===me&&!(n.read_by||[]).includes(me)) userMsgs[other].unread++;
     if(!userMsgs[other].lastFrom||new Date(n.created_at)>new Date(userMsgs[other].lastFrom.created_at))
       userMsgs[other].lastFrom=n;
   });
@@ -8407,16 +8412,16 @@ function openConv(key){
     const user=key.slice(5);
     header.innerHTML=`<span style="display:flex;align-items:center;gap:8px;width:100%"><span>💬 @${esc(user)}</span><button onclick="clearConversation('${esc(user)}')" style="margin-left:auto;padding:2px 8px;font-size:10px;border:1px solid var(--g200);border-radius:5px;background:#fff;color:var(--g500);cursor:pointer">🗑 Clear</button></span>`;
     if(replyBox){replyBox.style.display='block';replyBox.dataset.to=user;}
-    // Get all messages between me and this user
+    // Get ONLY messages strictly between me and this user (no cross-user leakage)
     const thread=_notifData.filter(n=>
       n.type==='message'&&(
-        (n.from_user===me&&n.to_user===user)||
-        (n.from_user===user&&n.to_user===me)
+        (n.from_user===me&&n.to_user===user)||   // I sent to them
+        (n.from_user===user&&n.to_user===me)      // They sent to me
       )
     ).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
     renderMsgThread(msgs,thread,me,user);
-    // ── Mark all as read: LOCAL first (instant badge update), DB async ──────
-    const toRead=thread.filter(n=>n.from_user!==me&&!(n.read_by||[]).includes(me));
+    // ── Mark unread messages (from them to me) as read: LOCAL first ──────────
+    const toRead=thread.filter(n=>n.from_user!==me&&n.to_user===me&&!(n.read_by||[]).includes(me));
     if(toRead.length){
       toRead.forEach(n=>{n.read_by=[...(n.read_by||[]),me];}); // instant local update
       buildConvList();   // immediately refresh counts in sidebar
@@ -8458,9 +8463,12 @@ async function deleteChatMsg(id,otherUser){
   _notifData=_notifData.filter(n=>n.id!==id);
   buildConvList(); updateBellBadge();
   if(otherUser){
-    const thread=_notifData.filter(n=>n.type==='message'&&(
-      (n.from_user===me&&n.to_user===otherUser)||(n.from_user===otherUser&&n.to_user===me)
-    )).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+    const thread=_notifData.filter(n=>
+      n.type==='message'&&(
+        (n.from_user===me&&n.to_user===otherUser)||
+        (n.from_user===otherUser&&n.to_user===me)
+      )
+    ).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
     const msgs=document.getElementById('thread-messages');
     if(msgs)renderMsgThread(msgs,thread,me,otherUser);
   }
@@ -8469,9 +8477,12 @@ async function deleteChatMsg(id,otherUser){
 async function clearConversation(otherUser){
   const me=getAuth();
   if(!confirm('Delete all messages in this conversation? Cannot be undone.'))return;
-  const ids=_notifData.filter(n=>n.type==='message'&&(
-    (n.from_user===me&&n.to_user===otherUser)||(n.from_user===otherUser&&n.to_user===me)
-  )).map(n=>n.id);
+  const ids=_notifData.filter(n=>
+    n.type==='message'&&(
+      (n.from_user===me&&n.to_user===otherUser)||
+      (n.from_user===otherUser&&n.to_user===me)
+    )
+  ).map(n=>n.id);
   if(!ids.length){toast('No messages to delete');return;}
   const{error}=await sb.from('notifications').delete().in('id',ids);
   if(error){toast('Error: '+error.message,'err');return;}
@@ -8940,9 +8951,10 @@ function showMsgToast(from, preview, type='message'){
 function checkUnreadOnLogin(){
   const me=getAuth(); if(!me)return;
   const unread=(_notifData||[]).filter(n=>
-    n.from_user!==me&&
-    !(n.read_by||[]).includes(me)&&
-    (n.to_user===me||n.to_user===null)
+    n.to_user===me&&           // must be addressed TO me specifically
+    n.from_user!==me&&         // not my own messages
+    n.from_user!=='system'&&   // system auto-alerts handled separately
+    !(n.read_by||[]).includes(me)
   );
   if(!unread.length)return;
   const msgs=unread.filter(n=>n.type==='message').length;
