@@ -9269,16 +9269,24 @@ function buildConvList(){
   // ── SECTION: Admin Monitor (visible only to admins) ──────────────────────
   const isAdminUser=getRole()==='admin'||ADMIN_USERS.includes(me);
   if(isAdminUser){
-    // Find the Admin sender account (first admin that is NOT me)
-    const adminSender=(_allUsers||[]).find(u=>
-      (u.role==='admin'||ADMIN_USERS.includes(u.username))&&u.username!==me
+    // Find admin-sent DMs directly from _notifData (don't rely on _allUsers)
+    // Admin accounts in ADMIN_USERS that are NOT the current user
+    const adminAccounts=ADMIN_USERS.filter(u=>u!==me);
+    // Also include any user with role=admin in _allUsers that is not me
+    const roleAdmins=(_allUsers||[]).filter(u=>u.role==='admin'&&u.username!==me).map(u=>u.username);
+    const allAdminSenders=[...new Set([...adminAccounts,...roleAdmins])];
+
+    // Get ALL DMs sent from any admin account (excluding me) to other users
+    const adminSentMsgs=_notifData.filter(n=>
+      n.type==='message'&&
+      allAdminSenders.includes(n.from_user)&&
+      n.to_user&&n.to_user!=='__all__'&&n.to_user!==me
     );
-    if(adminSender){
-      const adminUser=adminSender.username;
-      // Get all DMs sent FROM the admin account (outgoing only)
-      const adminSentMsgs=_notifData.filter(n=>
-        n.type==='message'&&n.from_user===adminUser&&n.to_user&&n.to_user!=='__all__'
-      );
+
+    // Determine the display name of the admin sender
+    const adminUser=adminSentMsgs.length>0?adminSentMsgs[0].from_user:(allAdminSenders[0]||'admin');
+
+    if(true){ // always show section if admin (even if no msgs yet)
       if(adminSentMsgs.length>0){
         // Group by recipient
         const adminDmIndex={};
@@ -9331,7 +9339,7 @@ function buildConvList(){
           </div>`;
         }).join('');
       }
-    }
+    } // end if(true)
   }
 
   el.innerHTML=html;
@@ -9343,7 +9351,7 @@ function buildConvList(){
   updateBellBadge();
 
   // Auto-open
-  const adminMonitorKeys=(_allUsers||[]).filter(u=>(u.role==='admin'||ADMIN_USERS.includes(u.username))&&u.username!==me).length>0?_notifData.filter(n=>n.type==='message'&&(_allUsers||[]).some(u=>(u.role==='admin'||ADMIN_USERS.includes(u.username))&&u.username!==me&&n.from_user===u.username)).map(n=>'admin-monitor:'+n.to_user):[];
+  const _adminSndrs=ADMIN_USERS.filter(u=>u!==me);const adminMonitorKeys=_notifData.filter(n=>n.type==='message'&&_adminSndrs.includes(n.from_user)&&n.to_user&&n.to_user!==me).map(n=>'admin-monitor:'+n.to_user);
   const valid=new Set(['alerts','team',...Object.keys(dmIndex).map(u=>'user:'+u),...(_allUsers||[]).map(u=>'user:'+u.username),...adminMonitorKeys]);
   if(!_activeConv||!valid.has(_activeConv)){_activeConv=null;openConv('alerts');}
 }
@@ -9416,11 +9424,15 @@ function openConv(key){
   } else if(key.startsWith('admin-monitor:')){
     // ── Admin Monitor: view DMs sent BY Admin account TO a specific user ──
     const toUser=key.slice('admin-monitor:'.length);
-    const adminSender=(_allUsers||[]).find(u=>
-      (u.role==='admin'||ADMIN_USERS.includes(u.username))&&u.username!==me
-    );
-    const adminUser=adminSender?.username||'admin';
-    const adminDisplay=adminSender?.display_name||'Admin';
+    // Find admin sender: check ADMIN_USERS list first, then _allUsers role
+    const adminAccounts2=ADMIN_USERS.filter(u=>u!==me);
+    const roleAdmins2=(_allUsers||[]).filter(u=>u.role==='admin'&&u.username!==me).map(u=>u.username);
+    const allAdminSenders2=[...new Set([...adminAccounts2,...roleAdmins2])];
+    // Try to get the sender from the actual messages
+    const sentByAdmin=_notifData.filter(n=>n.type==='message'&&allAdminSenders2.includes(n.from_user)&&n.to_user===toUser);
+    const adminUser=sentByAdmin.length>0?sentByAdmin[0].from_user:(allAdminSenders2[0]||'admin');
+    const adminSenderUser=(_allUsers||[]).find(u=>u.username===adminUser);
+    const adminDisplay=adminSenderUser?.display_name||'Admin';
     const recipUser=(_allUsers||[]).find(u=>u.username===toUser);
     const recipName=recipUser?.display_name||toUser;
 
@@ -9435,11 +9447,11 @@ function openConv(key){
     // Read-only: hide the reply box
     if(replyBox) replyBox.style.display='none';
 
-    // Show all messages between Admin account and this user
+    // Show all messages between any admin account and this user
     const adminThread=_notifData.filter(n=>
       n.type==='message'&&(
-        (n.from_user===adminUser&&n.to_user===toUser)||
-        (n.from_user===toUser&&n.to_user===adminUser)
+        (allAdminSenders2.includes(n.from_user)&&n.to_user===toUser)||
+        (n.from_user===toUser&&allAdminSenders2.includes(n.to_user))
       )
     ).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
 
