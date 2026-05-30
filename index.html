@@ -52,12 +52,12 @@ body{display:flex;height:100vh;background:var(--g100);color:var(--g900);font-siz
 .nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
 .nav-item.active{background:rgba(255,255,255,.1);color:#fff;border-left-color:var(--blue2)}
 .nav-icon{font-size:14px;width:17px;text-align:center;flex-shrink:0}
-#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
 #topbar{background:var(--white);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--g200);flex-shrink:0;box-shadow:var(--sh)}
 #page-title{font-size:17px;font-weight:700}
 .tbadge{background:var(--blue-pale);color:var(--blue);font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;margin-left:8px}
-#content{flex:1;overflow-y:auto;padding:24px}
-.page{display:none}.page.active{display:flex;flex-direction:column}#page-notifications.active{display:flex;flex-direction:column}
+#content{flex:1;overflow-y:auto;overflow-x:hidden;padding:24px}
+.page{display:none}.page.active{display:flex;flex-direction:column;min-height:0;flex:1}#page-notifications.active{display:flex;flex-direction:column}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 @keyframes slideUp{from{transform:translateY(100px);opacity:0}to{transform:translateY(0);opacity:1}}
 /* Hide-completed toggle */
@@ -307,7 +307,7 @@ tr:hover td{background:var(--g50)}
   #page-title{font-size:15px}
 
   /* Content padding reduced */
-  #content{padding:12px}
+  #content{padding:12px;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
 
   /* Stat cards: 2 per row */
   .stat-grid{grid-template-columns:repeat(2,1fr);gap:10px}
@@ -320,7 +320,7 @@ tr:hover td{background:var(--g50)}
   .panel-acts .search-box input{width:100px}
 
   /* Tables: horizontal scroll */
-  .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;display:block}
   table{min-width:600px}
   th,td{padding:8px 10px;font-size:12px;white-space:nowrap}
 
@@ -333,15 +333,18 @@ tr:hover td{background:var(--g50)}
   /* Achievement cards: 1 col */
   .ach-country-grid{grid-template-columns:1fr}
 
-  /* Modal: full screen */
+  /* Modal: full screen sheet from bottom */
   .overlay{padding:0;align-items:flex-end}
-  .modal{width:100%!important;max-height:92vh;border-radius:var(--rlg) var(--rlg) 0 0}
-  .modal-body{padding:16px}
-  .modal-foot{padding:12px 16px}
+  .modal{width:100%!important;max-height:85vh;border-radius:var(--rlg) var(--rlg) 0 0;margin-bottom:0}
+  .modal-body{padding:16px;-webkit-overflow-scrolling:touch}
+  .modal-foot{padding:12px 16px;padding-bottom:max(16px, env(safe-area-inset-bottom))}
 
   /* Forms: single column */
   .form-grid{grid-template-columns:1fr!important}
   .fg.full{grid-column:1}
+  /* Prevent iOS auto-zoom on input focus */
+  input,select,textarea{font-size:16px!important}
+  .lf input,.lf select{font-size:16px!important}
 
   /* Goal form grid */
   .form-grid > div[style*="grid-column"]{grid-column:1}
@@ -520,9 +523,11 @@ tr[data-paid="true"] td{opacity:.55}
   #notif-left{
     width:100%;border-right:none;
     border-bottom:1.5px solid var(--g100);
-    max-height:38vh;min-height:90px
+    max-height:35vh;min-height:80px;flex-shrink:0
   }
-  #notif-left #conv-items{overflow-y:auto}
+  #notif-left #conv-items{overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #notif-right{flex:1;min-height:0;overflow:hidden}
+  #thread-messages{-webkit-overflow-scrolling:touch}
 }
 </style>
 </head>
@@ -9182,6 +9187,93 @@ window.addEventListener('resize', ()=>{
   // If not logged in, login screen is shown by default (visible in HTML)
 })();
 
+// ════════════════════════════════════════════════════════════════════════════
+// MOBILE NAVIGATION — sidebar toggle, bottom nav, swipe, safe area
+// ════════════════════════════════════════════════════════════════════════════
+
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('mob-overlay');
+  if(!sb)return;
+  const isOpen=sb.classList.contains('mob-open');
+  if(isOpen){ closeSidebar(); }
+  else {
+    sb.classList.add('mob-open');
+    if(ov)ov.classList.add('show');
+    document.body.style.overflow='hidden'; // prevent scroll behind
+  }
+}
+
+function closeSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('mob-overlay');
+  if(sb)sb.classList.remove('mob-open');
+  if(ov)ov.classList.remove('show');
+  document.body.style.overflow='';
+}
+
+function updateBottomNav(page){
+  document.querySelectorAll('#bottom-nav .bn-item[data-page]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.page===page);
+  });
+  // Show bell badge count on notifications item
+  const notifBtn=document.querySelector('#bottom-nav .bn-item[data-page="notifications"]');
+  const badge=document.getElementById('notif-badge');
+  if(notifBtn&&badge){
+    const count=badge.textContent||'0';
+    const show=badge.style.display!=='none'&&count!=='0';
+    let dot=notifBtn.querySelector('.bn-badge');
+    if(show){
+      if(!dot){dot=document.createElement('span');dot.className='bn-badge';notifBtn.appendChild(dot);}
+      dot.textContent=count;
+    } else {
+      if(dot)dot.remove();
+    }
+  }
+}
+
+// ── Bottom nav badge CSS (injected once) ─────────────────────────────────────
+(function injectBnBadgeCss(){
+  const id='bn-badge-style';
+  if(document.getElementById(id))return;
+  const s=document.createElement('style');
+  s.id=id;
+  s.textContent=`.bn-badge{position:absolute;top:2px;right:12px;background:#ef4444;color:#fff;font-size:8px;font-weight:800;min-width:14px;height:14px;border-radius:7px;display:flex;align-items:center;justify-content:center;padding:0 3px;pointer-events:none}.bn-item{position:relative}`;
+  document.head.appendChild(s);
+})();
+
+// ── Patch updateBellBadge to also update bottom nav ──────────────────────────
+const _origUpdateBell=updateBellBadge;
+updateBellBadge=function(){
+  _origUpdateBell();
+  updateBottomNav(activePage);
+};
+
+// ── Close sidebar when ESC key pressed ───────────────────────────────────────
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape') closeSidebar();
+});
+
+// ── Swipe-right to open sidebar (touch devices) ──────────────────────────────
+(function initSwipe(){
+  let sx=0,sy=0;
+  document.addEventListener('touchstart',function(e){
+    sx=e.touches[0].clientX;
+    sy=e.touches[0].clientY;
+  },{passive:true});
+  document.addEventListener('touchend',function(e){
+    const dx=e.changedTouches[0].clientX-sx;
+    const dy=Math.abs(e.changedTouches[0].clientY-sy);
+    // Swipe right from left edge (≤30px) → open sidebar
+    if(dx>60&&dy<60&&sx<30) toggleSidebar();
+    // Swipe left on open sidebar → close
+    if(dx<-60&&dy<60){
+      const sb=document.getElementById('sidebar');
+      if(sb&&sb.classList.contains('mob-open')) closeSidebar();
+    }
+  },{passive:true});
+})();
+
 </script>
 
 <!-- Mobile Bottom Navigation -->
@@ -9189,17 +9281,14 @@ window.addEventListener('resize', ()=>{
   <button class="bn-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
     <span class="bn-icon">📊</span><span class="bn-label">Dashboard</span>
   </button>
-  <button class="bn-item" data-page="pipeline" onclick="navigateTo('pipeline')">
-    <span class="bn-icon">🔄</span><span class="bn-label">Pipeline</span>
-  </button>
   <button class="bn-item" data-page="pi" onclick="navigateTo('pi')">
     <span class="bn-icon">📋</span><span class="bn-label">PI</span>
   </button>
-  <button class="bn-item" data-page="shipments" onclick="navigateTo('shipments')">
-    <span class="bn-icon">🚢</span><span class="bn-label">Shipments</span>
+  <button class="bn-item" data-page="collections" onclick="navigateTo('collections')">
+    <span class="bn-icon">💰</span><span class="bn-label">Collections</span>
   </button>
-  <button class="bn-item" data-page="help" onclick="navigateTo('help')">
-    <span class="bn-icon">📖</span><span class="bn-label">Manual</span>
+  <button class="bn-item" data-page="notifications" onclick="navigateTo('notifications')">
+    <span class="bn-icon">🔔</span><span class="bn-label">Messages</span>
   </button>
   <button class="bn-item" onclick="toggleSidebar()">
     <span class="bn-icon">☰</span><span class="bn-label">More</span>
