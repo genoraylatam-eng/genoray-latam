@@ -8259,7 +8259,20 @@ function renderNotifications(){
     adminBar.style.display=isAdmin?'flex':'none';
   }
   buildConvList();
-  if(_activeConv) openConv(_activeConv);
+  // Only re-open _activeConv if it still exists in the conv list
+  // (messages may have been deleted, making the conv disappear)
+  if(_activeConv){
+    const convItems=document.querySelectorAll('#conv-items [onclick]');
+    const activeStillExists=[...convItems].some(el=>
+      el.getAttribute('onclick')&&el.getAttribute('onclick').includes("'"+_activeConv+"'")
+    );
+    if(activeStillExists){
+      openConv(_activeConv);
+    } else {
+      _activeConv=null; // Reset — conv no longer exists
+      // buildConvList already auto-opens first available conv
+    }
+  }
 }
 
 function buildConvList(){
@@ -8364,8 +8377,12 @@ function buildConvList(){
     totalBadge.style.background=totalUnread?'#ef4444':'#f59e0b';
   }
 
-  // Auto-open first conv if nothing selected yet
-  if(!_activeConv&&convs.length) openConv(convs[0].key);
+  // Auto-open: open first conv if nothing selected, OR if current selection no longer exists
+  const convKeys=new Set(convs.map(c=>c.key));
+  if(!_activeConv||!convKeys.has(_activeConv)){
+    _activeConv=null; // Reset stale selection
+    if(convs.length) openConv(convs[0].key);
+  }
 }
 
 function openConv(key){
@@ -8461,16 +8478,21 @@ async function deleteChatMsg(id,otherUser){
   const{error}=await sb.from('notifications').delete().eq('id',id);
   if(error){toast('Error: '+error.message,'err');return;}
   _notifData=_notifData.filter(n=>n.id!==id);
-  buildConvList(); updateBellBadge();
-  if(otherUser){
-    const thread=_notifData.filter(n=>
-      n.type==='message'&&(
-        (n.from_user===me&&n.to_user===otherUser)||
-        (n.from_user===otherUser&&n.to_user===me)
-      )
-    ).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
-    const msgs=document.getElementById('thread-messages');
-    if(msgs)renderMsgThread(msgs,thread,me,otherUser);
+  // Check if conversation is now empty after deletion
+  const remaining=_notifData.filter(n=>n.type==='message'&&(
+    (n.from_user===me&&n.to_user===otherUser)||
+    (n.from_user===otherUser&&n.to_user===me)
+  ));
+  if(remaining.length===0){
+    // Conv is empty — reset and let buildConvList auto-open something else
+    _activeConv=null;
+    buildConvList(); updateBellBadge();
+  } else {
+    buildConvList(); updateBellBadge();
+    if(otherUser){
+      const msgs=document.getElementById('thread-messages');
+      if(msgs)renderMsgThread(msgs,remaining.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)),me,otherUser);
+    }
   }
 }
 
@@ -8489,6 +8511,7 @@ async function clearConversation(otherUser){
   _notifData=_notifData.filter(n=>!ids.includes(n.id));
   const msgs=document.getElementById('thread-messages');
   if(msgs)msgs.innerHTML='<div style="text-align:center;color:var(--g300);font-size:13px;margin-top:40px">No messages yet</div>';
+  _activeConv=null; // Reset so buildConvList can auto-open next available conv
   buildConvList(); updateBellBadge();
   toast('✅ Conversation cleared');
 }
